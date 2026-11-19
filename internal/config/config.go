@@ -106,7 +106,7 @@ type VisualizerConfig struct {
 	DelayMs int `toml:"delay_ms"`
 	// BarWidth is the width of each bar in columns.
 	BarWidth int `toml:"bar_width"`
-	// Style is "bars" or "mirror".
+	// Style is "bars", "mirror" or "wave".
 	Style string `toml:"style"`
 }
 

@@ -150,16 +150,18 @@ type Model struct {
 	lyricsScroll  int
 
 	// visualizer
-	vizOn      bool
-	vizStyle   string
-	vizTap     *viz.Tap
-	vizAn      *viz.Analyzer
-	vizBuf     []float32
-	vizLevels  []float64
-	vizPeaks   []float64
-	vizSeen    int64
-	vizStalled int
-	vizAt      time.Time
+	vizOn       bool
+	vizStyle    string
+	vizWave     []float32
+	vizWaveGain float64
+	vizTap      *viz.Tap
+	vizAn       *viz.Analyzer
+	vizBuf      []float32
+	vizLevels   []float64
+	vizPeaks    []float64
+	vizSeen     int64
+	vizStalled  int
+	vizAt       time.Time
 
 	restart        bool
 	restartAttempt int
@@ -806,11 +808,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "V":
-		if m.vizStyle == "mirror" {
+		switch m.vizStyle {
+		case "mirror":
+			m.vizStyle = "wave"
+		case "wave":
 			m.vizStyle = "bars"
-		} else {
+		default:
 			m.vizStyle = "mirror"
 		}
+		m.vizWaveGain = 1
 		m.vizOn = m.vizTap != nil
 		m.setFlash("Visualizer style: "+m.vizStyle, false)
 		return m, nil

@@ -167,7 +167,7 @@ var helpSections = []struct {
 		{"[ ]", "cover pixel size"},
 		{"{ }", "cover colours"},
 		{"v", "visualizer on/off"},
-		{"V", "visualizer style"},
+		{"V", "visualizer style: bars · mirror · wave"},
 		{"< > 0", "lyrics offset (lyrics page)"},
 	}},
 }
