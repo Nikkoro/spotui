@@ -717,6 +717,16 @@ func (m *Model) activate(it *listItem) tea.Cmd {
 	eng := m.eng
 	switch it.kind {
 	case kindTrack:
+		// In the queue, jump ahead to the entry instead of replacing what
+		// plays, so the rest of the queue survives.
+		if m.page == pageQueue {
+			if it.uri == m.currentURI() {
+				return nil
+			}
+			uri := it.uri
+			m.setFlash("Skipping to "+it.title, false)
+			return call("Skip", func(ctx context.Context) error { return eng.SkipTo(ctx, uri) })
+		}
 		ctxURI, trackURI := it.context, it.uri
 		if ctxURI == "" {
 			ctxURI, trackURI = it.uri, ""

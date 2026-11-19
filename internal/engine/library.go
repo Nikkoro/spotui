@@ -185,3 +185,9 @@ func (e *Engine) AddToPlaylist(ctx context.Context, playlistURI string, uris []s
 	_, err := e.request(ctx, daemon.ApiRequestTypePlaylistAddTracks, daemon.ApiPlaylistAddTracks{PlaylistUri: playlistURI, Uris: uris})
 	return err
 }
+
+// SkipTo jumps to a track further on in the queue or the context.
+func (e *Engine) SkipTo(ctx context.Context, uri string) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypeNext, daemon.ApiNext{Uri: &uri})
+	return err
+}
