@@ -37,16 +37,20 @@ const (
 	libPlaylists = iota
 	libAlbums
 	libArtists
+	libRecent
+	libTopTracks
+	libTopArtists
+	libTabCount
 )
 
-var libTabs = []string{"Playlists", "Albums", "Artists"}
+var libTabs = []string{"Playlists", "Albums", "Artists", "Recent", "Top tracks", "Top artists"}
 
 type libraryPage struct {
 	tab     int
-	lists   [3]listModel
-	loaded  [3]bool
-	loading [3]bool
-	err     [3]error
+	lists   [libTabCount]listModel
+	loaded  [libTabCount]bool
+	loading [libTabCount]bool
+	err     [libTabCount]error
 }
 
 func newLibraryPage() libraryPage { return libraryPage{} }
@@ -163,7 +167,7 @@ type webAuthDoneMsg struct{ err error }
 // --- loaders ---
 
 func (m Model) loadLibrary(tab int) tea.Cmd {
-	eng, username := m.eng, m.username
+	eng, username, api := m.eng, m.username, m.api
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
@@ -213,6 +217,44 @@ func (m Model) loadLibrary(tab int) tea.Cmd {
 					kind: kindAlbum, title: a.Name, subtitle: strings.Join(a.ArtistNames, ", "),
 					right: right, uri: a.Uri, imageURL: deref(a.ImageUrl),
 				})
+			}
+		case libRecent:
+			hist, err := api.RecentlyPlayed(ctx)
+			if err != nil {
+				return libLoadedMsg{tab: tab, err: webErr(err)}
+			}
+			seen := map[string]bool{}
+			for _, h := range hist {
+				if seen[h.Track.URI] {
+					continue // listening to a song on repeat shows it once
+				}
+				seen[h.Track.URI] = true
+				it := webTrackItem(h.Track)
+				if h.Context != nil && h.Context.URI != "" {
+					it.context = h.Context.URI
+				}
+				it.right = agoLabel(h.PlayedAt)
+				items = append(items, it)
+			}
+		case libTopTracks:
+			tracks, err := api.TopTracks(ctx)
+			if err != nil {
+				return libLoadedMsg{tab: tab, err: webErr(err)}
+			}
+			for _, t := range tracks {
+				items = append(items, webTrackItem(t))
+			}
+		case libTopArtists:
+			artists, err := api.TopArtists(ctx)
+			if err != nil {
+				return libLoadedMsg{tab: tab, err: webErr(err)}
+			}
+			for _, a := range artists {
+				sub := ""
+				if len(a.Genres) > 0 {
+					sub = strings.Join(a.Genres[:min(2, len(a.Genres))], ", ")
+				}
+				items = append(items, listItem{kind: kindArtist, title: a.Name, subtitle: sub, uri: a.URI, imageURL: firstImage(a.Images)})
 			}
 		case libArtists:
 			artists, err := eng.Artists(ctx)
@@ -833,4 +875,41 @@ func firstImage(images []webapi.Image) string {
 		return ""
 	}
 	return images[len(images)/2].URL
+}
+
+// webTrackItem lists a Web API track, played in its album.
+func webTrackItem(t webapi.Track) listItem {
+	names := make([]string, len(t.Artists))
+	for i, a := range t.Artists {
+		names[i] = a.Name
+	}
+	return listItem{
+		kind: kindTrack, title: t.Name, subtitle: strings.Join(names, ", ") + " · " + t.Album.Name,
+		right: fmtDuration(int64(t.DurationMs)), uri: t.URI, context: t.Album.URI,
+	}
+}
+
+// webErr makes Web API failures on library tabs readable.
+func webErr(err error) error {
+	if errors.Is(err, webapi.ErrNotAuthorized) {
+		return errors.New("needs the Web API: search once to connect it")
+	}
+	return err
+}
+
+// agoLabel turns an RFC 3339 time into "5m", "3h", "2d".
+func agoLabel(ts string) string {
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return ""
+	}
+	d := time.Since(t)
+	switch {
+	case d < time.Hour:
+		return itoa(max(int(d.Minutes()), 1)) + "m ago"
+	case d < 48*time.Hour:
+		return itoa(int(d.Hours())) + "h ago"
+	default:
+		return itoa(int(d.Hours()/24)) + "d ago"
+	}
 }
