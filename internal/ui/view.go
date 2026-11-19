@@ -353,12 +353,21 @@ func (m Model) coverPlaceholder(size int) string {
 func (m Model) viewTrackInfo(w int) string {
 	t := m.track
 	if t == nil {
+		tip := func(key, text string) string {
+			return m.theme.key.Width(9).Render(key) + m.theme.text.Render(text)
+		}
 		return lipgloss.JoinVertical(lipgloss.Left,
-			m.theme.title.Render("Nothing playing"),
+			m.theme.title.Render("Nothing playing yet"),
 			"",
 			lipgloss.NewStyle().Width(w).Foreground(colSubtle).Render(
-				"Pick \""+m.cfg.DeviceName+"\" in Spotify Connect on your phone or computer, "+
-					"browse your library with 2, search with 3, or press u to play a link."),
+				"This terminal is \""+m.cfg.DeviceName+"\" in Spotify Connect: pick it on your phone, or:"),
+			"",
+			tip("2", "your library"),
+			tip("3", "search"),
+			tip("D", "start Spotify's DJ"),
+			tip("d", "pull playback here from another device"),
+			tip("ctrl+k", "anything else, by name"),
+			tip("?", "all keys"),
 		)
 	}
 

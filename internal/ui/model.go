@@ -163,6 +163,7 @@ type Model struct {
 	vizStalled  int
 	vizAt       time.Time
 
+	warnings       []string
 	restart        bool
 	restartAttempt int
 	restartAt      time.Time
@@ -489,6 +490,10 @@ func (m *Model) handleEvent(ev engine.Event) tea.Cmd {
 		m.phase = phaseReady
 		m.auth = nil
 		cmds := []tea.Cmd{tea.EnableMouseCellMotion, m.applyStatus(ev.Status)}
+		if len(m.warnings) > 0 {
+			m.setFlash("config.toml: "+strings.Join(m.warnings, " · "), true)
+			m.warnings = nil
+		}
 		// A page restored from the last run needs its data now.
 		switch m.page {
 		case pageLibrary:

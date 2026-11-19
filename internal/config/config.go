@@ -81,6 +81,8 @@ type Config struct {
 	// Dirs are resolved at load time and never written to the file.
 	ConfigDir string `toml:"-"`
 	CacheDir  string `toml:"-"`
+	// Warnings lists keys in the file that mean nothing, usually typos.
+	Warnings []string `toml:"-"`
 }
 
 // CoverConfig controls how the album cover is rendered.
@@ -175,8 +177,15 @@ func Load(dir string) (*Config, error) {
 	cfg := Default()
 	path := filepath.Join(dir, "config.toml")
 
-	switch _, err := toml.DecodeFile(path, &cfg); {
+	switch meta, err := toml.DecodeFile(path, &cfg); {
 	case err == nil:
+		for _, k := range meta.Undecoded() {
+			// [keys] and [colors] are free-form maps, checked elsewhere.
+			if len(k) > 0 && (k[0] == "keys" || k[0] == "colors") {
+				continue
+			}
+			cfg.Warnings = append(cfg.Warnings, "unknown setting "+k.String())
+		}
 	case errors.Is(err, os.ErrNotExist):
 		if err := write(path, &cfg); err != nil {
 			return nil, err
