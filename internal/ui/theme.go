@@ -31,6 +31,7 @@ var (
 	colTrack  = lipgloss.Color("#34343C")
 	colError  = lipgloss.Color("#FF5F6D")
 	colDark   = lipgloss.Color("#101014")
+	colSelBg  = lipgloss.Color("#24242C")
 )
 
 func newTheme(accentHex string) theme {

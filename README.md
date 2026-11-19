@@ -18,9 +18,16 @@ Stage 1 (current):
 - [x] UI accent colour taken from the current cover
 - [x] Play any Spotify link or URI
 
+Stage 2:
+
+- [x] Library: playlists (with folders), Liked Songs, saved albums, followed artists
+- [x] Playlist / album / artist pages, play from any track
+- [x] Search (tracks, albums, artists, playlists) through the Web API
+- [x] Queue view, add to queue, like/unlike the current track
+- [x] Fuzzy filter on every list
+
 Next:
 
-- [ ] Library, playlists, search, queue (Web API with your own client id)
 - [ ] Real-time audio visualizer (FFT of the decoded audio)
 - [ ] Live synced lyrics
 - [ ] Media keys and notifications (MPRIS on Linux, SMTC on Windows)
@@ -54,13 +61,22 @@ The Windows build is a single static `.exe`.
 
 | Key | Action |
 | --- | --- |
+| `1` `2` `3` `4` | Now Playing / Library / Search / Queue |
+| `↑` `↓` (`k` `j`), `g` `G`, `ctrl+u` `ctrl+d` | move in lists |
+| `enter` | open playlist/album/artist, play track |
+| `esc` / `backspace` | back, clear filter |
+| `tab` / `shift+tab` | switch section (Library, Search results) |
+| `/` | filter the list (on Search: edit the query) |
+| `a` | add selected track to the queue |
+| `R` | reload the current list |
 | `space` | play / pause |
 | `n` / `p` | next / previous |
 | `←` `→` (`h` `l`) | seek ±5 s |
 | `+` / `-` | volume |
 | `s` | shuffle |
 | `r` | repeat: off → all → track |
-| `u` or `/` | play a Spotify link or URI |
+| `f` | like / unlike the current track |
+| `u` | play a Spotify link or URI |
 | `[` / `]` | cover pixel resolution |
 | `{` / `}` | cover colour depth |
 | `q` | quit |
@@ -72,6 +88,7 @@ The Windows build is a single static `.exe`.
 
 ```toml
 device_name = "spotui (my-pc)"
+client_id = ""            # your Spotify app's client id (for search)
 audio_backend = ""        # alsa | pulseaudio | wasapi | pipe; empty = auto
 audio_device = "default"
 bitrate = 320             # 96 | 160 | 320
@@ -87,7 +104,30 @@ levels = 8                # colour levels per channel; 0 = full colour
 dynamic_accent = true     # tint the UI with the cover's colour
 ```
 
+### Your own Spotify app (recommended)
+
+Library, playlists and playback go through the Connect protocol and need no
+app. Search uses the Web API: without `client_id` it borrows the session
+token, which is shared by every librespot client and often rate limited.
+
+1. Create an app at <https://developer.spotify.com/dashboard> (or reuse the
+   one you use with spotify_player).
+2. Add `http://127.0.0.1:8989/login` as a redirect URI.
+3. Put its client id in `client_id`. No secret is needed (PKCE).
+
+The first search opens the browser to approve the app; the token is kept in
+`webapi_token.json`.
+
 Logs are written to `spotui.log` in the same folder (`--debug` for more).
+
+## Development
+
+Render sample screens without a Spotify connection:
+
+```sh
+PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
+python3 scripts/ans2png.py /tmp/frames/1-now-playing.ans /tmp/np.png 120 36
+```
 
 ## Building
 
