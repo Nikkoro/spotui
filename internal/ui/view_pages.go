@@ -76,11 +76,18 @@ func (m Model) errorLine(err error) string {
 
 func (m Model) viewLibrary(w, h int) string {
 	l := &m.lib.lists[m.lib.tab]
-	head := m.pageTitle("Your Library", l.position(), w)
+	right := l.position()
+	if m.lib.loading[m.lib.tab] && len(l.items) > 0 {
+		right = m.spinner.View() + " refreshing   " + right
+	}
+	head := m.pageTitle("Your Library", right, w)
 	tabs := m.tabBar(libTabs, m.lib.tab, nil)
 
 	var body string
 	switch {
+	case m.lib.err[m.lib.tab] != nil && len(l.items) > 0:
+		// Keep showing the cached copy; just say it may be stale.
+		body = m.listBlock(l, w, h-5) + "\n" + m.theme.dim.Render("offline copy · "+m.lib.err[m.lib.tab].Error()+" · R retries")
 	case m.lib.err[m.lib.tab] != nil:
 		body = m.errorLine(m.lib.err[m.lib.tab]) + "\n" + m.theme.dim.Render("press R to retry")
 	case m.lib.loading[m.lib.tab] && len(l.items) == 0:

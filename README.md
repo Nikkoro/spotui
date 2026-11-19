@@ -61,6 +61,18 @@ Stage 7:
 - [x] Ask DJ: while it plays, `D` opens a panel to type a request or pick one
       of Spotify's suggested prompts; "Pick something different" starts a new set
 
+Polish 1:
+
+- [x] Covers cached on disk (instant on replays, work offline), next track's
+      cover prefetched; library cached per account and shown at once while
+      it refreshes
+- [x] Remembers page, library tab, cover look, visualizer and search
+      history (`↑` `↓` in the search box) between runs
+- [x] Add to playlist (`P`), go to album / artist of the playing track
+      (`A` / `I`), sleep timer (`z`)
+- [x] Rebind any key in `[keys]`; seek and volume steps configurable
+- [x] Player restarts on its own after a lost session, backing off 5 s → 1 min
+
 ## Install
 
 Grab `spotui-linux-amd64.tar.gz` (Linux/WSL) or `spotui-windows-amd64.zip`
@@ -116,6 +128,9 @@ The Windows build is a single static `.exe`.
 | `d` | devices: move playback |
 | `?` | help |
 | `V` | visualizer style (bars / mirror) |
+| `P` | add selected / playing track to a playlist |
+| `A` / `I` | go to album / artist of the playing track |
+| `z` | sleep timer: 15, 30, 45, 60, 90 min, end of track, off |
 | `q` | quit |
 
 ## Configuration
@@ -135,13 +150,24 @@ audio_cache = true
 audio_cache_size_mb = 1024
 notifications = true      # desktop notification on track change
 media_controls = true     # MPRIS (Linux) / global media keys (Windows)
+seek_step_seconds = 5
+volume_step = 5
 theme = "spotify"         # spotify | catppuccin | gruvbox | nord | rose-pine | tokyo-night
+
+[keys]                    # extra bindings: action = "key[, key…]"
+# next = "ctrl+n"
+# play_pause = "k"
+# actions: play_pause next previous seek_forward seek_backward volume_up
+# volume_down shuffle repeat like add_to_queue add_to_playlist go_to_album
+# go_to_artist devices dj sleep_timer visualizer visualizer_style play_link
+# filter help quit now_playing library search queue lyrics reload
 
 [cover]
 enabled = true
 pixel_size = 32           # 8–64; lower = chunkier pixels
 levels = 8                # colour levels per channel; 0 = full colour
 dynamic_accent = true     # tint the UI with the cover's colour
+cache_size_mb = 200       # on-disk cover cache
 
 [visualizer]
 enabled = true

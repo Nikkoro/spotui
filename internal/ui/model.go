@@ -32,8 +32,6 @@ const (
 )
 
 const (
-	seekStepMs   = 5000
-	volumeStep   = 5
 	tickInterval = 200 * time.Millisecond
 	flashTTL     = 4 * time.Second
 
@@ -74,6 +72,7 @@ type Model struct {
 	liked       map[string]bool
 
 	// cover art
+	covers    *cover.Cache
 	coverURL  string
 	coverImg  image.Image
 	coverPix  *cover.Pixels
@@ -93,11 +92,26 @@ type Model struct {
 
 	overlay overlay
 	dj      djPanel
-	devices struct {
+	picker  struct {
+		list       listModel
+		filter     textinput.Model
+		trackURI   string
+		trackTitle string
+	}
+
+	sleepStep       int
+	sleepID         int
+	sleepAt         time.Time
+	sleepEndOfTrack bool
+	devices         struct {
 		list    listModel
 		loading bool
 		err     error
 	}
+
+	keymap        map[string]string
+	searchHistory []string
+	historyIdx    int
 
 	// list filter (shared by all list pages)
 	filtering bool
@@ -133,6 +147,10 @@ type Model struct {
 	vizSeen    int64
 	vizStalled int
 	vizAt      time.Time
+
+	restart        bool
+	restartAttempt int
+	restartAt      time.Time
 
 	flash      string
 	flashErr   bool
@@ -178,6 +196,16 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		vizAn:     viz.NewAnalyzer(32),
 		vizBuf:    make([]float32, 2048),
 	}
+	m.covers = cover.NewCache(cfg.CacheDir+"/covers", int64(cfg.Cover.CacheSizeMB)<<20)
+	go m.covers.Prune()
+
+	m.historyIdx = -1
+	m.keymap, _ = buildKeymap(cfg.Keys)
+	m.picker.filter = textinput.New()
+	m.picker.filter.Prompt = "/ "
+	m.picker.filter.Placeholder = "playlist name"
+	m.restoreState()
+
 	if cfg.Notifications {
 		m.notifier = notify.New(config.IsWSL())
 	}
@@ -209,6 +237,8 @@ type coverMsg struct {
 	img image.Image
 	err error
 }
+type prefetchDueMsg struct{}
+
 type likedMsg struct {
 	states map[string]bool
 }
@@ -236,12 +266,27 @@ func call(what string, fn func(ctx context.Context) error) tea.Cmd {
 	}
 }
 
-func fetchCover(url string) tea.Cmd {
+func (m Model) fetchCover(url string) tea.Cmd {
+	covers := m.covers
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		img, err := cover.Fetch(ctx, url)
+		img, err := covers.Get(ctx, url)
 		return coverMsg{url: url, img: img, err: err}
+	}
+}
+
+// prefetchNextCover warms the cover cache for the upcoming track, so the
+// next track change shows its cover at once.
+func (m Model) prefetchNextCover() tea.Cmd {
+	eng, covers := m.eng, m.covers
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if s, err := eng.Status(ctx); err == nil && s.NextTrack != nil && s.NextTrack.AlbumCoverUrl != nil {
+			covers.Prefetch(*s.NextTrack.AlbumCoverUrl)
+		}
+		return nil
 	}
 }
 
@@ -313,6 +358,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case restartDueMsg:
+		if m.phase == phaseFatal {
+			return m.restartNow()
+		}
+		return m, nil
+
+	case sleepDueMsg:
+		if msg.id != m.sleepID || m.sleepAt.IsZero() {
+			return m, nil
+		}
+		return m, m.sleepNow()
+
+	case flashMsg:
+		m.setFlash(msg.text, msg.err)
+		return m, nil
+
+	case prefetchDueMsg:
+		return m, m.prefetchNextCover()
+
 	case notifyDueMsg:
 		return m, m.sendNotification(msg.uri)
 
@@ -344,6 +408,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case m.overlay == overlayDj:
 			return m.updateDjKey(msg)
+		case m.overlay == overlayPlaylists:
+			return m.updatePickerKey(msg)
 		case m.overlay != overlayNone:
 			return m.updateOverlayKey(msg.String())
 		case m.inputting:
@@ -353,7 +419,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case m.page == pageSearch && m.search.input.Focused():
 			return m.updateSearchInput(msg)
 		}
-		return m.handleKey(msg)
+		return m.handleKey(m.remapKey(msg))
 	}
 
 	return m.updatePages(msg)
@@ -375,11 +441,22 @@ func (m *Model) handleEvent(ev engine.Event) tea.Cmd {
 	case engine.ReadyEvent:
 		m.phase = phaseReady
 		m.auth = nil
-		return tea.Batch(tea.EnableMouseCellMotion, m.applyStatus(ev.Status))
+		cmds := []tea.Cmd{tea.EnableMouseCellMotion, m.applyStatus(ev.Status)}
+		// A page restored from the last run needs its data now.
+		switch m.page {
+		case pageLibrary:
+			cmds = append(cmds, m.ensureLibrary())
+		case pageQueue:
+			m.queue.loading = true
+			cmds = append(cmds, m.loadQueue())
+		}
+		return tea.Batch(cmds...)
 
 	case engine.FatalEvent:
 		m.phase = phaseFatal
 		m.fatal = ev.Err
+		m.overlay = overlayNone
+		return m.scheduleRestart()
 
 	case engine.PlayerEvent:
 		if m.phase != phaseReady {
@@ -473,12 +550,19 @@ func (m *Model) applyPlayerEvent(ev engine.PlayerEvent) tea.Cmd {
 
 func (m *Model) setTrack(t *daemon.ApiTrack) tea.Cmd {
 	changed := m.track == nil || m.track.Uri != t.Uri
+	// "Sleep at the end of this track": the next track is the cue.
+	if changed && m.track != nil && m.sleepEndOfTrack {
+		return m.sleepNow()
+	}
 	m.track = t
 	m.setPosition(t.Position)
 
 	var cmds []tea.Cmd
 	if changed {
 		cmds = append(cmds, m.fetchLiked(t.Uri), m.fetchLyrics(t))
+		if m.cfg.Cover.Enabled {
+			cmds = append(cmds, tea.Tick(3*time.Second, func(time.Time) tea.Msg { return prefetchDueMsg{} }))
+		}
 	}
 
 	url := ""
@@ -490,7 +574,7 @@ func (m *Model) setTrack(t *daemon.ApiTrack) tea.Cmd {
 		m.coverImg, m.coverPix, m.coverMini = nil, nil, nil
 		m.theme = newTheme(defaultAccent)
 		if url != "" && m.cfg.Cover.Enabled {
-			cmds = append(cmds, fetchCover(url))
+			cmds = append(cmds, m.fetchCover(url))
 		}
 	}
 	return tea.Batch(cmds...)
@@ -553,6 +637,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.phase {
+	case phaseFatal:
+		if key == "R" || key == "r" || key == "enter" {
+			return m.restartNow()
+		}
+		return m, nil
 	case phaseAuth:
 		if key == "o" && m.auth != nil {
 			if err := platform.OpenURL(m.auth.Url); err != nil {
@@ -572,6 +661,14 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.openOverlay(overlayDevices)
 	case "D":
 		return m, m.djKey()
+	case "P":
+		return m, m.openPlaylistPicker()
+	case "A":
+		return m, m.goToAlbum()
+	case "I":
+		return m, m.goToArtist()
+	case "z":
+		return m, m.cycleSleep()
 	}
 
 	// Page navigation and list keys first; they fall through to the
@@ -592,15 +689,19 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "p":
 		return m, call("Previous", e.Prev)
 	case "right", "l":
-		m.setPosition(m.position() + seekStepMs)
-		return m, call("Seek", func(ctx context.Context) error { return e.Seek(ctx, seekStepMs, true) })
+		step := m.seekStepMs()
+		m.setPosition(m.position() + step)
+		return m, call("Seek", func(ctx context.Context) error { return e.Seek(ctx, step, true) })
 	case "left", "h":
-		m.setPosition(max(m.position()-seekStepMs, 0))
-		return m, call("Seek", func(ctx context.Context) error { return e.Seek(ctx, -seekStepMs, true) })
+		step := m.seekStepMs()
+		m.setPosition(max(m.position()-step, 0))
+		return m, call("Seek", func(ctx context.Context) error { return e.Seek(ctx, -step, true) })
 	case "+", "=":
-		return m, call("Volume", func(ctx context.Context) error { return e.SetVolume(ctx, volumeStep, true) })
+		step := m.volumeStep()
+		return m, call("Volume", func(ctx context.Context) error { return e.SetVolume(ctx, step, true) })
 	case "-", "_":
-		return m, call("Volume", func(ctx context.Context) error { return e.SetVolume(ctx, -volumeStep, true) })
+		step := m.volumeStep()
+		return m, call("Volume", func(ctx context.Context) error { return e.SetVolume(ctx, -step, true) })
 	case "s":
 		on := !m.shuffle
 		return m, call("Shuffle", func(ctx context.Context) error { return e.SetShuffle(ctx, on) })
@@ -713,6 +814,14 @@ func levelsLabel(l int) string {
 		return "full"
 	}
 	return fmt.Sprintf("%d levels/channel", l)
+}
+
+func (m Model) seekStepMs() int64 {
+	return int64(clamp(m.cfg.SeekStepSeconds, 1, 120)) * 1000
+}
+
+func (m Model) volumeStep() int32 {
+	return int32(clamp(m.cfg.VolumeStep, 1, 50))
 }
 
 func clamp(v, lo, hi int) int {

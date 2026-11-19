@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -68,21 +69,24 @@ func run() error {
 	tap := viz.NewTap()
 	output.ReaderHook = tap.Wrap
 
-	eng, err := engine.New(cfg, engine.NewLogger(logger))
-	if err != nil {
-		return err
+	if _, unknown := ui.CheckKeys(cfg.Keys); len(unknown) > 0 {
+		logger.Warnf("unknown actions in [keys]: %v (valid: %v)", unknown, ui.ActionNames())
 	}
+	if !ui.ApplyPalette(cfg.Theme) {
+		logger.Warnf("unknown theme %q, using the default", cfg.Theme)
+	}
+	ui.Version = version
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		eng.Run(ctx)
-	}()
-
+	// Media keys outlive player restarts, so they talk to whichever engine
+	// is current.
+	var current atomic.Pointer[engine.Engine]
 	if cfg.MediaControls {
 		stopKeys, err := mediakeys.Listen(func(k mediakeys.Key) {
-			kctx, kcancel := context.WithTimeout(ctx, 5*time.Second)
+			eng := current.Load()
+			if eng == nil {
+				return
+			}
+			kctx, kcancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer kcancel()
 			switch k {
 			case mediakeys.PlayPause:
@@ -102,14 +106,49 @@ func run() error {
 		}
 	}
 
-	if !ui.ApplyPalette(cfg.Theme) {
-		logger.Warnf("unknown theme %q, using the default", cfg.Theme)
+	// The player is restarted after it stops (lost session, network gone),
+	// with the interface coming back where it was.
+	for attempt := 0; ; attempt++ {
+		started := time.Now()
+		restart, err := runSession(cfg, logger, tap, &current, attempt)
+		if err != nil || !restart {
+			return err
+		}
+		if time.Since(started) > 2*time.Minute {
+			attempt = 0 // it ran fine for a while: back off from scratch
+		}
+		logger.Infof("restarting the player (attempt %d)", attempt+1)
 	}
-	ui.Version = version
+}
+
+// runSession runs one player and interface until the user quits (false) or
+// the interface asks for a restart (true).
+func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current *atomic.Pointer[engine.Engine], attempt int) (bool, error) {
+	eng, err := engine.New(cfg, engine.NewLogger(logger))
+	if err != nil {
+		return false, err
+	}
+	current.Store(eng)
+	defer current.Store(nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		eng.Run(ctx)
+	}()
+
 	// Mouse reporting starts once logged in, so the login link can still be
 	// selected and copied with the mouse.
-	p := tea.NewProgram(ui.New(eng, cfg, tap), tea.WithAltScreen())
-	_, uiErr := p.Run()
+	p := tea.NewProgram(ui.New(eng, cfg, tap).WithRestartAttempt(attempt), tea.WithAltScreen())
+	final, uiErr := p.Run()
+	restart := false
+	if fm, ok := final.(ui.Model); ok {
+		if err := fm.SaveState(); err != nil {
+			logger.WithError(err).Warn("saving UI state")
+		}
+		restart = fm.WantsRestart()
+	}
 
 	cancel()
 	select {
@@ -120,5 +159,5 @@ func run() error {
 	if err := eng.Close(); err != nil {
 		logger.WithError(err).Warn("closing player")
 	}
-	return uiErr
+	return restart && uiErr == nil, uiErr
 }

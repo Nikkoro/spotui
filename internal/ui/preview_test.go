@@ -6,6 +6,7 @@ package ui
 // Spotify connection:  PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
 
 import (
+	"errors"
 	"image"
 	"image/color"
 	"math"
@@ -205,6 +206,25 @@ func TestPreview(t *testing.T) {
 	_ = djm.djKey()
 	djm.setDjSuggestions(djSuggestionsMsg{prompts: []string{"Throwback hits from the 2000s", "Chill electronic for focus", "Upbeat Polish rap", "Something like M83 but newer"}})
 	write(t, "15-dj-panel", djm)
+
+	pk := sampleModel(t)
+	pk.page = pageLibrary
+	pk.lib.lists[libPlaylists].setItems([]listItem{
+		{kind: kindPlaylist, title: "Synthwave Nights", subtitle: "yours", uri: "p1", editable: true},
+		{kind: kindPlaylist, title: "Deep Focus", subtitle: "yours", uri: "p2", editable: true},
+		{kind: kindPlaylist, title: "Road Trip 2026", subtitle: "yours", uri: "p3", editable: true},
+		{kind: kindPlaylist, title: "Discover Weekly", subtitle: "by spotify", uri: "p4"},
+	})
+	pk.lib.loaded[libPlaylists] = true
+	_ = pk.openPlaylistPicker()
+	_ = pk.cycleSleep()
+	write(t, "16-playlist-picker", pk)
+
+	fatal := sampleModel(t)
+	fatal.phase = phaseFatal
+	fatal.fatal = errors.New("session lost: connection reset by peer")
+	_ = fatal.scheduleRestart()
+	write(t, "17-fatal", fatal)
 
 	ApplyPalette("catppuccin")
 	cat := sampleModel(t)

@@ -183,6 +183,7 @@ func (m Model) loadLibrary(tab int) tea.Cmd {
 				items = append(items, listItem{
 					kind: kindPlaylist, title: p.Name, subtitle: sub,
 					right: plural(int(p.Length), "track"), uri: p.Uri, imageURL: deref(p.ImageUrl),
+					editable: p.CanEdit || p.OwnerUsername == username,
 				})
 			}
 		case libAlbums:
@@ -361,6 +362,11 @@ func (m *Model) ensureLibrary() tea.Cmd {
 	if m.lib.loaded[t] || m.lib.loading[t] {
 		return nil
 	}
+	if len(m.lib.lists[t].items) == 0 {
+		if cached := m.readLibCache(t); len(cached) > 0 {
+			m.lib.lists[t].setItems(cached)
+		}
+	}
 	m.lib.loading[t] = true
 	return m.loadLibrary(t)
 }
@@ -382,6 +388,17 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.lib.loaded[msg.tab] = true
 			m.lib.lists[msg.tab].setItems(msg.items)
+			go m.writeLibCache(msg.tab, msg.items)
+			if msg.tab == libPlaylists && m.overlay == overlayPlaylists {
+				var items []listItem
+				for _, it := range msg.items {
+					if it.kind == kindPlaylist && it.editable {
+						items = append(items, it)
+					}
+				}
+				m.picker.list.setItems(items)
+				m.picker.list.setFilter(m.picker.filter.Value())
+			}
 		}
 		return m, nil
 
@@ -694,8 +711,31 @@ func (m Model) updateSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.search.query = q
 		m.search.loading = true
 		m.search.err = nil
+		m.rememberSearch(q)
 		return m, m.runSearch(q)
-	case "down", "tab":
+	case "up":
+		// Walk back through earlier searches.
+		if m.historyIdx+1 < len(m.searchHistory) {
+			m.historyIdx++
+			m.search.input.SetValue(m.searchHistory[m.historyIdx])
+			m.search.input.CursorEnd()
+		}
+		return m, nil
+	case "down":
+		if m.historyIdx > 0 {
+			m.historyIdx--
+			m.search.input.SetValue(m.searchHistory[m.historyIdx])
+			m.search.input.CursorEnd()
+			return m, nil
+		}
+		if m.historyIdx == 0 {
+			m.historyIdx = -1
+			m.search.input.SetValue("")
+			return m, nil
+		}
+		m.search.input.Blur()
+		return m, nil
+	case "tab":
 		m.search.input.Blur()
 		return m, nil
 	}

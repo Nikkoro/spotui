@@ -179,3 +179,9 @@ func (e *Engine) DjAsk(ctx context.Context, prompt string, suggested bool) error
 	_, err := e.request(ctx, daemon.ApiRequestTypeDjAsk, daemon.ApiDjAsk{Prompt: prompt, Suggested: suggested})
 	return err
 }
+
+// AddToPlaylist appends tracks to one of the user's playlists.
+func (e *Engine) AddToPlaylist(ctx context.Context, playlistURI string, uris []string) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypePlaylistAddTracks, daemon.ApiPlaylistAddTracks{PlaylistUri: playlistURI, Uris: uris})
+	return err
+}
