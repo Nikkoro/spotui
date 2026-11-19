@@ -367,7 +367,7 @@ func (m *Model) handleEvent(ev engine.Event) tea.Cmd {
 	case engine.ReadyEvent:
 		m.phase = phaseReady
 		m.auth = nil
-		return m.applyStatus(ev.Status)
+		return tea.Batch(tea.EnableMouseCellMotion, m.applyStatus(ev.Status))
 
 	case engine.FatalEvent:
 		m.phase = phaseFatal

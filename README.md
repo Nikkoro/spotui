@@ -56,8 +56,11 @@ Stage 6:
 
 ## Install
 
-Grab `spotui` (Linux/WSL) or `spotui.exe` (Windows) from the latest
-[build](../../actions/workflows/build.yml) artifacts.
+Grab `spotui-linux-amd64.tar.gz` (Linux/WSL) or `spotui-windows-amd64.zip`
+(Windows) from the latest [release](../../releases). Every push to `main` also
+leaves binaries as [build](../../actions/workflows/build.yml) artifacts.
+
+Releases are made by pushing a `v*` tag.
 
 ### Linux / WSL runtime libraries
 

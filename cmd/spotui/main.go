@@ -106,7 +106,9 @@ func run() error {
 		logger.Warnf("unknown theme %q, using the default", cfg.Theme)
 	}
 	ui.Version = version
-	p := tea.NewProgram(ui.New(eng, cfg, tap), tea.WithAltScreen(), tea.WithMouseCellMotion())
+	// Mouse reporting starts once logged in, so the login link can still be
+	// selected and copied with the mouse.
+	p := tea.NewProgram(ui.New(eng, cfg, tap), tea.WithAltScreen())
 	_, uiErr := p.Run()
 
 	cancel()

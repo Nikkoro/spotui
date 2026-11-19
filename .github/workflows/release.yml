@@ -1,0 +1,80 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev libvorbis-dev libogg-dev libflac-dev libmpg123-dev
+      - run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o spotui ./cmd/spotui
+      - run: tar czf spotui-linux-amd64.tar.gz spotui README.md LICENSE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: spotui-linux-amd64.tar.gz
+
+  windows:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 pkg-config curl zip unzip tar
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /tmp/vcpkg
+            vcpkg_installed
+          key: vcpkg-mingw-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'vcpkg-triplets/**') }}
+      - name: Bootstrap vcpkg
+        run: |
+          if [ ! -x /tmp/vcpkg/vcpkg ]; then
+            git clone --depth 1 --branch 2025.09.17 https://github.com/microsoft/vcpkg.git /tmp/vcpkg
+            /tmp/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+          fi
+      - run: /tmp/vcpkg/vcpkg install --triplet x64-mingw-static
+        env:
+          VCPKG_ROOT: /tmp/vcpkg
+      - name: Cross-compile
+        env:
+          CGO_ENABLED: 1
+          GOOS: windows
+          GOARCH: amd64
+          CC: x86_64-w64-mingw32-gcc
+          CGO_LDFLAGS: -static
+          PKG_CONFIG_LIBDIR: ${{ github.workspace }}/vcpkg_installed/x64-mingw-static/lib/pkgconfig
+          PKG_CONFIG_PATH: ${{ github.workspace }}/vcpkg_installed/x64-mingw-static/lib/pkgconfig
+        run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o spotui.exe ./cmd/spotui
+      - run: zip spotui-windows-amd64.zip spotui.exe README.md LICENSE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: spotui-windows-amd64.zip
+
+  release:
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "spotui $GITHUB_REF_NAME" \
+            --generate-notes \
+            spotui-linux-amd64.tar.gz spotui-windows-amd64.zip
