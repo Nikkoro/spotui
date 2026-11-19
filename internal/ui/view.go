@@ -82,6 +82,9 @@ func (m Model) viewHeader(w int) string {
 	switch m.phase {
 	case phaseReady:
 		state = m.theme.accentTxt.Render("●") + m.theme.dim.Render(" "+m.cfg.DeviceName)
+		if s := m.sleepLabel(); s != "" {
+			state = m.theme.accentTxt.Render(s) + "   " + state
+		}
 	case phaseAuth:
 		state = m.theme.dim.Render("○ waiting for login")
 	case phaseFatal:
@@ -121,6 +124,8 @@ func (m Model) viewFooter(w int) string {
 	switch {
 	case m.overlay == overlayDevices:
 		keys = [][2]string{{"↑↓", "move"}, {"enter", "move playback"}, {"esc", "close"}}
+	case m.overlay == overlayPlaylists:
+		keys = [][2]string{{"type", "filter"}, {"enter", "add"}, {"esc", "close"}}
 	case m.overlay == overlayDj:
 		keys = [][2]string{{"enter", "ask"}, {"↑↓", "suggestions"}, {"esc", "close"}}
 	case m.overlay == overlayHelp:
@@ -228,7 +233,8 @@ func (m Model) viewFatal() string {
 	return m.theme.card.BorderForeground(colError).Render(
 		m.theme.errorTxt.Bold(true).Render("The player stopped") + "\n\n" +
 			lipgloss.NewStyle().Width(min(60, m.width-12)).Foreground(colSubtle).Render(msg) + "\n\n" +
-			m.theme.dim.Render("Details are in spotui.log in your config folder."),
+			m.theme.dim.Render("Details are in spotui.log in your config folder.") + "\n\n" +
+			m.spinner.View() + " " + m.theme.text.Render(m.restartLabel()),
 	)
 }
 

@@ -52,6 +52,15 @@ type Config struct {
 	// Visualizer controls the spectrum analyzer.
 	Visualizer VisualizerConfig `toml:"visualizer"`
 
+	// SeekStepSeconds is how far ← / → seek.
+	SeekStepSeconds int `toml:"seek_step_seconds"`
+	// VolumeStep is how much + / - change the volume, in percent.
+	VolumeStep int `toml:"volume_step"`
+
+	// Keys adds key bindings: action = "key" (several separated by commas).
+	// The default keys keep working. See the README for action names.
+	Keys map[string]string `toml:"keys"`
+
 	// Lyrics controls synced lyrics.
 	Lyrics LyricsConfig `toml:"lyrics"`
 
@@ -77,6 +86,8 @@ type CoverConfig struct {
 	Levels int `toml:"levels"`
 	// DynamicAccent derives the UI accent colour from the cover.
 	DynamicAccent bool `toml:"dynamic_accent"`
+	// CacheSizeMB caps the on-disk cover cache.
+	CacheSizeMB int `toml:"cache_size_mb"`
 }
 
 // VisualizerConfig controls the spectrum analyzer on Now Playing.
@@ -119,6 +130,7 @@ func Default() Config {
 			PixelSize:     32,
 			Levels:        8,
 			DynamicAccent: true,
+			CacheSizeMB:   200,
 		},
 		Visualizer: VisualizerConfig{
 			Enabled:  true,
@@ -130,8 +142,10 @@ func Default() Config {
 			Enabled:        true,
 			NowPlayingLine: true,
 		},
-		Notifications: true,
-		MediaControls: true,
+		SeekStepSeconds: 5,
+		VolumeStep:      5,
+		Notifications:   true,
+		MediaControls:   true,
 	}
 }
 

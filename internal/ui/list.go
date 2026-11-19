@@ -29,6 +29,7 @@ type listItem struct {
 	context string
 	// extra info used by specific pages.
 	imageURL string
+	editable bool
 }
 
 // listModel is a scrollable, filterable list with a cursor.
