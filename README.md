@@ -136,6 +136,7 @@ The Windows build is a single static `.exe`.
 | `tab` / `shift+tab` | switch section (Library, Search results) |
 | `/` | filter the list (on Search: edit the query) |
 | `a` | add selected track to the queue |
+| `ctrl+p` | play the whole playlist / album page (shuffle via `ctrl+k`) |
 | `R` | reload the current list |
 | `space` | play / pause |
 | `n` / `p` | next / previous |

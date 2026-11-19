@@ -156,6 +156,7 @@ var helpSections = []struct {
 	{"Lists", [][2]string{
 		{"↑ ↓  j k", "move · g G top/bottom · ctrl+u/d page"},
 		{"enter", "open / play"},
+		{"ctrl+p", "play the whole playlist / album"},
 		{"a", "add track to queue"},
 		{"/", "filter (search: edit query)"},
 		{"tab", "next section"},
