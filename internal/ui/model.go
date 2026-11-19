@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -555,7 +556,7 @@ func (m *Model) applyPlayerEvent(ev engine.PlayerEvent) tea.Cmd {
 	case daemon.ApiEventDataRepeatTrack:
 		m.repeatTrack = d.Value
 	case daemon.ApiEventDataPlaybackError:
-		m.setFlash("Playback error: "+d.Message, true)
+		m.setFlash(playbackErrorText(d), true)
 	case daemon.ApiEventDataPlaying:
 		m.contextURI = d.ContextUri
 	case daemon.ApiEventDataWillPlay:
@@ -675,7 +676,11 @@ func (m Model) position() int64 {
 func (m *Model) setFlash(text string, isErr bool) {
 	m.flash = text
 	m.flashErr = isErr
-	m.flashUntil = time.Now().Add(flashTTL)
+	ttl := flashTTL
+	if isErr {
+		ttl *= 2 // errors usually need reading twice
+	}
+	m.flashUntil = time.Now().Add(ttl)
 }
 
 func (m Model) currentURI() string {
@@ -884,4 +889,19 @@ func (m Model) volumeStep() int32 {
 
 func clamp(v, lo, hi int) int {
 	return max(lo, min(hi, v))
+}
+
+// playbackErrorText turns a playback error into something actionable.
+func playbackErrorText(d daemon.ApiEventDataPlaybackError) string {
+	msg := strings.ToLower(d.Message)
+	switch {
+	case strings.Contains(msg, "alsa") || strings.Contains(msg, "pulse") || strings.Contains(msg, "wasapi") ||
+		strings.Contains(msg, "audio device") || strings.Contains(msg, "output"):
+		return "Can't open the audio device: " + d.Message + " · try another audio_backend in config.toml (spotui paths)"
+	case d.Kind == "restricted" || d.Unplayable:
+		return "This track can't be played here (region or account restriction); skipping"
+	case d.Kind == "network" || d.Kind == "timeout":
+		return "Network trouble while loading the track: " + d.Message
+	}
+	return "Playback error: " + d.Message
 }
