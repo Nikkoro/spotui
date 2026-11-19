@@ -16,6 +16,12 @@ func (m Model) WithRestartAttempt(n int) Model {
 	return m
 }
 
+// WithWarnings queues configuration problems to show once logged in.
+func (m Model) WithWarnings(w []string) Model {
+	m.warnings = w
+	return m
+}
+
 // WantsRestart reports whether the interface quit to restart the player.
 func (m Model) WantsRestart() bool { return m.restart }
 

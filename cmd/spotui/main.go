@@ -106,14 +106,22 @@ func run() error {
 	tap := viz.NewTap()
 	output.ReaderHook = tap.Wrap
 
+	// Config mistakes are logged and shown once in the interface.
+	warnings := append([]string(nil), cfg.Warnings...)
+	for _, w := range cfg.Warnings {
+		logger.Warn("config.toml: " + w)
+	}
 	if _, unknown := ui.CheckKeys(cfg.Keys); len(unknown) > 0 {
 		logger.Warnf("unknown actions in [keys]: %v (valid: %v)", unknown, ui.ActionNames())
+		warnings = append(warnings, fmt.Sprintf("unknown [keys] actions %v", unknown))
 	}
 	if bad := ui.SetColorOverrides(cfg.Colors); len(bad) > 0 {
 		logger.Warnf("ignored [colors] entries: %v (use accent, text, subtle, dim, track, selection, background_text = \"#rrggbb\")", bad)
+		warnings = append(warnings, fmt.Sprintf("ignored [colors] %v", bad))
 	}
 	if !ui.ApplyPalette(cfg.Theme) {
 		logger.Warnf("unknown theme %q, using the default", cfg.Theme)
+		warnings = append(warnings, fmt.Sprintf("unknown theme %q", cfg.Theme))
 	}
 	ui.Version = version
 
@@ -150,7 +158,8 @@ func run() error {
 	// with the interface coming back where it was.
 	for attempt := 0; ; attempt++ {
 		started := time.Now()
-		restart, err := runSession(cfg, logger, tap, &current, attempt)
+		restart, err := runSession(cfg, logger, tap, &current, attempt, warnings)
+		warnings = nil // shown once
 		if err != nil || !restart {
 			return err
 		}
@@ -163,7 +172,7 @@ func run() error {
 
 // runSession runs one player and interface until the user quits (false) or
 // the interface asks for a restart (true).
-func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current *atomic.Pointer[engine.Engine], attempt int) (bool, error) {
+func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current *atomic.Pointer[engine.Engine], attempt int, warnings []string) (bool, error) {
 	eng, err := engine.New(cfg, engine.NewLogger(logger))
 	if err != nil {
 		return false, err
@@ -180,7 +189,7 @@ func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current
 
 	// Mouse reporting starts once logged in, so the login link can still be
 	// selected and copied with the mouse.
-	p := tea.NewProgram(ui.New(eng, cfg, tap).WithRestartAttempt(attempt), tea.WithAltScreen())
+	p := tea.NewProgram(ui.New(eng, cfg, tap).WithRestartAttempt(attempt).WithWarnings(warnings), tea.WithAltScreen())
 	final, uiErr := p.Run()
 	restart := false
 	if fm, ok := final.(ui.Model); ok {
