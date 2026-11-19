@@ -78,8 +78,8 @@ type Model struct {
 	// coverFit caches covers shrunk to fit small terminals, by size. It is
 	// a map so View (a value receiver) can fill it.
 	coverFit map[int]*cover.Pixels
-	pixSize   int
-	levels    int
+	pixSize  int
+	levels   int
 
 	// pages
 	page    page
