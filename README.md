@@ -79,6 +79,12 @@ Command palette:
       album or artist in your library, switches themes live, or searches
       Spotify for whatever you typed
 
+Mouse & pages:
+
+- [x] Click a row to select it, double-click to open or play; click the
+      progress bar to seek; the wheel is the volume knob on Now Playing
+- [x] Playlist, album and artist pages show their cover next to the title
+
 ## Install
 
 Grab `spotui-linux-amd64.tar.gz` (Linux/WSL) or `spotui-windows-amd64.zip`

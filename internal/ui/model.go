@@ -93,6 +93,12 @@ type Model struct {
 	queue   queuePage
 	ctxPage *contextPage
 
+	hits      *hitMap
+	lastClick struct {
+		at  time.Time
+		idx int
+	}
+
 	overlay overlay
 	pal     cmdPalette
 	dj      djPanel
@@ -195,6 +201,7 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		queue:         newQueuePage(),
 		dj:            newDjPanel(),
 		pal:           newPalette(),
+		hits:          &hitMap{},
 		themeName:     cfg.Theme,
 		dynamicAccent: cfg.Cover.DynamicAccent,
 		vizOn:         cfg.Visualizer.Enabled && tap != nil,

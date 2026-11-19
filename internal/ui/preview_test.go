@@ -21,6 +21,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/Nikkoro/spotui/internal/config"
+	"github.com/Nikkoro/spotui/internal/cover"
 	"github.com/Nikkoro/spotui/internal/engine"
 	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/viz"
@@ -131,6 +132,8 @@ func TestPreview(t *testing.T) {
 	}
 	cp.list.setItems(tracks)
 	cp.list.move(3)
+	cp.subtitle = "M83 · 2011"
+	cp.cover = cover.Pixelate(sampleCover(), ctxCoverPx, 0)
 	m.ctxPage = cp
 	m.contextURI = cp.uri
 	write(t, "3-album", m)

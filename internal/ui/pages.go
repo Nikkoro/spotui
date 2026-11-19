@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/devgianlu/go-librespot/daemon"
 
+	"github.com/Nikkoro/spotui/internal/cover"
 	"github.com/Nikkoro/spotui/internal/engine"
 	"github.com/Nikkoro/spotui/internal/platform"
 	"github.com/Nikkoro/spotui/internal/webapi"
@@ -80,9 +81,19 @@ type queuePage struct {
 
 func newQueuePage() queuePage { return queuePage{} }
 
+// ctxCoverPx is the size of a playlist / album cover in its page header.
+const ctxCoverPx = 12
+
+type ctxCoverMsg struct {
+	uri string
+	pix *cover.Pixels
+}
+
 type contextPage struct {
 	uri      string
 	title    string
+	subtitle string
+	cover    *cover.Pixels
 	kind     string
 	list     listModel
 	loading  bool
@@ -311,6 +322,7 @@ func (m *Model) openContext(it listItem) tea.Cmd {
 	cp := &contextPage{
 		uri:      it.uri,
 		title:    it.title,
+		subtitle: it.subtitle,
 		kind:     kind,
 		loading:  true,
 		back:     m.page,
@@ -321,7 +333,20 @@ func (m *Model) openContext(it listItem) tea.Cmd {
 	m.ctxPage = cp
 	m.page = pageContext
 	m.closeFilter()
-	return m.loadContext(it.uri)
+	cmds := []tea.Cmd{m.loadContext(it.uri)}
+	if it.imageURL != "" && m.cfg.Cover.Enabled && m.covers != nil {
+		covers, url, uri := m.covers, it.imageURL, it.uri
+		cmds = append(cmds, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			img, err := covers.Get(ctx, url)
+			if err != nil {
+				return nil
+			}
+			return ctxCoverMsg{uri: uri, pix: cover.Pixelate(img, ctxCoverPx, 0)}
+		})
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *Model) goBack() {
@@ -477,6 +502,12 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case ctxCoverMsg:
+		if m.ctxPage != nil && m.ctxPage.uri == msg.uri {
+			m.ctxPage.cover = msg.pix
+		}
+		return m, nil
+
 	case ctxPollMsg:
 		if m.ctxPage == nil || m.ctxPage.uri != msg.uri {
 			return m, nil
@@ -509,19 +540,19 @@ func (m *Model) setSearchResults(res *webapi.SearchResult) {
 		if len(a.ReleaseDate) >= 4 {
 			right = a.ReleaseDate[:4]
 		}
-		albums = append(albums, listItem{kind: kindAlbum, title: a.Name, subtitle: strings.Join(names, ", "), right: right, uri: a.URI})
+		albums = append(albums, listItem{kind: kindAlbum, title: a.Name, subtitle: strings.Join(names, ", "), right: right, uri: a.URI, imageURL: firstImage(a.Images)})
 	}
 	for _, a := range res.Artists {
 		sub := ""
 		if len(a.Genres) > 0 {
 			sub = strings.Join(a.Genres[:min(2, len(a.Genres))], ", ")
 		}
-		artists = append(artists, listItem{kind: kindArtist, title: a.Name, subtitle: sub, uri: a.URI})
+		artists = append(artists, listItem{kind: kindArtist, title: a.Name, subtitle: sub, uri: a.URI, imageURL: firstImage(a.Images)})
 	}
 	for _, p := range res.Playlists {
 		playlists = append(playlists, listItem{
 			kind: kindPlaylist, title: p.Name, subtitle: "by " + p.Owner.DisplayName,
-			right: plural(p.Tracks.Total, "track"), uri: p.URI,
+			right: plural(p.Tracks.Total, "track"), uri: p.URI, imageURL: firstImage(p.Images),
 		})
 	}
 	m.search.lists[0].setItems(tracks)
@@ -756,4 +787,13 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// firstImage picks a mid-sized image: the list is largest first, and the
+// header only needs a small one.
+func firstImage(images []webapi.Image) string {
+	if len(images) == 0 {
+		return ""
+	}
+	return images[len(images)/2].URL
 }
