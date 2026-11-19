@@ -16,6 +16,14 @@ Local changes:
    variables instead of the hard-coded `go-librespot`, so spotui shows up
    as itself in playerctl / desktop media widgets and does not clash with a
    running go-librespot daemon.
+3. `spclient/dj.go`, `daemon/dj.go` (new) and two lines in
+   `daemon/player.go`: "Ask DJ" (`ResolveInteractiveContext`) and prompt
+   suggestions (`GetSuggestedPrompts`) on Spotify's DJ interaction service,
+   exposed as the `dj_ask` / `dj_suggestions` API requests. The protobuf
+   messages are encoded by hand with protowire. Modelled on the open
+   librespot DJ work (librespot-org/librespot#1797, as used by cloofy).
+   DJ narration itself (intro / jump / outro lines between tracks) is
+   upstream go-librespot and needs no patch.
 
 To update: copy the new release over this directory (minus `.github`, `cmd`,
 `*_test.go`, Docker and vcpkg files), re-apply the patch above, run

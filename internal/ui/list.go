@@ -14,6 +14,7 @@ const (
 	kindAlbum
 	kindArtist
 	kindPlaylist
+	kindDj
 	kindHeader // non-selectable section label
 )
 
