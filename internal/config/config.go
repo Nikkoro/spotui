@@ -45,6 +45,9 @@ type Config struct {
 	// Cover controls album art rendering.
 	Cover CoverConfig `toml:"cover"`
 
+	// Visualizer controls the spectrum analyzer.
+	Visualizer VisualizerConfig `toml:"visualizer"`
+
 	// Dirs are resolved at load time and never written to the file.
 	ConfigDir string `toml:"-"`
 	CacheDir  string `toml:"-"`
@@ -61,6 +64,16 @@ type CoverConfig struct {
 	Levels int `toml:"levels"`
 	// DynamicAccent derives the UI accent colour from the cover.
 	DynamicAccent bool `toml:"dynamic_accent"`
+}
+
+// VisualizerConfig controls the spectrum analyzer on Now Playing.
+type VisualizerConfig struct {
+	Enabled bool `toml:"enabled"`
+	// DelayMs shifts the analysed audio back to match what is audible; the
+	// output reads ahead of playback by its buffer size.
+	DelayMs int `toml:"delay_ms"`
+	// BarWidth is the width of each bar in columns.
+	BarWidth int `toml:"bar_width"`
 }
 
 // Default returns the configuration used when no file exists yet.
@@ -83,6 +96,11 @@ func Default() Config {
 			PixelSize:     32,
 			Levels:        8,
 			DynamicAccent: true,
+		},
+		Visualizer: VisualizerConfig{
+			Enabled:  true,
+			DelayMs:  120,
+			BarWidth: 2,
 		},
 	}
 }
