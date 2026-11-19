@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	librespot "github.com/devgianlu/go-librespot"
 	"github.com/devgianlu/go-librespot/daemon"
+	"github.com/devgianlu/go-librespot/mpris"
 
 	"github.com/Nikkoro/spotui/internal/config"
 )
@@ -85,12 +87,22 @@ func New(cfg *config.Config, log librespot.Logger) (*Engine, error) {
 	dc.Metadata.MaxTracks = 500
 	dc.Credentials.Type = "device_auth"
 
-	app, err := daemon.New(&daemon.Options{
+	opts := &daemon.Options{
 		Logger:     log,
 		Config:     dc,
 		StateStore: newFileStateStore(filepath.Join(cfg.ConfigDir, "state.json")),
 		APIServer:  server,
-	})
+	}
+	// MPRIS gives media keys, playerctl and desktop media widgets on Linux.
+	// Without a session bus (e.g. plain WSL) it waits quietly for one.
+	if cfg.MediaControls && runtime.GOOS == "linux" {
+		mpris.BusName, mpris.Identity = "spotui", "spotui"
+		if mp, err := mpris.NewServer(log); err == nil {
+			opts.MediaPlayer = mp
+		}
+	}
+
+	app, err := daemon.New(opts)
 	if err != nil {
 		return nil, fmt.Errorf("creating player: %w", err)
 	}
@@ -234,5 +246,11 @@ func (e *Engine) SetRepeat(ctx context.Context, context_, track bool) error {
 // Play starts playing a Spotify URI (track, album, playlist, artist, ...).
 func (e *Engine) Play(ctx context.Context, uri string) error {
 	_, err := e.request(ctx, daemon.ApiRequestTypePlay, daemon.ApiPlay{Uri: uri})
+	return err
+}
+
+// Pause pauses playback.
+func (e *Engine) Pause(ctx context.Context) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypePause, nil)
 	return err
 }

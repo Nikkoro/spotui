@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/Nikkoro/spotui/internal/config"
 	"github.com/Nikkoro/spotui/internal/engine"
+	"github.com/Nikkoro/spotui/internal/mediakeys"
 	"github.com/Nikkoro/spotui/internal/ui"
 	"github.com/Nikkoro/spotui/internal/viz"
 )
@@ -77,6 +79,28 @@ func run() error {
 		defer close(done)
 		eng.Run(ctx)
 	}()
+
+	if cfg.MediaControls {
+		stopKeys, err := mediakeys.Listen(func(k mediakeys.Key) {
+			kctx, kcancel := context.WithTimeout(ctx, 5*time.Second)
+			defer kcancel()
+			switch k {
+			case mediakeys.PlayPause:
+				_ = eng.PlayPause(kctx)
+			case mediakeys.Next:
+				_ = eng.Next(kctx)
+			case mediakeys.Prev:
+				_ = eng.Prev(kctx)
+			case mediakeys.Stop:
+				_ = eng.Pause(kctx)
+			}
+		})
+		if err == nil {
+			defer stopKeys()
+		} else if !errors.Is(err, errors.ErrUnsupported) {
+			logger.WithError(err).Warn("media keys unavailable")
+		}
+	}
 
 	ui.Version = version
 	p := tea.NewProgram(ui.New(eng, cfg, tap), tea.WithAltScreen())
