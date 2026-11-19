@@ -203,6 +203,15 @@ func TestPreview(t *testing.T) {
 	mirror.vizStyle = "mirror"
 	write(t, "12-mirror", mirror)
 
+	wave := sampleModel(t)
+	wave.vizStyle = "wave"
+	wave.vizWaveGain = 1
+	for i := 0; i < 882; i++ {
+		x := float64(i) / 44100
+		wave.vizWave = append(wave.vizWave, float32(0.5*math.Sin(2*math.Pi*110*x)+0.25*math.Sin(2*math.Pi*440*x+1)+0.1*math.Sin(2*math.Pi*1320*x)))
+	}
+	write(t, "19-wave", wave)
+
 	djm := sampleModel(t)
 	djm.contextURI = engine.DjContextURI
 	write(t, "14-dj-now-playing", djm)

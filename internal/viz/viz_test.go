@@ -112,3 +112,35 @@ func argmax(v []float64) int {
 	}
 	return best
 }
+
+func TestRenderWave(t *testing.T) {
+	out := RenderWave(sine(441)[:441], 1, 20, 4, ParseHex("#1DB954"), ParseHex("#ffffff"))
+	if rows := strings.Count(out, "\n") + 1; rows != 4 {
+		t.Fatalf("got %d rows", rows)
+	}
+	if !strings.ContainsRune(out, 0x2800+0x01) && !strings.ContainsAny(out, "⠁⠂⠄⡀⠈⠐⠠⢀") {
+		// any braille dot will do; check at least one cell was drawn
+		drawn := false
+		for _, r := range out {
+			if r > 0x2800 && r <= 0x28FF {
+				drawn = true
+			}
+		}
+		if !drawn {
+			t.Fatal("nothing drawn")
+		}
+	}
+	silent := RenderWave(nil, 1, 10, 3, ParseHex("#1DB954"), ParseHex("#ffffff"))
+	if !strings.ContainsRune(silent, '⠤') && !strings.ContainsRune(silent, '⠒') && !strings.ContainsRune(silent, '⠉') && !strings.ContainsRune(silent, '⣀') {
+		// silence is a flat line through the middle; some braille must exist
+		found := false
+		for _, r := range silent {
+			if r > 0x2800 && r <= 0x28FF {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("silence should draw a flat line")
+		}
+	}
+}

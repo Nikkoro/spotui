@@ -95,6 +95,7 @@ Small things:
 - [x] Karaoke-style fill of the current lyric line
 - [x] Crossfade and autoplay settings
 - [x] `[colors]` overrides single colours on top of any theme
+- [x] Oscilloscope visualizer style drawn with braille dots (`V` → wave)
 - [x] Library tabs for Recently played (resumes in the playlist or album it
       came from) and your Top tracks / Top artists of the last weeks
 
@@ -154,7 +155,7 @@ The Windows build is a single static `.exe`.
 | `d` | devices: move playback |
 | `ctrl+k` / `:` | command palette |
 | `?` | help |
-| `V` | visualizer style (bars / mirror) |
+| `V` | visualizer style (bars / mirror / wave) |
 | `P` | add selected / playing track to a playlist |
 | `A` / `I` | go to album / artist of the playing track |
 | `z` | sleep timer: 15, 30, 45, 60, 90 min, end of track, off |
@@ -205,7 +206,7 @@ cache_size_mb = 200       # on-disk cover cache
 enabled = true
 delay_ms = 120            # raise if bars run ahead of what you hear
 bar_width = 2
-style = "bars"            # bars | mirror
+style = "bars"            # bars | mirror | wave
 
 [lyrics]
 enabled = true

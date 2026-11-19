@@ -56,6 +56,18 @@ func (m *Model) stepVisualizer(now time.Time) tea.Cmd {
 	}
 
 	m.vizLevels, m.vizPeaks = m.vizAn.Update(samples, dt)
+
+	// The oscilloscope shows ~20 ms of the same window, gain eased.
+	if m.vizStyle == "wave" {
+		if samples != nil {
+			win := samples[len(samples)-882:]
+			m.vizWave = append(m.vizWave[:0], win...)
+			target := viz.WaveGain(win)
+			m.vizWaveGain += (target - m.vizWaveGain) * min(1, dt*4)
+		} else {
+			m.vizWave = nil
+		}
+	}
 	return vizTick(vizFrameInterval)
 }
 
@@ -70,6 +82,13 @@ func (m Model) viewVisualizer(width, height int) string {
 		levels, peaks = make([]float64, bands), make([]float64, bands)
 	}
 	bottom, top := viz.Gradient(viz.ParseHex(m.theme.accentHex))
+	if m.vizStyle == "wave" {
+		var win []float32
+		if m.vizWave != nil {
+			win = m.vizWave
+		}
+		return viz.RenderWave(win, m.vizWaveGain, width, height, top, bottom)
+	}
 	if m.vizStyle == "mirror" {
 		return viz.RenderMirror(levels, peaks, barW, height, bottom, top)
 	}
