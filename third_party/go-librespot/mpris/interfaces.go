@@ -23,7 +23,7 @@ var mediaPlayer2Props = map[string]*prop.Prop{
 	"CanQuit":             newProp(false, nil), // disable quit
 	"CanRaise":            newProp(false, nil), // disable raise
 	"HasTrackList":        newProp(false, nil), // disable track list
-	"Identity":            newProp("go-librespot", nil),
+	"Identity":            newProp(Identity, nil),
 	"SupportedUriSchemes": newProp([]string{}, nil),
 	"SupportedMimeTypes":  newProp([]string{}, nil),
 }

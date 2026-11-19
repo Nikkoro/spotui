@@ -38,9 +38,15 @@ Stage 4:
 - [x] Polite LRCLIB client: identifying User-Agent, one request at a time,
       debounced lookups, Retry-After with jitter, on-disk cache incl. misses
 
+Stage 5:
+
+- [x] MPRIS on Linux: media keys, `playerctl`, desktop media widgets
+- [x] Global media keys on Windows (play/pause, next, previous, stop)
+- [x] Track-change notifications with the cover: freedesktop on Linux,
+      Windows toasts on Windows and from WSL (via `powershell.exe`)
+
 Next:
 
-- [ ] Media keys and notifications (MPRIS on Linux, SMTC on Windows)
 - [ ] Themes, mouse support
 
 ## Install
@@ -108,6 +114,8 @@ initial_volume = 70
 normalisation = true
 audio_cache = true
 audio_cache_size_mb = 1024
+notifications = true      # desktop notification on track change
+media_controls = true     # MPRIS (Linux) / global media keys (Windows)
 
 [cover]
 enabled = true

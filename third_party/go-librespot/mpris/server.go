@@ -217,7 +217,7 @@ func (s *ConcreteServer) connect() (_ *DBusInstance, err error) {
 		return nil, fmt.Errorf("failed exporting mpris properties: %w", err)
 	}
 
-	reply, err := conn.RequestName("org.mpris.MediaPlayer2.go-librespot", dbus.NameFlagReplaceExisting)
+	reply, err := conn.RequestName("org.mpris.MediaPlayer2."+BusName, dbus.NameFlagReplaceExisting)
 	if err != nil {
 		return nil, err
 	}

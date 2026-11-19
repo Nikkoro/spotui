@@ -16,6 +16,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/cover"
 	"github.com/Nikkoro/spotui/internal/engine"
 	"github.com/Nikkoro/spotui/internal/lyrics"
+	"github.com/Nikkoro/spotui/internal/notify"
 	"github.com/Nikkoro/spotui/internal/platform"
 	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/internal/webapi"
@@ -101,6 +102,8 @@ type Model struct {
 	// Web API authorization in progress
 	webAuthURL string
 
+	notifier notify.Notifier
+
 	// lyrics
 	lyr           *lyrics.Client
 	lyrics        *lyrics.Lyrics
@@ -163,6 +166,9 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		vizTap:    tap,
 		vizAn:     viz.NewAnalyzer(32),
 		vizBuf:    make([]float32, 2048),
+	}
+	if cfg.Notifications {
+		m.notifier = notify.New(config.IsWSL())
 	}
 	if cfg.Lyrics.Enabled {
 		m.lyr = lyrics.NewClient(cfg.CacheDir+"/lyrics", Version)
@@ -284,6 +290,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case notifyDueMsg:
+		return m, m.sendNotification(msg.uri)
+
 	case lyricsMsg, lyricsDueMsg:
 		return m, m.handleLyricsMsg(msg)
 
@@ -380,10 +389,10 @@ func (m *Model) applyPlayerEvent(ev engine.PlayerEvent) tea.Cmd {
 	switch d := ev.Data.(type) {
 	case daemon.ApiEventDataMetadata:
 		t := daemon.ApiTrack(d)
-		cmds = append(cmds, m.setTrack(&t))
+		cmds = append(cmds, m.notifyTrack(&t), m.setTrack(&t))
 	case *daemon.ApiEventDataMetadata:
 		t := daemon.ApiTrack(*d)
-		cmds = append(cmds, m.setTrack(&t))
+		cmds = append(cmds, m.notifyTrack(&t), m.setTrack(&t))
 	case daemon.ApiEventDataSeek:
 		m.setPosition(int64(d.Position))
 	case daemon.ApiEventDataVolume:

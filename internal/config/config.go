@@ -51,6 +51,12 @@ type Config struct {
 	// Lyrics controls synced lyrics.
 	Lyrics LyricsConfig `toml:"lyrics"`
 
+	// Notifications shows a desktop notification when the track changes.
+	Notifications bool `toml:"notifications"`
+	// MediaControls exposes the player to the OS: MPRIS on Linux (media
+	// keys, playerctl, desktop widgets) and global media keys on Windows.
+	MediaControls bool `toml:"media_controls"`
+
 	// Dirs are resolved at load time and never written to the file.
 	ConfigDir string `toml:"-"`
 	CacheDir  string `toml:"-"`
@@ -116,6 +122,8 @@ func Default() Config {
 			Enabled:        true,
 			NowPlayingLine: true,
 		},
+		Notifications: true,
+		MediaControls: true,
 	}
 }
 

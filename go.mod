@@ -9,9 +9,11 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.11.6
 	github.com/devgianlu/go-librespot v0.10.7
+	github.com/godbus/dbus/v5 v5.2.0
 	github.com/muesli/termenv v0.16.0
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/oauth2 v0.34.0
+	golang.org/x/sys v0.39.0
 )
 
 require (
@@ -30,7 +32,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/devgianlu/shannon v0.0.0-20230613115856-82ec90b7fa7e // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/godbus/dbus/v5 v5.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grandcat/zeroconf v1.0.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
@@ -55,7 +56,6 @@ require (
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/tools v0.40.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
