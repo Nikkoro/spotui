@@ -92,6 +92,7 @@ type Model struct {
 	ctxPage *contextPage
 
 	overlay overlay
+	dj      djPanel
 	devices struct {
 		list    listModel
 		loading bool
@@ -170,6 +171,7 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		lib:       newLibraryPage(),
 		search:    newSearchPage(),
 		queue:     newQueuePage(),
+		dj:        newDjPanel(),
 		vizOn:     cfg.Visualizer.Enabled && tap != nil,
 		vizTap:    tap,
 		vizStyle:  cfg.Visualizer.Style,
@@ -288,6 +290,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.handleEvent(msg.ev)
 		return m, tea.Batch(cmd, waitEvent(m.eng.Events()))
 
+	case djSuggestionsMsg:
+		m.setDjSuggestions(msg)
+		return m, nil
+
 	case devicesMsg:
 		m.devices.loading = false
 		m.devices.err = msg.err
@@ -336,6 +342,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch {
+		case m.overlay == overlayDj:
+			return m.updateDjKey(msg)
 		case m.overlay != overlayNone:
 			return m.updateOverlayKey(msg.String())
 		case m.inputting:
@@ -562,6 +570,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.openOverlay(overlayHelp)
 	case "d":
 		return m, m.openOverlay(overlayDevices)
+	case "D":
+		return m, m.djKey()
 	}
 
 	// Page navigation and list keys first; they fall through to the

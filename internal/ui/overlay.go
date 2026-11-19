@@ -15,6 +15,7 @@ const (
 	overlayNone overlay = iota
 	overlayHelp
 	overlayDevices
+	overlayDj
 )
 
 type devicesMsg struct {
@@ -116,6 +117,8 @@ func (m Model) viewOverlay(w, h int) string {
 		card = m.viewHelp(w)
 	case overlayDevices:
 		card = m.viewDevices(w, h)
+	case overlayDj:
+		card = m.viewDj(w, h)
 	}
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
@@ -126,6 +129,7 @@ var helpSections = []struct {
 }{
 	{"Pages", [][2]string{
 		{"1 … 5", "now playing · library · search · queue · lyrics"},
+		{"D", "DJ: start · while it plays, ask it"},
 		{"d", "devices: move playback"},
 		{"?", "this help"},
 		{"q", "quit"},

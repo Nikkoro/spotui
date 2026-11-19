@@ -54,6 +54,13 @@ Stage 6:
 - [x] Mirror visualizer style (`V`)
 - [x] Mouse: wheel scrolls lists and lyrics, click the page tabs
 
+Stage 7:
+
+- [x] Spotify DJ: `D` (or "◉ DJ" at the top of Library) starts it, with the
+      DJ talking between tracks (go-librespot plays its narration)
+- [x] Ask DJ: while it plays, `D` opens a panel to type a request or pick one
+      of Spotify's suggested prompts; "Pick something different" starts a new set
+
 ## Install
 
 Grab `spotui-linux-amd64.tar.gz` (Linux/WSL) or `spotui-windows-amd64.zip`
@@ -105,6 +112,7 @@ The Windows build is a single static `.exe`.
 | `[` / `]` | cover pixel resolution |
 | `{` / `}` | cover colour depth |
 | `<` `>` / `0` | lyrics sync offset ±250 ms / reset (Lyrics page) |
+| `D` | DJ: start it; while it plays, ask it for something |
 | `d` | devices: move playback |
 | `?` | help |
 | `V` | visualizer style (bars / mirror) |

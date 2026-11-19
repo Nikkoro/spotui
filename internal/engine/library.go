@@ -155,3 +155,27 @@ func (e *Engine) Transfer(ctx context.Context, deviceID string) error {
 	_, err := e.request(ctx, daemon.ApiRequestTypeConnectTransfer, daemon.ApiConnectTransfer{DeviceId: deviceID})
 	return err
 }
+
+// DjContextURI is the context Spotify's DJ plays from.
+const DjContextURI = daemon.DjContextUri
+
+// StartDj starts a fresh DJ session; while DJ already plays this moves it on
+// to a new set.
+func (e *Engine) StartDj(ctx context.Context) error {
+	return e.PlayContext(ctx, DjContextURI, "")
+}
+
+// DjSuggestions returns prompts Spotify suggests asking DJ for now.
+func (e *Engine) DjSuggestions(ctx context.Context) ([]string, error) {
+	res, err := decode[daemon.ApiDjSuggestions](e.request(ctx, daemon.ApiRequestTypeDjSuggestions, nil))
+	if err != nil {
+		return nil, err
+	}
+	return res.Prompts, nil
+}
+
+// DjAsk asks DJ for something; DJ answers by playing what it put together.
+func (e *Engine) DjAsk(ctx context.Context, prompt string, suggested bool) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypeDjAsk, daemon.ApiDjAsk{Prompt: prompt, Suggested: suggested})
+	return err
+}

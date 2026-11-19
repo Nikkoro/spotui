@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/devgianlu/go-librespot/daemon"
 
+	"github.com/Nikkoro/spotui/internal/engine"
 	"github.com/Nikkoro/spotui/internal/platform"
 	"github.com/Nikkoro/spotui/internal/webapi"
 )
@@ -161,6 +162,10 @@ func (m Model) loadLibrary(tab int) tea.Cmd {
 			if err != nil {
 				return libLoadedMsg{tab: tab, err: err}
 			}
+			items = append(items, listItem{
+				kind: kindDj, title: "◉ DJ", subtitle: "Spotify's DJ, talking between tracks",
+				uri: engine.DjContextURI,
+			})
 			if username != "" {
 				items = append(items, listItem{
 					kind: kindPlaylist, title: "♥ Liked Songs", subtitle: "your saved tracks",
@@ -645,6 +650,8 @@ func (m *Model) activate(it *listItem) tea.Cmd {
 		return call("Play", func(ctx context.Context) error { return eng.PlayContext(ctx, ctxURI, trackURI) })
 	case kindAlbum, kindPlaylist, kindArtist:
 		return m.openContext(*it)
+	case kindDj:
+		return m.startDj()
 	}
 	return nil
 }

@@ -1030,6 +1030,9 @@ func (p *AppPlayer) handleApiRequest(req ApiRequest) (any, error) {
 			return nil, fmt.Errorf("failed reopening output: %w", err)
 		}
 		return nil, nil
+	case ApiRequestTypeDjSuggestions, ApiRequestTypeDjAsk:
+		// spotui patch, see third_party/PATCHES.md
+		return p.handleDjRequest(req)
 	default:
 		return nil, fmt.Errorf("unknown request type: %s", req.Type)
 	}

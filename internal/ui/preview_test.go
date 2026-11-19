@@ -20,6 +20,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/Nikkoro/spotui/internal/config"
+	"github.com/Nikkoro/spotui/internal/engine"
 	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/internal/webapi"
@@ -197,6 +198,13 @@ func TestPreview(t *testing.T) {
 	mirror := sampleModel(t)
 	mirror.vizStyle = "mirror"
 	write(t, "12-mirror", mirror)
+
+	djm := sampleModel(t)
+	djm.contextURI = engine.DjContextURI
+	write(t, "14-dj-now-playing", djm)
+	_ = djm.djKey()
+	djm.setDjSuggestions(djSuggestionsMsg{prompts: []string{"Throwback hits from the 2000s", "Chill electronic for focus", "Upbeat Polish rap", "Something like M83 but newer"}})
+	write(t, "15-dj-panel", djm)
 
 	ApplyPalette("catppuccin")
 	cat := sampleModel(t)

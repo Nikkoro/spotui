@@ -121,6 +121,8 @@ func (m Model) viewFooter(w int) string {
 	switch {
 	case m.overlay == overlayDevices:
 		keys = [][2]string{{"↑↓", "move"}, {"enter", "move playback"}, {"esc", "close"}}
+	case m.overlay == overlayDj:
+		keys = [][2]string{{"enter", "ask"}, {"↑↓", "suggestions"}, {"esc", "close"}}
 	case m.overlay == overlayHelp:
 		keys = [][2]string{{"esc", "close"}}
 	case m.phase == phaseAuth:
@@ -130,7 +132,7 @@ func (m Model) viewFooter(w int) string {
 	case m.page == pageNowPlaying:
 		keys = [][2]string{
 			{"space", "play"}, {"n/p", "next/prev"}, {"←→", "seek"}, {"+/-", "vol"},
-			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"d", "devices"}, {"?", "help"}, {"q", "quit"},
+			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"D", "DJ"}, {"d", "devices"}, {"?", "help"}, {"q", "quit"},
 		}
 	case m.page == pageLyrics:
 		keys = [][2]string{{"< >", "sync offset"}, {"0", "reset"}, {"↑↓", "scroll (plain)"},
@@ -180,7 +182,11 @@ func (m Model) viewPlayerBar(w int) string {
 	if m.liked[t.Uri] {
 		heart = m.theme.accentTxt.Render(" ♥")
 	}
-	line1 := ansi.Truncate(m.theme.title.Render(t.Name)+heart+m.theme.dim.Render("  ")+
+	dj := ""
+	if m.playingDj() {
+		dj = m.theme.pill.Render("DJ") + " "
+	}
+	line1 := ansi.Truncate(dj+m.theme.title.Render(t.Name)+heart+m.theme.dim.Render("  ")+
 		m.theme.artist.UnsetBold().Render(strings.Join(t.ArtistNames, ", ")), infoW, "…")
 
 	pos, dur := m.position(), int64(t.Duration)
@@ -361,6 +367,9 @@ func (m Model) viewTrackInfo(w int) string {
 		stateText = "Paused"
 	}
 	state := m.stateIcon() + " " + m.theme.text.Render(stateText)
+	if m.playingDj() {
+		state += "  " + m.theme.pill.Render("DJ")
+	}
 
 	posStr, durStr := fmtDuration(pos), fmtDuration(dur)
 	times := m.theme.dim.Render(posStr) +
