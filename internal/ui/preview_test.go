@@ -20,6 +20,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/Nikkoro/spotui/internal/config"
+	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/internal/webapi"
 )
@@ -68,6 +69,11 @@ func sampleModel(t *testing.T) Model {
 	m.shuffle = true
 	m.repeatCtx = true
 	m.liked["spotify:track:1"] = true
+	m.lyrics = &lyrics.Lyrics{Source: "LRCLIB", Synced: lyrics.ParseLRC(
+		"[01:20.00]Waiting in a car\n[01:24.00]Waiting for a ride in the dark\n[01:30.00]The night city grows\n" +
+			"[01:34.00]Look and see her eyes, they glow\n[01:40.00]Waiting in a car\n[01:44.00]Waiting for the right time\n" +
+			"[01:50.00]Waiting in a car\n[01:54.00]Waiting for the right time\n[02:00.00]\n[02:10.00]Drinking in the lounge\n" +
+			"[02:14.00]Following the neon signs\n[02:20.00]Waiting for a roar\n[02:24.00]Looking at the mutating skyline")}
 
 	// Fake a spectrum: a rough pink-noise slope with some bumps.
 	_ = m.View() // lets the visualizer size its bands
@@ -148,6 +154,9 @@ func TestPreview(t *testing.T) {
 	})
 	m.queue.list.move(1)
 	write(t, "5-queue", m)
+
+	m.page = pageLyrics
+	write(t, "9-lyrics", m)
 
 	auth := m
 	auth.phase = phaseAuth

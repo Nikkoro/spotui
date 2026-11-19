@@ -127,6 +127,9 @@ func (m Model) viewFooter(w int) string {
 			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"v", "viz"}, {"[ ]", "pixels"}, {"{ }", "colours"},
 			{"u", "link"}, {"q", "quit"},
 		}
+	case m.page == pageLyrics:
+		keys = [][2]string{{"< >", "sync offset"}, {"0", "reset"}, {"↑↓", "scroll (plain)"},
+			{"space", "play"}, {"n/p", "next/prev"}, {"q", "quit"}}
 	case m.page == pageSearch && m.search.input.Focused():
 		keys = [][2]string{{"enter", "search"}, {"esc", "results"}}
 	default:
@@ -362,7 +365,7 @@ func (m Model) viewTrackInfo(w int) string {
 	modes := m.modeBadges()
 	status := state + strings.Repeat(" ", max(w-lipgloss.Width(state)-lipgloss.Width(modes), 1)) + modes
 
-	return lipgloss.JoinVertical(lipgloss.Left,
+	parts := []string{
 		title,
 		artist,
 		albumLine,
@@ -372,7 +375,15 @@ func (m Model) viewTrackInfo(w int) string {
 		times,
 		"",
 		m.volumeBar(w),
-	)
+	}
+	if m.cfg.Lyrics.NowPlayingLine && m.lyrics != nil && len(m.lyrics.Synced) > 0 {
+		line := m.currentLyric()
+		if line == "" {
+			line = "♪"
+		}
+		parts = append(parts, "", m.theme.album.Foreground(m.theme.accent).Render(ansi.Truncate("“"+line+"”", w, "…")))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 func (m Model) modeBadges() string {

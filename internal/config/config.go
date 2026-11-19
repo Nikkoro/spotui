@@ -48,6 +48,9 @@ type Config struct {
 	// Visualizer controls the spectrum analyzer.
 	Visualizer VisualizerConfig `toml:"visualizer"`
 
+	// Lyrics controls synced lyrics.
+	Lyrics LyricsConfig `toml:"lyrics"`
+
 	// Dirs are resolved at load time and never written to the file.
 	ConfigDir string `toml:"-"`
 	CacheDir  string `toml:"-"`
@@ -76,6 +79,13 @@ type VisualizerConfig struct {
 	BarWidth int `toml:"bar_width"`
 }
 
+// LyricsConfig controls synced lyrics from LRCLIB.
+type LyricsConfig struct {
+	Enabled bool `toml:"enabled"`
+	// NowPlayingLine shows the current lyric line on Now Playing.
+	NowPlayingLine bool `toml:"now_playing_line"`
+}
+
 // Default returns the configuration used when no file exists yet.
 func Default() Config {
 	host, _ := os.Hostname()
@@ -101,6 +111,10 @@ func Default() Config {
 			Enabled:  true,
 			DelayMs:  120,
 			BarWidth: 2,
+		},
+		Lyrics: LyricsConfig{
+			Enabled:        true,
+			NowPlayingLine: true,
 		},
 	}
 }
