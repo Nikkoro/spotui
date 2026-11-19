@@ -21,6 +21,12 @@ func (m Model) View() string {
 	header := m.viewHeader(w)
 	footer := m.viewFooter(w)
 
+	// Where things land on screen, for the mouse. View works on a copy, so
+	// this is written through a pointer the real model shares.
+	if m.hits != nil {
+		*m.hits = hitMap{bodyTop: 1 + lipgloss.Height(header) + 1}
+	}
+
 	var body string
 	switch m.phase {
 	case phaseConnecting:
@@ -37,6 +43,10 @@ func (m Model) View() string {
 		} else {
 			bar := m.viewPlayerBar(w)
 			h := m.bodyHeight(header, footer, bar)
+			if m.hits != nil && m.hits.progressW > 0 {
+				// rule, title, album, then the progress line
+				m.hits.progressY = m.hits.bodyTop + h + 3
+			}
 			body = lipgloss.NewStyle().Height(h).MaxHeight(h).Render(m.viewPage(w, h)) + "\n" + bar
 		}
 	}
@@ -200,6 +210,10 @@ func (m Model) viewPlayerBar(w int) string {
 	times := fmtDuration(pos) + " / " + fmtDuration(dur)
 	icon := m.stateIcon()
 	barW := max(infoW-lipgloss.Width(icon)-len(times)-4, 5)
+	if m.hits != nil {
+		m.hits.progressX = 2 + lipgloss.Width(art) + lipgloss.Width(icon) + 2
+		m.hits.progressW = barW
+	}
 	line2 := icon + "  " + m.progressBar(barW, pos, dur) + "  " + m.theme.dim.Render(times)
 
 	album := ansi.Truncate(m.theme.album.Render(t.AlbumName), infoW, "…")

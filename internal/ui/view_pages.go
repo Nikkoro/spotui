@@ -40,8 +40,9 @@ func (m Model) tabBar(names []string, active int, counts []int) string {
 	return strings.Join(parts, "    ")
 }
 
-// listBlock renders an optional filter line plus the list itself.
-func (m Model) listBlock(l *listModel, w, h int) string {
+// listBlock renders an optional filter line plus the list itself. above is
+// how many lines of the page precede it, for mouse hit-testing.
+func (m Model) listBlock(l *listModel, w, h, above int) string {
 	var lines []string
 	if m.filtering {
 		lines = append(lines, m.filterIn.View())
@@ -50,6 +51,10 @@ func (m Model) listBlock(l *listModel, w, h int) string {
 			m.theme.dim.Render("   esc clears"))
 	}
 	listH := h - len(lines)
+	if m.hits != nil {
+		m.hits.listTop = m.hits.bodyTop + above + len(lines)
+		m.hits.listRows = max(listH, 0)
+	}
 	lines = append(lines, l.view(m.theme, w, listH, m.currentURI()))
 	return strings.Join(lines, "\n")
 }
@@ -87,13 +92,13 @@ func (m Model) viewLibrary(w, h int) string {
 	switch {
 	case m.lib.err[m.lib.tab] != nil && len(l.items) > 0:
 		// Keep showing the cached copy; just say it may be stale.
-		body = m.listBlock(l, w, h-5) + "\n" + m.theme.dim.Render("offline copy · "+m.lib.err[m.lib.tab].Error()+" · R retries")
+		body = m.listBlock(l, w, h-5, 3) + "\n" + m.theme.dim.Render("offline copy · "+m.lib.err[m.lib.tab].Error()+" · R retries")
 	case m.lib.err[m.lib.tab] != nil:
 		body = m.errorLine(m.lib.err[m.lib.tab]) + "\n" + m.theme.dim.Render("press R to retry")
 	case m.lib.loading[m.lib.tab] && len(l.items) == 0:
 		body = m.loadingLine("Loading " + strings.ToLower(libTabs[m.lib.tab]) + "…")
 	default:
-		body = m.listBlock(l, w, h-4)
+		body = m.listBlock(l, w, h-4, 3)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, head, tabs, "", body)
 }
@@ -141,7 +146,7 @@ func (m Model) viewSearch(w, h int) string {
 		}
 		l := &m.search.lists[m.search.tab]
 		lines = append(lines, "", m.tabBar(searchTabs, m.search.tab, counts), "",
-			m.listBlock(l, w, rest-3))
+			m.listBlock(l, w, rest-3, lipgloss.Height(searchBox)+3))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -161,7 +166,7 @@ func (m Model) viewQueue(w, h int) string {
 	case len(l.items) == 0:
 		body = m.theme.dim.Render("The queue is empty. Press a on any track to add it.")
 	default:
-		body = m.listBlock(l, w, h-2)
+		body = m.listBlock(l, w, h-2, 2)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, head, "", body)
 }
@@ -175,7 +180,12 @@ func (m Model) viewContext(w, h int) string {
 	}
 
 	pill := m.theme.pill.Render(strings.ToUpper(cp.kind))
-	title := m.theme.title.Render(ansi.Truncate(cp.title, max(w-30, 10), "…"))
+	art := ""
+	if cp.cover != nil {
+		art = cp.cover.Render()
+	}
+	textW := w - lipgloss.Width(art) - 3
+	title := m.theme.title.Render(ansi.Truncate(cp.title, max(textW-12, 10), "…"))
 
 	info := ""
 	switch {
@@ -190,16 +200,29 @@ func (m Model) viewContext(w, h int) string {
 	if pos := cp.list.position(); pos != "" {
 		info += "   " + pos
 	}
-	head := pill + " " + title
-	gap := w - lipgloss.Width(head) - lipgloss.Width(info)
-	if gap > 0 {
-		head += strings.Repeat(" ", gap) + m.theme.dim.Render(info)
-	}
-
 	playing := ""
 	if m.contextURI == cp.uri {
 		playing = m.theme.accentTxt.Render("♪ playing from here")
 	}
+
+	var header string
+	if art != "" {
+		// Cover on the left, details stacked beside it.
+		lines := []string{pill, title}
+		if cp.subtitle != "" {
+			lines = append(lines, m.theme.album.Render(ansi.Truncate(cp.subtitle, textW, "…")))
+		}
+		lines = append(lines, "", m.theme.dim.Render(info), playing)
+		header = lipgloss.JoinHorizontal(lipgloss.Top, art, "   ", lipgloss.JoinVertical(lipgloss.Left, lines...))
+	} else {
+		head := pill + " " + title
+		gap := w - lipgloss.Width(head) - lipgloss.Width(info)
+		if gap > 0 {
+			head += strings.Repeat(" ", gap) + m.theme.dim.Render(info)
+		}
+		header = head + "\n" + playing
+	}
+	above := lipgloss.Height(header) + 1
 
 	var body string
 	switch {
@@ -208,7 +231,7 @@ func (m Model) viewContext(w, h int) string {
 	case len(cp.list.items) == 0 && cp.loading:
 		body = m.loadingLine("Loading tracks…")
 	default:
-		body = m.listBlock(&cp.list, w, h-3)
+		body = m.listBlock(&cp.list, w, h-above, above)
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, head, playing, "", body)
+	return lipgloss.JoinVertical(lipgloss.Left, header, "", body)
 }
