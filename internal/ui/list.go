@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -40,6 +41,8 @@ type listModel struct {
 	scroll   *int  // first visible row; shared so View (on a copy) can keep it
 	filter   string
 	numbered bool
+	// ranked orders filter matches by quality instead of list order.
+	ranked bool
 }
 
 func (l *listModel) setItems(items []listItem) {
@@ -88,6 +91,26 @@ func (l *listModel) applyFilter() {
 		}
 		l.visible = append(l.visible, i)
 	}
+	if l.ranked && needle != "" {
+		sort.SliceStable(l.visible, func(a, b int) bool {
+			return matchRank(l.items[l.visible[a]].title, needle) < matchRank(l.items[l.visible[b]].title, needle)
+		})
+	}
+}
+
+// matchRank scores how well title matches needle: 0 prefix, 1 word prefix,
+// 2 substring, 3 anything looser (subtitle or subsequence).
+func matchRank(title, needle string) int {
+	t := strings.ToLower(title)
+	switch {
+	case strings.HasPrefix(t, needle):
+		return 0
+	case strings.Contains(" "+t, " "+needle):
+		return 1
+	case strings.Contains(t, needle):
+		return 2
+	}
+	return 3
 }
 
 // fuzzyMatch reports whether every word of needle appears in hay as a

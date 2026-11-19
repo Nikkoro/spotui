@@ -226,9 +226,16 @@ func TestPreview(t *testing.T) {
 	_ = fatal.scheduleRestart()
 	write(t, "17-fatal", fatal)
 
+	pal := sampleModel(t)
+	pal.lib = m.lib
+	_ = pal.openPalette()
+	pal.pal.input.SetValue("syn")
+	pal.setPaletteItems("syn")
+	write(t, "18-palette", pal)
+
 	ApplyPalette("catppuccin")
 	cat := sampleModel(t)
-	cat.cfg.Cover.DynamicAccent = false
+	cat.dynamicAccent = false
 	cat.repixelate()
 	cat.page = pageLibrary
 	cat.lib = m.lib

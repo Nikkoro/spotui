@@ -71,6 +71,9 @@ type Model struct {
 	username    string
 	liked       map[string]bool
 
+	themeName     string
+	dynamicAccent bool
+
 	// cover art
 	covers    *cover.Cache
 	coverURL  string
@@ -91,6 +94,7 @@ type Model struct {
 	ctxPage *contextPage
 
 	overlay overlay
+	pal     cmdPalette
 	dj      djPanel
 	picker  struct {
 		list       listModel
@@ -173,28 +177,31 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 	filter.CharLimit = 64
 
 	m := Model{
-		eng:       eng,
-		cfg:       cfg,
-		phase:     phaseConnecting,
-		spinner:   sp,
-		theme:     newTheme(defaultAccent),
-		volumeMax: 100,
-		stopped:   true,
-		liked:     map[string]bool{},
-		input:     in,
-		filterIn:  filter,
-		pixSize:   clamp(cfg.Cover.PixelSize, minPixelSize, maxPixelSize),
-		levels:    cfg.Cover.Levels,
-		page:      pageNowPlaying,
-		lib:       newLibraryPage(),
-		search:    newSearchPage(),
-		queue:     newQueuePage(),
-		dj:        newDjPanel(),
-		vizOn:     cfg.Visualizer.Enabled && tap != nil,
-		vizTap:    tap,
-		vizStyle:  cfg.Visualizer.Style,
-		vizAn:     viz.NewAnalyzer(32),
-		vizBuf:    make([]float32, 2048),
+		eng:           eng,
+		cfg:           cfg,
+		phase:         phaseConnecting,
+		spinner:       sp,
+		theme:         newTheme(defaultAccent),
+		volumeMax:     100,
+		stopped:       true,
+		liked:         map[string]bool{},
+		input:         in,
+		filterIn:      filter,
+		pixSize:       clamp(cfg.Cover.PixelSize, minPixelSize, maxPixelSize),
+		levels:        cfg.Cover.Levels,
+		page:          pageNowPlaying,
+		lib:           newLibraryPage(),
+		search:        newSearchPage(),
+		queue:         newQueuePage(),
+		dj:            newDjPanel(),
+		pal:           newPalette(),
+		themeName:     cfg.Theme,
+		dynamicAccent: cfg.Cover.DynamicAccent,
+		vizOn:         cfg.Visualizer.Enabled && tap != nil,
+		vizTap:        tap,
+		vizStyle:      cfg.Visualizer.Style,
+		vizAn:         viz.NewAnalyzer(32),
+		vizBuf:        make([]float32, 2048),
 	}
 	m.covers = cover.NewCache(cfg.CacheDir+"/covers", int64(cfg.Cover.CacheSizeMB)<<20)
 	go m.covers.Prune()
@@ -410,6 +417,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateDjKey(msg)
 		case m.overlay == overlayPlaylists:
 			return m.updatePickerKey(msg)
+		case m.overlay == overlayPalette:
+			return m.updatePaletteKey(msg)
+		case msg.String() == "ctrl+k" && m.phase == phaseReady && !m.inputting:
+			return m, m.openPalette()
 		case m.overlay != overlayNone:
 			return m.updateOverlayKey(msg.String())
 		case m.inputting:
@@ -587,8 +598,13 @@ func (m *Model) repixelate() {
 	m.coverPix = cover.Pixelate(m.coverImg, m.pixSize, m.levels)
 	m.coverFit = map[int]*cover.Pixels{}
 	m.coverMini = cover.Pixelate(m.coverImg, miniCoverPx, m.levels)
+	m.applyAccent()
+}
+
+// applyAccent rebuilds the styles with the cover's colour or the palette's.
+func (m *Model) applyAccent() {
 	accent := defaultAccent
-	if m.cfg.Cover.DynamicAccent {
+	if m.dynamicAccent && m.coverImg != nil {
 		// Sample the accent at a fixed resolution so it does not shift when
 		// the user changes the pixelation.
 		if c, ok := cover.Accent(cover.Pixelate(m.coverImg, 24, 0)); ok {
@@ -597,6 +613,16 @@ func (m *Model) repixelate() {
 	}
 	m.theme = newTheme(accent)
 	m.spinner.Style = m.theme.accentTxt
+}
+
+// setTheme switches the palette live.
+func (m *Model) setTheme(name string) {
+	if !ApplyPalette(name) {
+		return
+	}
+	m.themeName = name
+	m.applyAccent()
+	m.setFlash("Theme: "+name, false)
 }
 
 func (m *Model) setPosition(ms int64) {
@@ -655,6 +681,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch key {
+	case ":":
+		return m, m.openPalette()
 	case "?":
 		return m, m.openOverlay(overlayHelp)
 	case "d":
