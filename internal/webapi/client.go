@@ -181,3 +181,41 @@ func compact[T any](in []*T) []T {
 	}
 	return out
 }
+
+// PlayHistory is one recently played track and where it was played from.
+type PlayHistory struct {
+	Track    Track  `json:"track"`
+	PlayedAt string `json:"played_at"`
+	Context  *struct {
+		URI string `json:"uri"`
+	} `json:"context"`
+}
+
+// RecentlyPlayed returns the last tracks the account played.
+func (c *Client) RecentlyPlayed(ctx context.Context) ([]PlayHistory, error) {
+	var raw struct {
+		Items []PlayHistory `json:"items"`
+	}
+	if err := c.get(ctx, "/me/player/recently-played", url.Values{"limit": {"50"}}, &raw); err != nil {
+		return nil, err
+	}
+	return raw.Items, nil
+}
+
+// TopTracks returns the account's most played tracks of the last weeks.
+func (c *Client) TopTracks(ctx context.Context) ([]Track, error) {
+	var raw page[Track]
+	if err := c.get(ctx, "/me/top/tracks", url.Values{"limit": {"50"}, "time_range": {"short_term"}}, &raw); err != nil {
+		return nil, err
+	}
+	return compact(raw.Items), nil
+}
+
+// TopArtists returns the account's most played artists of the last weeks.
+func (c *Client) TopArtists(ctx context.Context) ([]Artist, error) {
+	var raw page[Artist]
+	if err := c.get(ctx, "/me/top/artists", url.Values{"limit": {"50"}, "time_range": {"short_term"}}, &raw); err != nil {
+		return nil, err
+	}
+	return compact(raw.Items), nil
+}

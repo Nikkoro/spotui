@@ -1,6 +1,9 @@
 package ui
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestKeymap(t *testing.T) {
 	remap, unknown := buildKeymap(map[string]string{
@@ -53,5 +56,18 @@ func TestColorOverridesSurvivePaletteSwitch(t *testing.T) {
 	ApplyPalette("nord")
 	if defaultAccent != "#ff00aa" {
 		t.Fatalf("accent %s, override lost on palette switch", defaultAccent)
+	}
+}
+
+func TestAgoLabel(t *testing.T) {
+	now := time.Now()
+	cases := map[time.Duration]string{10 * time.Second: "1m ago", 5 * time.Minute: "5m ago", 3 * time.Hour: "3h ago", 72 * time.Hour: "3d ago"}
+	for d, want := range cases {
+		if got := agoLabel(now.Add(-d).Format(time.RFC3339)); got != want {
+			t.Errorf("%s ago: got %q want %q", d, got, want)
+		}
+	}
+	if agoLabel("garbage") != "" {
+		t.Error("bad time must give empty label")
 	}
 }

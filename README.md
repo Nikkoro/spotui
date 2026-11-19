@@ -95,6 +95,8 @@ Small things:
 - [x] Karaoke-style fill of the current lyric line
 - [x] Crossfade and autoplay settings
 - [x] `[colors]` overrides single colours on top of any theme
+- [x] Library tabs for Recently played (resumes in the playlist or album it
+      came from) and your Top tracks / Top artists of the last weeks
 
 ## Install
 
