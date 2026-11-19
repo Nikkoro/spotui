@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Nikkoro/spotui/internal/config"
@@ -71,4 +72,29 @@ func indexRunes(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+func TestListScrollPersistsAcrossCopies(t *testing.T) {
+	var items []listItem
+	for i := 0; i < 100; i++ {
+		items = append(items, listItem{title: itoa(i), uri: itoa(i)})
+	}
+	type holder struct{ l listModel }
+	h := holder{}
+	h.l.setItems(items)
+	th := newTheme(defaultAccent)
+
+	h.l.move(50)
+	view := func() string { c := h; return c.l.view(th, 40, 10, "") } // View runs on a copy
+	view()
+	// Scrolling back up a little must keep the window, not jump to the top.
+	h.l.move(-3)
+	out := stripANSI(view())
+	if !strings.Contains(out, " 47") || strings.Contains(out, " 0\n") {
+		t.Fatalf("window lost its position:\n%s", out)
+	}
+	first := strings.TrimSpace(strings.SplitN(out, "\n", 2)[0])
+	if first == "0" {
+		t.Fatalf("window jumped to the top")
+	}
 }

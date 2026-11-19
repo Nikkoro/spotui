@@ -35,12 +35,15 @@ type listModel struct {
 	items    []listItem
 	visible  []int // indices into items after filtering
 	cursor   int   // index into visible
-	offset   int   // first visible row
+	scroll   *int  // first visible row; shared so View (on a copy) can keep it
 	filter   string
 	numbered bool
 }
 
 func (l *listModel) setItems(items []listItem) {
+	if l.scroll == nil {
+		l.scroll = new(int)
+	}
 	sel := ""
 	if it := l.selected(); it != nil {
 		sel = it.uri
@@ -62,7 +65,10 @@ func (l *listModel) setItems(items []listItem) {
 func (l *listModel) setFilter(f string) {
 	l.filter = f
 	l.applyFilter()
-	l.cursor, l.offset = 0, 0
+	l.cursor = 0
+	if l.scroll != nil {
+		*l.scroll = 0
+	}
 	l.clampCursor()
 }
 
@@ -163,14 +169,21 @@ func (l *listModel) view(t theme, width, height int, playing string) string {
 	}
 
 	// Keep the cursor inside the window with a little context around it.
+	offset := 0
+	if l.scroll != nil {
+		offset = *l.scroll
+	}
 	margin := min(3, height/4)
-	if l.cursor < l.offset+margin {
-		l.offset = l.cursor - margin
+	if l.cursor < offset+margin {
+		offset = l.cursor - margin
 	}
-	if l.cursor >= l.offset+height-margin {
-		l.offset = l.cursor - height + margin + 1
+	if l.cursor >= offset+height-margin {
+		offset = l.cursor - height + margin + 1
 	}
-	l.offset = max(0, min(l.offset, len(l.visible)-height))
+	offset = max(0, min(offset, len(l.visible)-height))
+	if l.scroll != nil {
+		*l.scroll = offset
+	}
 
 	numW := 0
 	if l.numbered {
@@ -178,7 +191,7 @@ func (l *listModel) view(t theme, width, height int, playing string) string {
 	}
 
 	rows := make([]string, 0, height)
-	for i := l.offset; i < len(l.visible) && len(rows) < height; i++ {
+	for i := offset; i < len(l.visible) && len(rows) < height; i++ {
 		it := l.items[l.visible[i]]
 		rows = append(rows, l.row(t, it, i == l.cursor, it.uri != "" && it.uri == playing, width, numW, l.visible[i]+1))
 	}
