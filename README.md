@@ -94,6 +94,7 @@ Small things:
 
 - [x] Karaoke-style fill of the current lyric line
 - [x] Crossfade and autoplay settings
+- [x] `[colors]` overrides single colours on top of any theme
 
 ## Install
 
@@ -178,6 +179,9 @@ media_controls = true     # MPRIS (Linux) / global media keys (Windows)
 seek_step_seconds = 5
 volume_step = 5
 theme = "spotify"         # spotify | catppuccin | gruvbox | nord | rose-pine | tokyo-night
+
+[colors]                  # optional per-colour overrides on top of the theme
+# accent = "#ff79c6"      # also: text, subtle, dim, track, selection, background_text
 
 [keys]                    # extra bindings: action = "key[, key…]"
 # next = "ctrl+n"

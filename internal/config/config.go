@@ -50,6 +50,10 @@ type Config struct {
 	// rose-pine or tokyo-night.
 	Theme string `toml:"theme"`
 
+	// Colors overrides single colours of the theme (#rrggbb): accent, text,
+	// subtle, dim, track, selection, background_text.
+	Colors map[string]string `toml:"colors"`
+
 	// Cover controls album art rendering.
 	Cover CoverConfig `toml:"cover"`
 

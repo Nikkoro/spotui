@@ -43,3 +43,15 @@ func TestPaletteSearchEntryOnce(t *testing.T) {
 		t.Fatalf("search entry shown %d times, visible=%v", n, m.pal.list.visible)
 	}
 }
+
+func TestColorOverridesSurvivePaletteSwitch(t *testing.T) {
+	defer func() { SetColorOverrides(nil); ApplyPalette("spotify") }()
+	bad := SetColorOverrides(map[string]string{"accent": "#ff00aa", "text": "nope", "glow": "#000000"})
+	if len(bad) != 2 {
+		t.Fatalf("bad = %v", bad)
+	}
+	ApplyPalette("nord")
+	if defaultAccent != "#ff00aa" {
+		t.Fatalf("accent %s, override lost on palette switch", defaultAccent)
+	}
+}
