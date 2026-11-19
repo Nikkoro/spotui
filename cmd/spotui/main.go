@@ -102,8 +102,11 @@ func run() error {
 		}
 	}
 
+	if !ui.ApplyPalette(cfg.Theme) {
+		logger.Warnf("unknown theme %q, using the default", cfg.Theme)
+	}
 	ui.Version = version
-	p := tea.NewProgram(ui.New(eng, cfg, tap), tea.WithAltScreen())
+	p := tea.NewProgram(ui.New(eng, cfg, tap), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, uiErr := p.Run()
 
 	cancel()

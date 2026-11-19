@@ -2,7 +2,8 @@ package ui
 
 import "github.com/charmbracelet/lipgloss"
 
-const defaultAccent = "#1DB954" // Spotify green
+// defaultAccent is the palette accent, used when no cover colour applies.
+var defaultAccent = "#1DB954" // Spotify green
 
 // theme holds every style derived from the current accent colour, so the
 // whole UI can be re-tinted when the album cover changes.
@@ -34,6 +35,38 @@ var (
 	colDark   = lipgloss.Color("#101014")
 	colSelBg  = lipgloss.Color("#24242C")
 )
+
+type palette struct {
+	accent, text, subtle, dim, track, selBg, dark string
+}
+
+// Palettes selectable with `theme` in config.toml. The accent is replaced
+// by the cover colour while dynamic_accent is on.
+var palettes = map[string]palette{
+	"spotify":     {"#1DB954", "#E6E6E6", "#A0A0A8", "#5C5C66", "#34343C", "#24242C", "#101014"},
+	"catppuccin":  {"#CBA6F7", "#CDD6F4", "#A6ADC8", "#6C7086", "#313244", "#292C3C", "#1E1E2E"},
+	"gruvbox":     {"#FABD2F", "#EBDBB2", "#A89984", "#665C54", "#3C3836", "#32302F", "#1D2021"},
+	"nord":        {"#88C0D0", "#ECEFF4", "#D8DEE9", "#4C566A", "#3B4252", "#353C4A", "#2E3440"},
+	"rose-pine":   {"#EBBCBA", "#E0DEF4", "#908CAA", "#6E6A86", "#26233A", "#21202E", "#191724"},
+	"tokyo-night": {"#7AA2F7", "#C0CAF5", "#A9B1D6", "#565F89", "#292E42", "#24283B", "#1A1B26"},
+}
+
+// ApplyPalette switches the base colours; unknown names keep the default.
+// Call before the UI starts.
+func ApplyPalette(name string) bool {
+	p, ok := palettes[name]
+	if !ok {
+		return false
+	}
+	defaultAccent = p.accent
+	colText = lipgloss.Color(p.text)
+	colSubtle = lipgloss.Color(p.subtle)
+	colDim = lipgloss.Color(p.dim)
+	colTrack = lipgloss.Color(p.track)
+	colSelBg = lipgloss.Color(p.selBg)
+	colDark = lipgloss.Color(p.dark)
+	return true
+}
 
 func newTheme(accentHex string) theme {
 	accent := lipgloss.Color(accentHex)

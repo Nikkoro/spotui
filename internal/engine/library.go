@@ -144,3 +144,14 @@ func (e *Engine) SetLiked(ctx context.Context, uris []string, liked bool) error 
 	_, err := e.request(ctx, daemon.ApiRequestTypeSetLiked, daemon.ApiSetLiked{Uris: uris, Liked: liked})
 	return err
 }
+
+// Devices lists the account's Spotify Connect devices.
+func (e *Engine) Devices(ctx context.Context) (*daemon.ApiConnectDevices, error) {
+	return decode[daemon.ApiConnectDevices](e.request(ctx, daemon.ApiRequestTypeConnectDevices, nil))
+}
+
+// Transfer moves playback to a device; this device's own id pulls it here.
+func (e *Engine) Transfer(ctx context.Context, deviceID string) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypeConnectTransfer, daemon.ApiConnectTransfer{DeviceId: deviceID})
+	return err
+}

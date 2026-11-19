@@ -69,6 +69,31 @@ func lerp(a, b color.RGBA, t float64) color.RGBA {
 	}
 }
 
+// RenderMirror draws bars growing up and down from a centre line, the lower
+// half a darker reflection.
+func RenderMirror(levels, peaks []float64, barWidth, height int, bottom, top color.RGBA) string {
+	upper := (height + 1) / 2
+	lower := height - upper
+	up := Render(levels, peaks, barWidth, upper, bottom, top)
+	if lower == 0 {
+		return up
+	}
+	// The reflection: same bars, no peaks, flipped, fading out.
+	none := make([]float64, len(levels))
+	dim := lerp(bottom, color.RGBA{16, 16, 20, 255}, 0.55)
+	down := strings.Split(Render(levels, none, barWidth, lower, dim, lerp(dim, color.RGBA{16, 16, 20, 255}, 0.6)), "\n")
+	for i, j := 0, len(down)-1; i < j; i, j = i+1, j-1 {
+		down[i], down[j] = down[j], down[i]
+	}
+	// Flip the partial blocks too: a bar end that sits at the bottom of a
+	// cell upwards sits at its top when mirrored.
+	flip := strings.NewReplacer("▁", "▔", "▂", "▔", "▃", "▀", "▄", "▀", "▅", "▀", "▆", "█", "▇", "█")
+	for i := range down {
+		down[i] = flip.Replace(down[i])
+	}
+	return up + "\n" + strings.Join(down, "\n")
+}
+
 // Gradient derives bar colours from an accent: a deeper shade at the bottom
 // rising to a lighter tint at the top.
 func Gradient(accent color.RGBA) (bottom, top color.RGBA) {
