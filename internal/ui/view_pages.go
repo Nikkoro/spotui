@@ -91,6 +91,8 @@ func (m Model) viewLibrary(w, h int) string {
 
 	var body string
 	switch {
+	case m.webAuthURL != "" && m.pendingLibTab == m.lib.tab:
+		body = m.webAuthCard(w)
 	case m.lib.err[m.lib.tab] != nil && len(l.items) > 0:
 		// Keep showing the cached copy; just say it may be stale.
 		body = m.listBlock(l, w, h-5, 3) + "\n" + m.theme.dim.Render("offline copy · "+m.lib.err[m.lib.tab].Error()+" · R retries")
@@ -123,13 +125,7 @@ func (m Model) viewSearch(w, h int) string {
 
 	switch {
 	case m.webAuthURL != "":
-		lines = append(lines, "",
-			m.theme.title.Render("Connect the Web API"),
-			m.theme.text.Render("Approve spotui in the browser window that just opened."),
-			m.theme.dim.Render("Nothing opened? Press o, or open:"),
-			m.theme.link.Render(ansi.Truncate(m.webAuthURL, w, "…")),
-			"",
-			m.loadingLine("Waiting for approval…"))
+		lines = append(lines, "", m.webAuthCard(w))
 	case m.search.loading:
 		lines = append(lines, "", m.loadingLine("Searching for “"+m.search.query+"”…"))
 	case m.search.err != nil:
@@ -235,4 +231,16 @@ func (m Model) viewContext(w, h int) string {
 		body = m.listBlock(&cp.list, w, h-above, above)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, header, "", body)
+}
+
+// webAuthCard asks the user to approve spotui's Web API access.
+func (m Model) webAuthCard(w int) string {
+	return strings.Join([]string{
+		m.theme.title.Render("Connect the Web API"),
+		m.theme.text.Render("Approve spotui in the browser window that just opened."),
+		m.theme.dim.Render("Nothing opened? Press o, or open:"),
+		m.theme.link.Render(ansi.Truncate(m.webAuthURL, w, "…")),
+		"",
+		m.loadingLine("Waiting for approval…"),
+	}, "\n")
 }

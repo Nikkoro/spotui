@@ -71,3 +71,20 @@ func TestAgoLabel(t *testing.T) {
 		t.Error("bad time must give empty label")
 	}
 }
+
+func TestMarquee(t *testing.T) {
+	if got := marquee("short", 10, time.Now()); got != "short" {
+		t.Fatalf("short text changed: %q", got)
+	}
+	start := time.UnixMilli(0)
+	if got := marquee("abcdefghij", 4, start); got != "abcd" {
+		t.Fatalf("rests at the start, got %q", got)
+	}
+	// 8 rest steps + 3 slide steps of 250 ms
+	if got := marquee("abcdefghij", 4, start.Add(11*250*time.Millisecond)); got != "defg" {
+		t.Fatalf("slides, got %q", got)
+	}
+	if got := marquee("abcdefghij", 4, start.Add(15*250*time.Millisecond)); got != "ghij" {
+		t.Fatalf("rests at the end, got %q", got)
+	}
+}

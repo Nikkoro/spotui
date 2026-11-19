@@ -368,7 +368,7 @@ func (m Model) viewTrackInfo(w int) string {
 	if m.liked[t.Uri] {
 		heart = m.theme.accentTxt.Render("  ♥")
 	}
-	title := trunc.Render(m.theme.title.Render(t.Name) + heart)
+	title := trunc.Render(m.theme.title.Render(marquee(t.Name, w-lipgloss.Width(heart), time.Now())) + heart)
 	artist := trunc.Render(m.theme.artist.Render(strings.Join(t.ArtistNames, ", ")))
 	album := t.AlbumName
 	if len(t.ReleaseDate) >= 4 {

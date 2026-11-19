@@ -221,7 +221,7 @@ func (m Model) loadLibrary(tab int) tea.Cmd {
 		case libRecent:
 			hist, err := api.RecentlyPlayed(ctx)
 			if err != nil {
-				return libLoadedMsg{tab: tab, err: webErr(err)}
+				return libLoadedMsg{tab: tab, err: err}
 			}
 			seen := map[string]bool{}
 			for _, h := range hist {
@@ -239,7 +239,7 @@ func (m Model) loadLibrary(tab int) tea.Cmd {
 		case libTopTracks:
 			tracks, err := api.TopTracks(ctx)
 			if err != nil {
-				return libLoadedMsg{tab: tab, err: webErr(err)}
+				return libLoadedMsg{tab: tab, err: err}
 			}
 			for _, t := range tracks {
 				items = append(items, webTrackItem(t))
@@ -247,7 +247,7 @@ func (m Model) loadLibrary(tab int) tea.Cmd {
 		case libTopArtists:
 			artists, err := api.TopArtists(ctx)
 			if err != nil {
-				return libLoadedMsg{tab: tab, err: webErr(err)}
+				return libLoadedMsg{tab: tab, err: err}
 			}
 			for _, a := range artists {
 				sub := ""
@@ -453,7 +453,15 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case libLoadedMsg:
 		m.lib.loading[msg.tab] = false
-		m.lib.err[msg.tab] = msg.err
+		if errors.Is(msg.err, webapi.ErrNotAuthorized) && m.pkce != nil {
+			// Connect the Web API, then load this tab again.
+			m.pendingLibTab = msg.tab
+			if m.webAuthURL == "" {
+				return m, m.startWebAuth()
+			}
+			return m, nil
+		}
+		m.lib.err[msg.tab] = webErr(msg.err)
 		if msg.err == nil {
 			m.lib.loaded[msg.tab] = true
 			m.lib.lists[msg.tab].setItems(msg.items)
@@ -489,6 +497,7 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case webAuthStartedMsg:
 		if msg.err != nil {
 			m.search.err = msg.err
+			m.setFlash("Web API login: "+msg.err.Error(), true)
 			return m, nil
 		}
 		m.webAuthURL = msg.url
@@ -499,15 +508,24 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.webAuthURL = ""
 		if msg.err != nil {
 			m.search.err = fmt.Errorf("authorization: %w", msg.err)
+			m.setFlash("Web API login failed: "+msg.err.Error(), true)
+			m.pendingLibTab = -1
 			return m, nil
 		}
 		m.setFlash("Web API connected", false)
+		var cmds []tea.Cmd
 		if q := m.search.pending; q != "" {
 			m.search.pending = ""
 			m.search.loading = true
-			return m, m.runSearch(q)
+			cmds = append(cmds, m.runSearch(q))
 		}
-		return m, nil
+		if t := m.pendingLibTab; t >= 0 {
+			m.pendingLibTab = -1
+			m.lib.loaded[t], m.lib.err[t] = false, nil
+			m.lib.loading[t] = true
+			cmds = append(cmds, m.loadLibrary(t))
+		}
+		return m, tea.Batch(cmds...)
 
 	case queueMsg:
 		m.queue.loading = false
@@ -651,7 +669,7 @@ func (m Model) handlePageKey(key string) (bool, tea.Model, tea.Cmd) {
 		return m.handleLyricsKey(key)
 	}
 
-	if m.page == pageSearch && m.webAuthURL != "" && key == "o" {
+	if m.webAuthURL != "" && key == "o" {
 		_ = platform.OpenURL(m.webAuthURL)
 		return true, m, nil
 	}

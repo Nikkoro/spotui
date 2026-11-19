@@ -132,8 +132,9 @@ type Model struct {
 	input     textinput.Model
 	inputting bool
 
-	// Web API authorization in progress
-	webAuthURL string
+	// Web API authorization in progress, and the library tab waiting for it
+	webAuthURL    string
+	pendingLibTab int
 
 	notifier notify.Notifier
 
@@ -215,6 +216,7 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 	go m.covers.Prune()
 
 	m.historyIdx = -1
+	m.pendingLibTab = -1
 	m.keymap, _ = buildKeymap(cfg.Keys)
 	m.picker.filter = textinput.New()
 	m.picker.filter.Prompt = "/ "
