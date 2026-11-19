@@ -30,7 +30,9 @@ func (m Model) View() string {
 	case phaseFatal:
 		body = m.centre(w, m.bodyHeight(header, footer, ""), m.viewFatal())
 	default:
-		if m.page == pageNowPlaying {
+		if m.overlay != overlayNone {
+			body = m.viewOverlay(w, m.bodyHeight(header, footer, ""))
+		} else if m.page == pageNowPlaying {
 			body = m.centre(w, m.bodyHeight(header, footer, ""), m.viewNowPlaying(w))
 		} else {
 			bar := m.viewPlayerBar(w)
@@ -117,6 +119,10 @@ func (m Model) viewFooter(w int) string {
 
 	var keys [][2]string
 	switch {
+	case m.overlay == overlayDevices:
+		keys = [][2]string{{"↑↓", "move"}, {"enter", "move playback"}, {"esc", "close"}}
+	case m.overlay == overlayHelp:
+		keys = [][2]string{{"esc", "close"}}
 	case m.phase == phaseAuth:
 		keys = [][2]string{{"o", "open link"}, {"q", "quit"}}
 	case m.phase != phaseReady:
@@ -124,8 +130,7 @@ func (m Model) viewFooter(w int) string {
 	case m.page == pageNowPlaying:
 		keys = [][2]string{
 			{"space", "play"}, {"n/p", "next/prev"}, {"←→", "seek"}, {"+/-", "vol"},
-			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"v", "viz"}, {"[ ]", "pixels"}, {"{ }", "colours"},
-			{"u", "link"}, {"q", "quit"},
+			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"d", "devices"}, {"?", "help"}, {"q", "quit"},
 		}
 	case m.page == pageLyrics:
 		keys = [][2]string{{"< >", "sync offset"}, {"0", "reset"}, {"↑↓", "scroll (plain)"},
@@ -142,7 +147,7 @@ func (m Model) viewFooter(w int) string {
 		if m.page == pageContext {
 			keys = append(keys, [2]string{"esc", "back"})
 		}
-		keys = append(keys, [][2]string{{"space", "play"}, {"n/p", "next/prev"}, {"q", "quit"}}...)
+		keys = append(keys, [][2]string{{"space", "play"}, {"?", "help"}, {"q", "quit"}}...)
 	}
 
 	parts := make([]string, 0, len(keys))

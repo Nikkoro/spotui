@@ -179,5 +179,33 @@ func TestPreview(t *testing.T) {
 	}
 	write(t, "8-now-playing-tall", tall)
 
+	help := sampleModel(t)
+	help.overlay = overlayHelp
+	write(t, "10-help", help)
+
+	dev := sampleModel(t)
+	dev.page = pageLibrary
+	dev.overlay = overlayDevices
+	dev.devices.list.setItems([]listItem{
+		{kind: kindTrack, title: "♪ spotui (desktop)", subtitle: "computer · this terminal · playing", right: "72%", uri: "a"},
+		{kind: kindTrack, title: "Pixel 9", subtitle: "smartphone", right: "40%", uri: "b"},
+		{kind: kindTrack, title: "Living Room", subtitle: "speaker", right: "25%", uri: "c"},
+	})
+	dev.devices.list.move(1)
+	write(t, "11-devices", dev)
+
+	mirror := sampleModel(t)
+	mirror.vizStyle = "mirror"
+	write(t, "12-mirror", mirror)
+
+	ApplyPalette("catppuccin")
+	cat := sampleModel(t)
+	cat.cfg.Cover.DynamicAccent = false
+	cat.repixelate()
+	cat.page = pageLibrary
+	cat.lib = m.lib
+	write(t, "13-catppuccin", cat)
+	ApplyPalette("spotify")
+
 	var _ tea.Model = m
 }

@@ -91,6 +91,13 @@ type Model struct {
 	queue   queuePage
 	ctxPage *contextPage
 
+	overlay overlay
+	devices struct {
+		list    listModel
+		loading bool
+		err     error
+	}
+
 	// list filter (shared by all list pages)
 	filtering bool
 	filterIn  textinput.Model
@@ -116,6 +123,7 @@ type Model struct {
 
 	// visualizer
 	vizOn      bool
+	vizStyle   string
 	vizTap     *viz.Tap
 	vizAn      *viz.Analyzer
 	vizBuf     []float32
@@ -164,6 +172,7 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		queue:     newQueuePage(),
 		vizOn:     cfg.Visualizer.Enabled && tap != nil,
 		vizTap:    tap,
+		vizStyle:  cfg.Visualizer.Style,
 		vizAn:     viz.NewAnalyzer(32),
 		vizBuf:    make([]float32, 2048),
 	}
@@ -279,6 +288,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.handleEvent(msg.ev)
 		return m, tea.Batch(cmd, waitEvent(m.eng.Events()))
 
+	case devicesMsg:
+		m.devices.loading = false
+		m.devices.err = msg.err
+		if msg.err == nil {
+			m.devices.list.setItems(msg.items)
+		}
+		return m, nil
+
 	case cmdResultMsg:
 		if msg.err != nil {
 			m.setFlash(fmt.Sprintf("%s failed: %v", msg.what, msg.err), true)
@@ -314,8 +331,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.repixelate()
 		return m, nil
 
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
+
 	case tea.KeyMsg:
 		switch {
+		case m.overlay != overlayNone:
+			return m.updateOverlayKey(msg.String())
 		case m.inputting:
 			return m.updateInput(msg)
 		case m.filtering:
@@ -345,7 +367,7 @@ func (m *Model) handleEvent(ev engine.Event) tea.Cmd {
 	case engine.ReadyEvent:
 		m.phase = phaseReady
 		m.auth = nil
-		return m.applyStatus(ev.Status)
+		return tea.Batch(tea.EnableMouseCellMotion, m.applyStatus(ev.Status))
 
 	case engine.FatalEvent:
 		m.phase = phaseFatal
@@ -535,6 +557,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	switch key {
+	case "?":
+		return m, m.openOverlay(overlayHelp)
+	case "d":
+		return m, m.openOverlay(overlayDevices)
+	}
+
 	// Page navigation and list keys first; they fall through to the
 	// player keys when not handled.
 	if handled, next, cmd := m.handlePageKey(key); handled {
@@ -598,6 +627,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.setFlash("Visualizer off", false)
 		}
+		return m, nil
+	case "V":
+		if m.vizStyle == "mirror" {
+			m.vizStyle = "bars"
+		} else {
+			m.vizStyle = "mirror"
+		}
+		m.vizOn = m.vizTap != nil
+		m.setFlash("Visualizer style: "+m.vizStyle, false)
 		return m, nil
 	case "u":
 		m.inputting = true

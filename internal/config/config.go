@@ -42,6 +42,10 @@ type Config struct {
 	// AudioCacheSizeMB caps the audio cache size; 0 means unlimited.
 	AudioCacheSizeMB int64 `toml:"audio_cache_size_mb"`
 
+	// Theme is the colour palette: spotify, catppuccin, gruvbox, nord,
+	// rose-pine or tokyo-night.
+	Theme string `toml:"theme"`
+
 	// Cover controls album art rendering.
 	Cover CoverConfig `toml:"cover"`
 
@@ -83,6 +87,8 @@ type VisualizerConfig struct {
 	DelayMs int `toml:"delay_ms"`
 	// BarWidth is the width of each bar in columns.
 	BarWidth int `toml:"bar_width"`
+	// Style is "bars" or "mirror".
+	Style string `toml:"style"`
 }
 
 // LyricsConfig controls synced lyrics from LRCLIB.
@@ -102,6 +108,7 @@ func Default() Config {
 
 	return Config{
 		DeviceName:       name,
+		Theme:            "spotify",
 		Bitrate:          320,
 		InitialVolume:    70,
 		Normalisation:    true,
@@ -117,6 +124,7 @@ func Default() Config {
 			Enabled:  true,
 			DelayMs:  120,
 			BarWidth: 2,
+			Style:    "bars",
 		},
 		Lyrics: LyricsConfig{
 			Enabled:        true,

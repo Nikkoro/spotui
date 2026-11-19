@@ -45,14 +45,22 @@ Stage 5:
 - [x] Track-change notifications with the cover: freedesktop on Linux,
       Windows toasts on Windows and from WSL (via `powershell.exe`)
 
-Next:
+Stage 6:
 
-- [ ] Themes, mouse support
+- [x] Devices overlay (`d`): see every Connect device, move playback
+      anywhere, including pulling it to this terminal
+- [x] Help overlay (`?`)
+- [x] Themes: spotify, catppuccin, gruvbox, nord, rose-pine, tokyo-night
+- [x] Mirror visualizer style (`V`)
+- [x] Mouse: wheel scrolls lists and lyrics, click the page tabs
 
 ## Install
 
-Grab `spotui` (Linux/WSL) or `spotui.exe` (Windows) from the latest
-[build](../../actions/workflows/build.yml) artifacts.
+Grab `spotui-linux-amd64.tar.gz` (Linux/WSL) or `spotui-windows-amd64.zip`
+(Windows) from the latest [release](../../releases). Every push to `main` also
+leaves binaries as [build](../../actions/workflows/build.yml) artifacts.
+
+Releases are made by pushing a `v*` tag.
 
 ### Linux / WSL runtime libraries
 
@@ -97,6 +105,9 @@ The Windows build is a single static `.exe`.
 | `[` / `]` | cover pixel resolution |
 | `{` / `}` | cover colour depth |
 | `<` `>` / `0` | lyrics sync offset ±250 ms / reset (Lyrics page) |
+| `d` | devices: move playback |
+| `?` | help |
+| `V` | visualizer style (bars / mirror) |
 | `q` | quit |
 
 ## Configuration
@@ -116,6 +127,7 @@ audio_cache = true
 audio_cache_size_mb = 1024
 notifications = true      # desktop notification on track change
 media_controls = true     # MPRIS (Linux) / global media keys (Windows)
+theme = "spotify"         # spotify | catppuccin | gruvbox | nord | rose-pine | tokyo-night
 
 [cover]
 enabled = true
@@ -127,6 +139,7 @@ dynamic_accent = true     # tint the UI with the cover's colour
 enabled = true
 delay_ms = 120            # raise if bars run ahead of what you hear
 bar_width = 2
+style = "bars"            # bars | mirror
 
 [lyrics]
 enabled = true

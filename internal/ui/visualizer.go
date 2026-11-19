@@ -70,5 +70,8 @@ func (m Model) viewVisualizer(width, height int) string {
 		levels, peaks = make([]float64, bands), make([]float64, bands)
 	}
 	bottom, top := viz.Gradient(viz.ParseHex(m.theme.accentHex))
+	if m.vizStyle == "mirror" {
+		return viz.RenderMirror(levels, peaks, barW, height, bottom, top)
+	}
 	return viz.Render(levels, peaks, barW, height, bottom, top)
 }
