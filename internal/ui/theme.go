@@ -1,6 +1,11 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"regexp"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // defaultAccent is the palette accent, used when no cover colour applies.
 var defaultAccent = "#1DB954" // Spotify green
@@ -51,6 +56,50 @@ var palettes = map[string]palette{
 	"tokyo-night": {"#7AA2F7", "#C0CAF5", "#A9B1D6", "#565F89", "#292E42", "#24283B", "#1A1B26"},
 }
 
+var overrides map[string]string
+
+// SetColorOverrides sets per-colour overrides from config.toml's [colors],
+// applied on top of whichever palette is active. It returns the keys it
+// did not understand.
+func SetColorOverrides(c map[string]string) (unknown []string) {
+	overrides = map[string]string{}
+	for k, v := range c {
+		k = strings.ToLower(strings.TrimSpace(k))
+		switch k {
+		case "accent", "text", "subtle", "dim", "track", "selection", "background_text":
+		default:
+			unknown = append(unknown, k)
+			continue
+		}
+		if !hexColor.MatchString(v) {
+			unknown = append(unknown, k+"="+v)
+			continue
+		}
+		overrides[k] = v
+	}
+	applyOverrides()
+	return unknown
+}
+
+var hexColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+func applyOverrides() {
+	set := func(key string, dst *lipgloss.Color) {
+		if v, ok := overrides[key]; ok {
+			*dst = lipgloss.Color(v)
+		}
+	}
+	if v, ok := overrides["accent"]; ok {
+		defaultAccent = v
+	}
+	set("text", &colText)
+	set("subtle", &colSubtle)
+	set("dim", &colDim)
+	set("track", &colTrack)
+	set("selection", &colSelBg)
+	set("background_text", &colDark)
+}
+
 // ApplyPalette switches the base colours; unknown names keep the default.
 // Call before the UI starts.
 func ApplyPalette(name string) bool {
@@ -65,6 +114,7 @@ func ApplyPalette(name string) bool {
 	colTrack = lipgloss.Color(p.track)
 	colSelBg = lipgloss.Color(p.selBg)
 	colDark = lipgloss.Color(p.dark)
+	applyOverrides()
 	return true
 }
 

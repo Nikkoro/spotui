@@ -109,6 +109,9 @@ func run() error {
 	if _, unknown := ui.CheckKeys(cfg.Keys); len(unknown) > 0 {
 		logger.Warnf("unknown actions in [keys]: %v (valid: %v)", unknown, ui.ActionNames())
 	}
+	if bad := ui.SetColorOverrides(cfg.Colors); len(bad) > 0 {
+		logger.Warnf("ignored [colors] entries: %v (use accent, text, subtle, dim, track, selection, background_text = \"#rrggbb\")", bad)
+	}
 	if !ui.ApplyPalette(cfg.Theme) {
 		logger.Warnf("unknown theme %q, using the default", cfg.Theme)
 	}
