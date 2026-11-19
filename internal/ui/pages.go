@@ -22,10 +22,12 @@ const (
 	pageLibrary
 	pageSearch
 	pageQueue
+	pageLyrics
 	pageContext
 )
 
-var pageNames = []string{"Now Playing", "Library", "Search", "Queue"}
+// pageNames are the numbered tabs; index i is page(i).
+var pageNames = []string{"Now Playing", "Library", "Search", "Queue", "Lyrics"}
 
 // --- page state ---
 
@@ -533,6 +535,13 @@ func (m Model) handlePageKey(key string) (bool, tea.Model, tea.Cmd) {
 	case "4":
 		cmd := m.switchPage(pageQueue)
 		return true, m, cmd
+	case "5":
+		cmd := m.switchPage(pageLyrics)
+		return true, m, cmd
+	}
+
+	if m.page == pageLyrics {
+		return m.handleLyricsKey(key)
 	}
 
 	if m.page == pageSearch && m.webAuthURL != "" && key == "o" {

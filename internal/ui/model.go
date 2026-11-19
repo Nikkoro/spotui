@@ -15,6 +15,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/config"
 	"github.com/Nikkoro/spotui/internal/cover"
 	"github.com/Nikkoro/spotui/internal/engine"
+	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/platform"
 	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/internal/webapi"
@@ -100,6 +101,16 @@ type Model struct {
 	// Web API authorization in progress
 	webAuthURL string
 
+	// lyrics
+	lyr           *lyrics.Client
+	lyrics        *lyrics.Lyrics
+	lyricsURI     string
+	lyricsTrack   *daemon.ApiTrack
+	lyricsLoading bool
+	lyricsErr     error
+	lyricsOffset  time.Duration
+	lyricsScroll  int
+
 	// visualizer
 	vizOn      bool
 	vizTap     *viz.Tap
@@ -152,6 +163,9 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		vizTap:    tap,
 		vizAn:     viz.NewAnalyzer(32),
 		vizBuf:    make([]float32, 2048),
+	}
+	if cfg.Lyrics.Enabled {
+		m.lyr = lyrics.NewClient(cfg.CacheDir+"/lyrics", Version)
 	}
 
 	var tokens webapi.TokenSource = webapi.TokenFunc(eng.Token)
@@ -269,6 +283,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+
+	case lyricsMsg, lyricsDueMsg:
+		return m, m.handleLyricsMsg(msg)
 
 	case likedMsg:
 		for k, v := range msg.states {
@@ -422,7 +439,7 @@ func (m *Model) setTrack(t *daemon.ApiTrack) tea.Cmd {
 
 	var cmds []tea.Cmd
 	if changed {
-		cmds = append(cmds, m.fetchLiked(t.Uri))
+		cmds = append(cmds, m.fetchLiked(t.Uri), m.fetchLyrics(t))
 	}
 
 	url := ""

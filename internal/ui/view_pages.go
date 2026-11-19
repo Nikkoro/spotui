@@ -17,6 +17,8 @@ func (m Model) viewPage(w, h int) string {
 		return m.viewQueue(w, h)
 	case pageContext:
 		return m.viewContext(w, h)
+	case pageLyrics:
+		return m.viewLyrics(w, h)
 	}
 	return ""
 }

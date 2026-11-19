@@ -31,9 +31,15 @@ Stage 3:
 - [x] Real-time spectrum visualizer from the decoded audio itself (FFT, log bands,
       auto gain, peak caps), tinted with the cover colour; `v` toggles it
 
+Stage 4:
+
+- [x] Live synced lyrics from [LRCLIB](https://lrclib.net) on their own page (`5`),
+      current line on Now Playing, sync offset with `<` `>`
+- [x] Polite LRCLIB client: identifying User-Agent, one request at a time,
+      debounced lookups, Retry-After with jitter, on-disk cache incl. misses
+
 Next:
 
-- [ ] Live synced lyrics
 - [ ] Media keys and notifications (MPRIS on Linux, SMTC on Windows)
 - [ ] Themes, mouse support
 
@@ -65,7 +71,7 @@ The Windows build is a single static `.exe`.
 
 | Key | Action |
 | --- | --- |
-| `1` `2` `3` `4` | Now Playing / Library / Search / Queue |
+| `1` `2` `3` `4` `5` | Now Playing / Library / Search / Queue / Lyrics |
 | `↑` `↓` (`k` `j`), `g` `G`, `ctrl+u` `ctrl+d` | move in lists |
 | `enter` | open playlist/album/artist, play track |
 | `esc` / `backspace` | back, clear filter |
@@ -84,6 +90,7 @@ The Windows build is a single static `.exe`.
 | `u` | play a Spotify link or URI |
 | `[` / `]` | cover pixel resolution |
 | `{` / `}` | cover colour depth |
+| `<` `>` / `0` | lyrics sync offset ±250 ms / reset (Lyrics page) |
 | `q` | quit |
 
 ## Configuration
@@ -112,6 +119,10 @@ dynamic_accent = true     # tint the UI with the cover's colour
 enabled = true
 delay_ms = 120            # raise if bars run ahead of what you hear
 bar_width = 2
+
+[lyrics]
+enabled = true
+now_playing_line = true   # show the current line on Now Playing
 ```
 
 ### Your own Spotify app (recommended)

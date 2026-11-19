@@ -78,6 +78,7 @@ func run() error {
 		eng.Run(ctx)
 	}()
 
+	ui.Version = version
 	p := tea.NewProgram(ui.New(eng, cfg, tap), tea.WithAltScreen())
 	_, uiErr := p.Run()
 
