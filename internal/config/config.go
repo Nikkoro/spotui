@@ -36,6 +36,10 @@ type Config struct {
 	InitialVolume uint32 `toml:"initial_volume"`
 	// Normalisation enables Spotify loudness normalisation.
 	Normalisation bool `toml:"normalisation"`
+	// CrossfadeMs blends the end of a track into the next one (0 is off).
+	CrossfadeMs int `toml:"crossfade_ms"`
+	// Autoplay keeps similar music going when a playlist or album ends.
+	Autoplay bool `toml:"autoplay"`
 
 	// AudioCache keeps downloaded (encrypted) audio on disk.
 	AudioCache bool `toml:"audio_cache"`
@@ -123,6 +127,7 @@ func Default() Config {
 		Bitrate:          320,
 		InitialVolume:    70,
 		Normalisation:    true,
+		Autoplay:         true,
 		AudioCache:       true,
 		AudioCacheSizeMB: 1024,
 		Cover: CoverConfig{

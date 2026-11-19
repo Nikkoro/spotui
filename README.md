@@ -92,6 +92,9 @@ Small things:
 - [x] `spotui logout`, `spotui paths`, `spotui clear-cache`; the previous
       run's log is kept as `spotui.log.1`
 
+- [x] Karaoke-style fill of the current lyric line
+- [x] Crossfade and autoplay settings
+
 ## Install
 
 Grab `spotui-linux-amd64.tar.gz` (Linux/WSL) or `spotui-windows-amd64.zip`
@@ -166,6 +169,8 @@ audio_device = "default"
 bitrate = 320             # 96 | 160 | 320
 initial_volume = 70
 normalisation = true
+crossfade_ms = 0          # blend tracks, e.g. 6000
+autoplay = true           # keep similar music going after a playlist ends
 audio_cache = true
 audio_cache_size_mb = 1024
 notifications = true      # desktop notification on track change
