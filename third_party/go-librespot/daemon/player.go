@@ -114,6 +114,12 @@ type AppPlayer struct {
 	// secondarySource is what the player was handed as the secondary.
 	secondarySource librespot.AudioSource
 
+	// djAnswer is an "Ask DJ" answer waiting for its segment, and djWelcome
+	// the acknowledgement to speak before the next loaded track (spotui
+	// patch, see dj.go).
+	djAnswer  *djPending
+	djWelcome map[string]string
+
 	// narrationJumped records that the upcoming track is being reached by
 	// jumping straight to it, so a DJ context introduces it with its jump line
 	// rather than the one for arriving in sequence. Consumed by the next load.
@@ -508,6 +514,11 @@ func (p *AppPlayer) handlePlayerCommand(req dealer.RequestPayload) error {
 
 		return nil
 	case "play":
+		// spotui patch: DJ answering an "Ask DJ" request (see dj.go).
+		if p.isDjAnswer(req.Command.Context) {
+			return p.handleDjAnswer(req.Command.Context)
+		}
+
 		p.state.takeOver()
 
 		p.state.player.PlayOrigin = req.Command.PlayOrigin
@@ -591,6 +602,12 @@ func (p *AppPlayer) handlePlayerCommand(req dealer.RequestPayload) error {
 		}
 		for k, v := range req.Command.Context.Metadata {
 			p.state.player.ContextMetadata[k] = v
+		}
+
+		// spotui patch: the segment DJ put together for a request arrives
+		// as a context update (see dj.go).
+		if p.loadDjAnswerContext(req.Command.Context) {
+			return nil
 		}
 
 		p.updateState()

@@ -10,12 +10,13 @@ permissions:
 jobs:
   linux:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev libvorbis-dev libogg-dev libflac-dev libmpg123-dev
+      - run: sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update && sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y libasound2-dev libvorbis-dev libogg-dev libflac-dev libmpg123-dev
       - run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o spotui ./cmd/spotui
       - run: tar czf spotui-linux-amd64.tar.gz spotui README.md LICENSE
       - uses: actions/upload-artifact@v4
@@ -25,12 +26,13 @@ jobs:
 
   windows:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 pkg-config curl zip unzip tar
+      - run: sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update && sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 pkg-config curl zip unzip tar
       - uses: actions/cache@v4
         with:
           path: |

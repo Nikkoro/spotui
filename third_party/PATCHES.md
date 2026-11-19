@@ -24,6 +24,17 @@ Local changes:
    librespot DJ work (librespot-org/librespot#1797, as used by cloofy).
    DJ narration itself (intro / jump / outro lines between tracks) is
    upstream go-librespot and needs no patch.
+4. DJ's answer to a request (`daemon/dj.go`, a few lines in `player.go`,
+   `controls.go` and `narration.go`): the `play` command DJ sends back
+   (`interactivity_response`) is held until the requested segment
+   (`idj_request_id`) is in the list or arrives in an `update_context`;
+   playback then jumps to it and the `narration.welcome.*` line is spoken
+   before the track's own intro.
+
+The patches have small tests (`spclient/dj_test.go`,
+`daemon/dj_spotui_test.go`). Our CI does not run this module's tests; to run
+them together with upstream's, copy upstream's `*_test.go` files for the same
+tag next to them and run `go test -tags test_unit ./daemon/ ./spclient/`.
 
 To update: copy the new release over this directory (minus `.github`, `cmd`,
 `*_test.go`, Docker and vcpkg files), re-apply the patch above, run
