@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/Nikkoro/spotui/internal/cover"
 )
 
 // View renders the whole screen.
@@ -13,39 +16,70 @@ func (m Model) View() string {
 	if m.width == 0 {
 		return ""
 	}
+	w := m.width - 4 // app padding
+
+	header := m.viewHeader(w)
+	footer := m.viewFooter(w)
 
 	var body string
 	switch m.phase {
 	case phaseConnecting:
-		body = m.viewConnecting()
+		body = m.centre(w, m.bodyHeight(header, footer, ""), m.viewConnecting())
 	case phaseAuth:
-		body = m.viewAuth()
+		body = m.centre(w, m.bodyHeight(header, footer, ""), m.viewAuth())
 	case phaseFatal:
-		body = m.viewFatal()
+		body = m.centre(w, m.bodyHeight(header, footer, ""), m.viewFatal())
 	default:
-		body = m.viewPlayer()
+		if m.page == pageNowPlaying {
+			body = m.centre(w, m.bodyHeight(header, footer, ""), m.viewNowPlaying(w))
+		} else {
+			bar := m.viewPlayerBar(w)
+			h := m.bodyHeight(header, footer, bar)
+			body = lipgloss.NewStyle().Height(h).MaxHeight(h).Render(m.viewPage(w, h)) + "\n" + bar
+		}
 	}
 
-	header := m.viewHeader()
-	footer := m.viewFooter()
-
-	avail := m.height - lipgloss.Height(header) - lipgloss.Height(footer) - 2
-	centred := lipgloss.Place(m.width-4, max(avail, 1), lipgloss.Center, lipgloss.Center, body)
-
-	return m.theme.app.Render(lipgloss.JoinVertical(lipgloss.Left, header, centred, footer))
+	return m.theme.app.Render(lipgloss.JoinVertical(lipgloss.Left, header, "", body, footer))
 }
 
-func (m Model) viewHeader() string {
+func (m Model) bodyHeight(header, footer, bar string) int {
+	h := m.height - 2 /* padding */ - lipgloss.Height(header) - 1 /* gap */ - lipgloss.Height(footer)
+	if bar != "" {
+		h -= lipgloss.Height(bar) + 1
+	}
+	return max(h, 1)
+}
+
+func (m Model) centre(w, h int, s string) string {
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, s)
+}
+
+// --- chrome ---
+
+func (m Model) viewHeader(w int) string {
 	left := m.theme.pill.Render("♫ spotui")
-	device := m.theme.dim.Render("  " + m.cfg.DeviceName)
+
+	if m.phase == phaseReady {
+		var tabs []string
+		for i, name := range pageNames {
+			p := page(i)
+			active := m.page == p || (p == pageLibrary && m.page == pageContext)
+			label := m.theme.dim.Render(itoa(i+1)+" ") + name
+			if active {
+				tabs = append(tabs, m.theme.title.Render(itoa(i+1)+" "+name))
+			} else {
+				tabs = append(tabs, m.theme.text.Faint(true).Render(label))
+			}
+		}
+		left += "  " + strings.Join(tabs, m.theme.dim.Render("   "))
+	} else {
+		left += m.theme.dim.Render("  " + m.cfg.DeviceName)
+	}
 
 	var state string
 	switch m.phase {
 	case phaseReady:
-		state = m.theme.accentTxt.Render("● connected")
-		if m.username != "" {
-			state += m.theme.dim.Render(" as " + m.username)
-		}
+		state = m.theme.accentTxt.Render("●") + m.theme.dim.Render(" "+m.cfg.DeviceName)
 	case phaseAuth:
 		state = m.theme.dim.Render("○ waiting for login")
 	case phaseFatal:
@@ -54,12 +88,18 @@ func (m Model) viewHeader() string {
 		state = m.theme.dim.Render("○ connecting")
 	}
 
-	l := left + device
-	gap := max(m.width-4-lipgloss.Width(l)-lipgloss.Width(state), 1)
-	return l + strings.Repeat(" ", gap) + state
+	gap := w - lipgloss.Width(left) - lipgloss.Width(state)
+	if gap < 2 && m.phase == phaseReady {
+		state = m.theme.accentTxt.Render("●")
+		gap = w - lipgloss.Width(left) - 1
+	}
+	if gap < 1 {
+		return left
+	}
+	return left + strings.Repeat(" ", gap) + state
 }
 
-func (m Model) viewFooter() string {
+func (m Model) viewFooter(w int) string {
 	if m.inputting {
 		return m.theme.dim.Render("Paste a Spotify link or URI · ") +
 			m.theme.key.Render("enter") + m.theme.dim.Render(" play · ") +
@@ -72,29 +112,95 @@ func (m Model) viewFooter() string {
 		if m.flashErr {
 			st = m.theme.errorTxt
 		}
-		return st.Render(m.flash)
+		return ansi.Truncate(st.Render(m.flash), w, "…")
 	}
 
 	var keys [][2]string
-	switch m.phase {
-	case phaseAuth:
+	switch {
+	case m.phase == phaseAuth:
 		keys = [][2]string{{"o", "open link"}, {"q", "quit"}}
-	case phaseReady:
-		keys = [][2]string{
-			{"space", "play/pause"}, {"n/p", "next/prev"}, {"←/→", "seek"},
-			{"+/-", "volume"}, {"s", "shuffle"}, {"r", "repeat"},
-			{"u", "play link"}, {"[ ]", "pixels"}, {"{ }", "colours"}, {"q", "quit"},
-		}
-	default:
+	case m.phase != phaseReady:
 		keys = [][2]string{{"q", "quit"}}
+	case m.page == pageNowPlaying:
+		keys = [][2]string{
+			{"space", "play"}, {"n/p", "next/prev"}, {"←→", "seek"}, {"+/-", "vol"},
+			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"[ ]", "pixels"}, {"{ }", "colours"},
+			{"u", "link"}, {"q", "quit"},
+		}
+	case m.page == pageSearch && m.search.input.Focused():
+		keys = [][2]string{{"enter", "search"}, {"esc", "results"}}
+	default:
+		keys = [][2]string{
+			{"↑↓", "move"}, {"enter", "open/play"}, {"a", "queue"}, {"/", "filter"},
+		}
+		if m.page == pageLibrary || m.page == pageSearch {
+			keys = append(keys, [2]string{"tab", "section"})
+		}
+		if m.page == pageContext {
+			keys = append(keys, [2]string{"esc", "back"})
+		}
+		keys = append(keys, [][2]string{{"space", "play"}, {"n/p", "next/prev"}, {"q", "quit"}}...)
 	}
 
 	parts := make([]string, 0, len(keys))
 	for _, k := range keys {
 		parts = append(parts, m.theme.key.Render(k[0])+" "+m.theme.dim.Render(k[1]))
 	}
-	return lipgloss.NewStyle().Width(m.width - 4).Render(strings.Join(parts, m.theme.dim.Render("  ·  ")))
+	return ansi.Truncate(strings.Join(parts, m.theme.dim.Render("  ")), w, "…")
 }
+
+// viewPlayerBar is the compact player under list pages.
+func (m Model) viewPlayerBar(w int) string {
+	rule := lipgloss.NewStyle().Foreground(colTrack).Render(strings.Repeat("─", w))
+
+	art := ""
+	if m.coverMini != nil {
+		art = m.coverMini.Render() + "  "
+	} else {
+		art = m.theme.dim.Render(strings.Repeat("░", miniCoverPx)+"\n"+strings.Repeat("░", miniCoverPx)+"\n"+
+			strings.Repeat("░", miniCoverPx)+"\n"+strings.Repeat("░", miniCoverPx)) + "  "
+	}
+	infoW := max(w-lipgloss.Width(art), 20)
+
+	if m.track == nil {
+		return rule + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, art,
+			m.theme.dim.Render("Nothing playing · pick a track or select \""+m.cfg.DeviceName+"\" in Spotify Connect")) + "\n"
+	}
+	t := m.track
+
+	heart := ""
+	if m.liked[t.Uri] {
+		heart = m.theme.accentTxt.Render(" ♥")
+	}
+	line1 := ansi.Truncate(m.theme.title.Render(t.Name)+heart+m.theme.dim.Render("  ")+
+		m.theme.artist.UnsetBold().Render(strings.Join(t.ArtistNames, ", ")), infoW, "…")
+
+	pos, dur := m.position(), int64(t.Duration)
+	times := fmtDuration(pos) + " / " + fmtDuration(dur)
+	icon := m.stateIcon()
+	barW := max(infoW-lipgloss.Width(icon)-len(times)-4, 5)
+	line2 := icon + "  " + m.progressBar(barW, pos, dur) + "  " + m.theme.dim.Render(times)
+
+	album := ansi.Truncate(m.theme.album.Render(t.AlbumName), infoW, "…")
+	line4 := m.modeBadges() + m.theme.dim.Render("   ") + m.volumeBar(min(infoW-24, 30))
+
+	return rule + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, art,
+		lipgloss.JoinVertical(lipgloss.Left, line1, album, line2, line4)) + "\n"
+}
+
+func (m Model) stateIcon() string {
+	switch {
+	case m.buffering:
+		return m.spinner.View()
+	case m.stopped:
+		return m.theme.accentTxt.Render("■")
+	case m.paused:
+		return m.theme.accentTxt.Render("‖")
+	}
+	return m.theme.accentTxt.Render("▶")
+}
+
+// --- connecting / auth / errors ---
 
 func (m Model) viewConnecting() string {
 	return m.theme.card.Render(m.spinner.View() + m.theme.text.Render(" Connecting to Spotify…"))
@@ -139,41 +245,57 @@ func (m Model) viewAuth() string {
 	return m.theme.card.Render(lipgloss.JoinVertical(lipgloss.Left, lines...))
 }
 
-func (m Model) viewPlayer() string {
-	infoWidth := clamp(m.width-12, 30, 56)
+// --- now playing ---
 
+func (m Model) viewNowPlaying(w int) string {
+	// Room inside the card: header, footer, paddings and borders.
+	availH := m.height - 12
+	availW := w - 8
+
+	// Prefer the cover beside the info, shrinking both (cover never below
+	// 12 px) rather than dropping the cover on smaller terminals.
+	coverSize := 0
+	if m.cfg.Cover.Enabled && m.track != nil {
+		coverSize = min(m.pixSize, availH*2)
+	}
+	infoWidth := clamp(availW-4-coverSize, 30, 56)
 	info := m.viewTrackInfo(infoWidth)
 
-	coverView := ""
-	if m.coverPix != nil {
-		coverView = m.coverPix.Render()
-	} else if m.cfg.Cover.Enabled && m.track != nil {
-		coverView = m.coverPlaceholder()
-	}
-
-	// Side by side when there is room, cover on top otherwise, no cover on
-	// tiny terminals.
-	coverW := lipgloss.Width(coverView)
-	coverH := lipgloss.Height(coverView)
-	infoH := lipgloss.Height(info)
-	availH := m.height - 8
 	var content string
-	switch {
-	case coverView == "":
-		content = info
-	case m.width-12 >= coverW+4+infoWidth:
-		content = lipgloss.JoinHorizontal(lipgloss.Center, coverView, "    ", info)
-	case availH >= coverH+1+infoH:
-		content = lipgloss.JoinVertical(lipgloss.Center, coverView, "", info)
-	default:
+	if coverSize > 0 {
+		size := min(coverSize, availW-4-infoWidth)
+		size -= size % 2
+		if size >= 12 {
+			content = lipgloss.JoinHorizontal(lipgloss.Center, m.coverView(size), "    ", info)
+		}
+	}
+	if content == "" {
 		content = info
 	}
 
 	return m.theme.card.Render(content)
 }
 
-func (m Model) coverPlaceholder() string {
-	size := m.pixSize
+// coverView returns the cover at size, cached, or a placeholder while it loads.
+func (m Model) coverView(size int) string {
+	if m.coverImg == nil {
+		return m.coverPlaceholder(size)
+	}
+	if size == m.pixSize && m.coverPix != nil {
+		return m.coverPix.Render()
+	}
+	if m.coverFit != nil {
+		if p, ok := m.coverFit[size]; ok {
+			return p.Render()
+		}
+		p := cover.Pixelate(m.coverImg, size, m.levels)
+		m.coverFit[size] = p
+		return p.Render()
+	}
+	return m.coverPlaceholder(size)
+}
+
+func (m Model) coverPlaceholder(size int) string {
 	row := m.theme.dim.Render(strings.Repeat("░", size))
 	rows := make([]string, size/2)
 	for i := range rows {
@@ -189,13 +311,18 @@ func (m Model) viewTrackInfo(w int) string {
 			m.theme.title.Render("Nothing playing"),
 			"",
 			lipgloss.NewStyle().Width(w).Foreground(colSubtle).Render(
-				"Pick \""+m.cfg.DeviceName+"\" in Spotify Connect on your phone or computer, or press u to play a link."),
+				"Pick \""+m.cfg.DeviceName+"\" in Spotify Connect on your phone or computer, "+
+					"browse your library with 2, search with 3, or press u to play a link."),
 		)
 	}
 
 	trunc := lipgloss.NewStyle().MaxWidth(w)
 
-	title := trunc.Render(m.theme.title.Render(t.Name))
+	heart := ""
+	if m.liked[t.Uri] {
+		heart = m.theme.accentTxt.Render("  ♥")
+	}
+	title := trunc.Render(m.theme.title.Render(t.Name) + heart)
 	artist := trunc.Render(m.theme.artist.Render(strings.Join(t.ArtistNames, ", ")))
 	album := t.AlbumName
 	if len(t.ReleaseDate) >= 4 {
@@ -206,16 +333,16 @@ func (m Model) viewTrackInfo(w int) string {
 	pos := m.position()
 	dur := int64(t.Duration)
 
-	stateIcon, stateText := "▶", "Playing"
+	stateText := "Playing"
 	switch {
 	case m.buffering:
-		stateIcon, stateText = m.spinner.View(), "Loading"
+		stateText = "Loading"
 	case m.stopped:
-		stateIcon, stateText = "■", "Stopped"
+		stateText = "Stopped"
 	case m.paused:
-		stateIcon, stateText = "‖", "Paused"
+		stateText = "Paused"
 	}
-	state := m.theme.accentTxt.Render(stateIcon) + " " + m.theme.text.Render(stateText)
+	state := m.stateIcon() + " " + m.theme.text.Render(stateText)
 
 	posStr, durStr := fmtDuration(pos), fmtDuration(dur)
 	times := m.theme.dim.Render(posStr) +

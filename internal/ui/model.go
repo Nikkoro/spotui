@@ -16,6 +16,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/cover"
 	"github.com/Nikkoro/spotui/internal/engine"
 	"github.com/Nikkoro/spotui/internal/platform"
+	"github.com/Nikkoro/spotui/internal/webapi"
 )
 
 type phase int
@@ -36,12 +37,15 @@ const (
 	minPixelSize = 8
 	maxPixelSize = 64
 	pixelStep    = 4
+	miniCoverPx  = 8
 )
 
 // Model is the root Bubble Tea model.
 type Model struct {
-	eng *engine.Engine
-	cfg *config.Config
+	eng  *engine.Engine
+	cfg  *config.Config
+	api  *webapi.Client
+	pkce *webapi.PKCEAuth // nil without a client id
 
 	width, height int
 	phase         phase
@@ -50,7 +54,9 @@ type Model struct {
 
 	auth *daemon.ApiDeviceAuth
 
+	// player state
 	track       *daemon.ApiTrack
+	contextURI  string
 	stopped     bool
 	paused      bool
 	buffering   bool
@@ -62,15 +68,36 @@ type Model struct {
 	repeatCtx   bool
 	repeatTrack bool
 	username    string
+	liked       map[string]bool
 
-	coverURL string
-	coverImg image.Image
-	coverPix *cover.Pixels
-	pixSize  int
-	levels   int
+	// cover art
+	coverURL  string
+	coverImg  image.Image
+	coverPix  *cover.Pixels
+	coverMini *cover.Pixels
+	// coverFit caches covers shrunk to fit small terminals, by size. It is
+	// a map so View (a value receiver) can fill it.
+	coverFit map[int]*cover.Pixels
+	pixSize   int
+	levels    int
 
+	// pages
+	page    page
+	lib     libraryPage
+	search  searchPage
+	queue   queuePage
+	ctxPage *contextPage
+
+	// list filter (shared by all list pages)
+	filtering bool
+	filterIn  textinput.Model
+
+	// "play a link" prompt
 	input     textinput.Model
 	inputting bool
+
+	// Web API authorization in progress
+	webAuthURL string
 
 	flash      string
 	flashErr   bool
@@ -87,6 +114,11 @@ func New(eng *engine.Engine, cfg *config.Config) Model {
 	in.Prompt = "▶ "
 	in.CharLimit = 256
 
+	filter := textinput.New()
+	filter.Prompt = "/ "
+	filter.Placeholder = "filter"
+	filter.CharLimit = 64
+
 	m := Model{
 		eng:       eng,
 		cfg:       cfg,
@@ -95,10 +127,24 @@ func New(eng *engine.Engine, cfg *config.Config) Model {
 		theme:     newTheme(defaultAccent),
 		volumeMax: 100,
 		stopped:   true,
+		liked:     map[string]bool{},
 		input:     in,
+		filterIn:  filter,
 		pixSize:   clamp(cfg.Cover.PixelSize, minPixelSize, maxPixelSize),
 		levels:    cfg.Cover.Levels,
+		page:      pageNowPlaying,
+		lib:       newLibraryPage(),
+		search:    newSearchPage(),
+		queue:     newQueuePage(),
 	}
+
+	var tokens webapi.TokenSource = webapi.TokenFunc(eng.Token)
+	if cfg.ClientID != "" {
+		m.pkce = webapi.NewPKCEAuth(cfg.ClientID, cfg.ConfigDir+"/webapi_token.json")
+		tokens = m.pkce
+	}
+	m.api = webapi.NewClient(tokens)
+
 	m.spinner.Style = m.theme.accentTxt
 	return m
 }
@@ -116,6 +162,9 @@ type coverMsg struct {
 	img image.Image
 	err error
 }
+type likedMsg struct {
+	states map[string]bool
+}
 
 func waitEvent(ch <-chan engine.Event) tea.Cmd {
 	return func() tea.Msg {
@@ -132,9 +181,9 @@ func tick() tea.Cmd {
 }
 
 // call runs an engine command off the UI goroutine.
-func (m Model) call(what string, fn func(ctx context.Context) error) tea.Cmd {
+func call(what string, fn func(ctx context.Context) error) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		return cmdResultMsg{what: what, err: fn(ctx)}
 	}
@@ -146,6 +195,22 @@ func fetchCover(url string) tea.Cmd {
 		defer cancel()
 		img, err := cover.Fetch(ctx, url)
 		return coverMsg{url: url, img: img, err: err}
+	}
+}
+
+func (m Model) fetchLiked(uri string) tea.Cmd {
+	if uri == "" {
+		return nil
+	}
+	eng := m.eng
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		states, err := eng.Liked(ctx, []string{uri})
+		if err != nil {
+			return nil
+		}
+		return likedMsg{states: states}
 	}
 }
 
@@ -178,6 +243,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case cmdResultMsg:
 		if msg.err != nil {
 			m.setFlash(fmt.Sprintf("%s failed: %v", msg.what, msg.err), true)
+		} else if msg.what == "Add to queue" {
+			m.setFlash("Added to queue", false)
+			if m.page == pageQueue {
+				return m, m.loadQueue()
+			}
+		}
+		return m, nil
+
+	case likedMsg:
+		for k, v := range msg.states {
+			m.liked[k] = v
 		}
 		return m, nil
 
@@ -186,7 +262,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil // a newer track already replaced it
 		}
 		if msg.err != nil {
-			m.coverImg, m.coverPix = nil, nil
+			m.coverImg, m.coverPix, m.coverMini = nil, nil, nil
 			return m, nil
 		}
 		m.coverImg = msg.img
@@ -194,12 +270,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if m.inputting {
+		switch {
+		case m.inputting:
 			return m.updateInput(msg)
+		case m.filtering:
+			return m.updateFilter(msg)
+		case m.page == pageSearch && m.search.input.Focused():
+			return m.updateSearchInput(msg)
 		}
 		return m.handleKey(msg)
 	}
-	return m, nil
+
+	return m.updatePages(msg)
 }
 
 func (m *Model) handleEvent(ev engine.Event) tea.Cmd {
@@ -248,6 +330,9 @@ func (m *Model) applyStatus(s *daemon.ApiStatus) tea.Cmd {
 	if s.VolumeSteps > 0 {
 		m.volumeMax = s.VolumeSteps
 	}
+	if s.ContextUri != nil {
+		m.contextURI = *s.ContextUri
+	}
 	if s.Track != nil {
 		return m.setTrack(s.Track)
 	}
@@ -255,13 +340,14 @@ func (m *Model) applyStatus(s *daemon.ApiStatus) tea.Cmd {
 }
 
 func (m *Model) applyPlayerEvent(ev engine.PlayerEvent) tea.Cmd {
+	var cmds []tea.Cmd
 	switch d := ev.Data.(type) {
 	case daemon.ApiEventDataMetadata:
 		t := daemon.ApiTrack(d)
-		return m.setTrack(&t)
+		cmds = append(cmds, m.setTrack(&t))
 	case *daemon.ApiEventDataMetadata:
 		t := daemon.ApiTrack(*d)
-		return m.setTrack(&t)
+		cmds = append(cmds, m.setTrack(&t))
 	case daemon.ApiEventDataSeek:
 		m.setPosition(int64(d.Position))
 	case daemon.ApiEventDataVolume:
@@ -277,6 +363,10 @@ func (m *Model) applyPlayerEvent(ev engine.PlayerEvent) tea.Cmd {
 		m.repeatTrack = d.Value
 	case daemon.ApiEventDataPlaybackError:
 		m.setFlash("Playback error: "+d.Message, true)
+	case daemon.ApiEventDataPlaying:
+		m.contextURI = d.ContextUri
+	case daemon.ApiEventDataWillPlay:
+		m.contextURI = d.ContextUri
 	}
 
 	switch ev.Type {
@@ -294,28 +384,41 @@ func (m *Model) applyPlayerEvent(ev engine.PlayerEvent) tea.Cmd {
 		m.setFlash("Playback moved to another device", false)
 	case daemon.ApiEventTypeActive:
 		m.setFlash("Playing on this terminal", false)
+	case daemon.ApiEventTypeQueue:
+		if m.page == pageQueue {
+			cmds = append(cmds, m.loadQueue())
+		}
+	case daemon.ApiEventTypeMetadata:
+		if m.page == pageQueue {
+			cmds = append(cmds, m.loadQueue())
+		}
 	}
-	return nil
+	return tea.Batch(cmds...)
 }
 
 func (m *Model) setTrack(t *daemon.ApiTrack) tea.Cmd {
+	changed := m.track == nil || m.track.Uri != t.Uri
 	m.track = t
 	m.setPosition(t.Position)
+
+	var cmds []tea.Cmd
+	if changed {
+		cmds = append(cmds, m.fetchLiked(t.Uri))
+	}
 
 	url := ""
 	if t.AlbumCoverUrl != nil {
 		url = *t.AlbumCoverUrl
 	}
-	if url == m.coverURL {
-		return nil
+	if url != m.coverURL {
+		m.coverURL = url
+		m.coverImg, m.coverPix, m.coverMini = nil, nil, nil
+		m.theme = newTheme(defaultAccent)
+		if url != "" && m.cfg.Cover.Enabled {
+			cmds = append(cmds, fetchCover(url))
+		}
 	}
-	m.coverURL = url
-	m.coverImg, m.coverPix = nil, nil
-	m.theme = newTheme(defaultAccent)
-	if url == "" || !m.cfg.Cover.Enabled {
-		return nil
-	}
-	return fetchCover(url)
+	return tea.Batch(cmds...)
 }
 
 func (m *Model) repixelate() {
@@ -323,6 +426,8 @@ func (m *Model) repixelate() {
 		return
 	}
 	m.coverPix = cover.Pixelate(m.coverImg, m.pixSize, m.levels)
+	m.coverFit = map[int]*cover.Pixels{}
+	m.coverMini = cover.Pixelate(m.coverImg, miniCoverPx, m.levels)
 	accent := defaultAccent
 	if m.cfg.Cover.DynamicAccent {
 		// Sample the accent at a fixed resolution so it does not shift when
@@ -358,6 +463,13 @@ func (m *Model) setFlash(text string, isErr bool) {
 	m.flashUntil = time.Now().Add(flashTTL)
 }
 
+func (m Model) currentURI() string {
+	if m.track == nil {
+		return ""
+	}
+	return m.track.Uri
+}
+
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 	switch key {
@@ -378,41 +490,60 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Page navigation and list keys first; they fall through to the
+	// player keys when not handled.
+	if handled, next, cmd := m.handlePageKey(key); handled {
+		return next, cmd
+	}
+
 	e := m.eng
 	switch key {
 	case " ":
 		// Optimistic toggle; the daemon's event confirms it right after.
 		m.setPosition(m.position())
 		m.paused = !m.paused
-		return m, m.call("Play/pause", e.PlayPause)
+		return m, call("Play/pause", e.PlayPause)
 	case "n":
-		return m, m.call("Next", e.Next)
+		return m, call("Next", e.Next)
 	case "p":
-		return m, m.call("Previous", e.Prev)
+		return m, call("Previous", e.Prev)
 	case "right", "l":
 		m.setPosition(m.position() + seekStepMs)
-		return m, m.call("Seek", func(ctx context.Context) error { return e.Seek(ctx, seekStepMs, true) })
+		return m, call("Seek", func(ctx context.Context) error { return e.Seek(ctx, seekStepMs, true) })
 	case "left", "h":
 		m.setPosition(max(m.position()-seekStepMs, 0))
-		return m, m.call("Seek", func(ctx context.Context) error { return e.Seek(ctx, -seekStepMs, true) })
+		return m, call("Seek", func(ctx context.Context) error { return e.Seek(ctx, -seekStepMs, true) })
 	case "+", "=":
-		return m, m.call("Volume", func(ctx context.Context) error { return e.SetVolume(ctx, volumeStep, true) })
+		return m, call("Volume", func(ctx context.Context) error { return e.SetVolume(ctx, volumeStep, true) })
 	case "-", "_":
-		return m, m.call("Volume", func(ctx context.Context) error { return e.SetVolume(ctx, -volumeStep, true) })
+		return m, call("Volume", func(ctx context.Context) error { return e.SetVolume(ctx, -volumeStep, true) })
 	case "s":
 		on := !m.shuffle
-		return m, m.call("Shuffle", func(ctx context.Context) error { return e.SetShuffle(ctx, on) })
+		return m, call("Shuffle", func(ctx context.Context) error { return e.SetShuffle(ctx, on) })
 	case "r":
 		// off -> context -> track -> off
-		ctx, track := false, false
+		rc, rt := false, false
 		switch {
 		case !m.repeatCtx && !m.repeatTrack:
-			ctx = true
+			rc = true
 		case m.repeatCtx && !m.repeatTrack:
-			track = true
+			rt = true
 		}
-		return m, m.call("Repeat", func(c context.Context) error { return e.SetRepeat(c, ctx, track) })
-	case "u", "/":
+		return m, call("Repeat", func(ctx context.Context) error { return e.SetRepeat(ctx, rc, rt) })
+	case "f":
+		uri := m.currentURI()
+		if uri == "" {
+			return m, nil
+		}
+		on := !m.liked[uri]
+		m.liked[uri] = on
+		if on {
+			m.setFlash("Added to Liked Songs", false)
+		} else {
+			m.setFlash("Removed from Liked Songs", false)
+		}
+		return m, call("Like", func(ctx context.Context) error { return e.SetLiked(ctx, []string{uri}, on) })
+	case "u":
 		m.inputting = true
 		m.input.SetValue("")
 		return m, m.input.Focus()
@@ -451,7 +582,8 @@ func (m Model) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.setFlash("Loading "+uri, false)
-		return m, m.call("Play", func(ctx context.Context) error { return m.eng.Play(ctx, uri) })
+		eng := m.eng
+		return m, call("Play", func(ctx context.Context) error { return eng.Play(ctx, uri) })
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)

@@ -19,6 +19,11 @@ type Config struct {
 	// DeviceName is the name shown in the Spotify Connect device list.
 	DeviceName string `toml:"device_name"`
 
+	// ClientID is your own Spotify app's client id, used for Web API calls
+	// such as search. Register http://127.0.0.1:8989/login as a redirect URI.
+	// Empty falls back to the session token, which is heavily rate limited.
+	ClientID string `toml:"client_id"`
+
 	// AudioBackend selects the output driver: alsa, pulseaudio, wasapi,
 	// audio-toolbox or pipe. Empty picks the best one for the platform.
 	AudioBackend string `toml:"audio_backend"`

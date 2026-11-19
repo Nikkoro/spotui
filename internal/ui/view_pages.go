@@ -1,0 +1,205 @@
+package ui
+
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+)
+
+func (m Model) viewPage(w, h int) string {
+	switch m.page {
+	case pageLibrary:
+		return m.viewLibrary(w, h)
+	case pageSearch:
+		return m.viewSearch(w, h)
+	case pageQueue:
+		return m.viewQueue(w, h)
+	case pageContext:
+		return m.viewContext(w, h)
+	}
+	return ""
+}
+
+// tabBar renders section tabs, the active one underlined in the accent.
+func (m Model) tabBar(names []string, active int, counts []int) string {
+	parts := make([]string, len(names))
+	for i, n := range names {
+		label := n
+		if counts != nil && counts[i] > 0 {
+			label += " " + itoa(counts[i])
+		}
+		if i == active {
+			parts[i] = m.theme.title.Underline(true).Render(label)
+		} else {
+			parts[i] = m.theme.dim.Render(label)
+		}
+	}
+	return strings.Join(parts, "    ")
+}
+
+// listBlock renders an optional filter line plus the list itself.
+func (m Model) listBlock(l *listModel, w, h int) string {
+	var lines []string
+	if m.filtering {
+		lines = append(lines, m.filterIn.View())
+	} else if l.filter != "" {
+		lines = append(lines, m.theme.dim.Render("/ ")+m.theme.accentTxt.Render(l.filter)+
+			m.theme.dim.Render("   esc clears"))
+	}
+	listH := h - len(lines)
+	lines = append(lines, l.view(m.theme, w, listH, m.currentURI()))
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) pageTitle(title, right string, w int) string {
+	t := m.theme.title.Render(title)
+	r := m.theme.dim.Render(right)
+	gap := w - lipgloss.Width(t) - lipgloss.Width(r)
+	if gap < 1 {
+		return t
+	}
+	return t + strings.Repeat(" ", gap) + r
+}
+
+func (m Model) loadingLine(text string) string {
+	return m.spinner.View() + m.theme.dim.Render(" "+text)
+}
+
+func (m Model) errorLine(err error) string {
+	return m.theme.errorTxt.Render("✕ " + err.Error())
+}
+
+// --- library ---
+
+func (m Model) viewLibrary(w, h int) string {
+	l := &m.lib.lists[m.lib.tab]
+	head := m.pageTitle("Your Library", l.position(), w)
+	tabs := m.tabBar(libTabs, m.lib.tab, nil)
+
+	var body string
+	switch {
+	case m.lib.err[m.lib.tab] != nil:
+		body = m.errorLine(m.lib.err[m.lib.tab]) + "\n" + m.theme.dim.Render("press R to retry")
+	case m.lib.loading[m.lib.tab] && len(l.items) == 0:
+		body = m.loadingLine("Loading " + strings.ToLower(libTabs[m.lib.tab]) + "…")
+	default:
+		body = m.listBlock(l, w, h-4)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, head, tabs, "", body)
+}
+
+// --- search ---
+
+func (m Model) viewSearch(w, h int) string {
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colTrack).
+		Width(min(w-2, 70))
+	if m.search.input.Focused() {
+		box = box.BorderForeground(m.theme.accent)
+	}
+	input := m.search.input
+	input.Width = min(w-8, 64)
+	searchBox := box.Render(m.theme.accentTxt.Render("⌕") + input.View())
+
+	lines := []string{searchBox}
+	rest := h - lipgloss.Height(searchBox)
+
+	switch {
+	case m.webAuthURL != "":
+		lines = append(lines, "",
+			m.theme.title.Render("Connect the Web API"),
+			m.theme.text.Render("Approve spotui in the browser window that just opened."),
+			m.theme.dim.Render("Nothing opened? Press o, or open:"),
+			m.theme.link.Render(ansi.Truncate(m.webAuthURL, w, "…")),
+			"",
+			m.loadingLine("Waiting for approval…"))
+	case m.search.loading:
+		lines = append(lines, "", m.loadingLine("Searching for “"+m.search.query+"”…"))
+	case m.search.err != nil:
+		lines = append(lines, "", m.errorLine(m.search.err))
+		if m.pkce == nil {
+			lines = append(lines, m.theme.dim.Render(
+				"Tip: set client_id in config.toml to use your own Spotify app and avoid shared rate limits."))
+		}
+	case m.search.query == "":
+		lines = append(lines, "", m.theme.dim.Render("Type and press enter. / focuses the search box again."))
+	default:
+		counts := make([]int, len(searchTabs))
+		for i := range m.search.lists {
+			counts[i] = len(m.search.lists[i].items)
+		}
+		l := &m.search.lists[m.search.tab]
+		lines = append(lines, "", m.tabBar(searchTabs, m.search.tab, counts), "",
+			m.listBlock(l, w, rest-3))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// --- queue ---
+
+func (m Model) viewQueue(w, h int) string {
+	l := &m.queue.list
+	head := m.pageTitle("Queue", l.position(), w)
+
+	var body string
+	switch {
+	case m.queue.err != nil:
+		body = m.errorLine(m.queue.err)
+	case m.queue.loading && len(l.items) == 0:
+		body = m.loadingLine("Loading queue…")
+	case len(l.items) == 0:
+		body = m.theme.dim.Render("The queue is empty. Press a on any track to add it.")
+	default:
+		body = m.listBlock(l, w, h-2)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, head, "", body)
+}
+
+// --- context (playlist / album / artist) ---
+
+func (m Model) viewContext(w, h int) string {
+	cp := m.ctxPage
+	if cp == nil {
+		return ""
+	}
+
+	pill := m.theme.pill.Render(strings.ToUpper(cp.kind))
+	title := m.theme.title.Render(ansi.Truncate(cp.title, max(w-30, 10), "…"))
+
+	info := ""
+	switch {
+	case cp.length > 0:
+		info = plural(cp.length, "track")
+		if cp.loading && cp.cached < cp.length {
+			info = m.spinner.View() + " " + itoa(cp.cached) + "/" + info
+		}
+	case cp.loading:
+		info = m.spinner.View() + " loading"
+	}
+	if pos := cp.list.position(); pos != "" {
+		info += "   " + pos
+	}
+	head := pill + " " + title
+	gap := w - lipgloss.Width(head) - lipgloss.Width(info)
+	if gap > 0 {
+		head += strings.Repeat(" ", gap) + m.theme.dim.Render(info)
+	}
+
+	playing := ""
+	if m.contextURI == cp.uri {
+		playing = m.theme.accentTxt.Render("♪ playing from here")
+	}
+
+	var body string
+	switch {
+	case cp.err != nil:
+		body = m.errorLine(cp.err) + "\n" + m.theme.dim.Render("press R to retry, esc to go back")
+	case len(cp.list.items) == 0 && cp.loading:
+		body = m.loadingLine("Loading tracks…")
+	default:
+		body = m.listBlock(&cp.list, w, h-3)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, head, playing, "", body)
+}
