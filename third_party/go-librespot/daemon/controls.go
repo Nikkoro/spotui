@@ -860,6 +860,16 @@ func (p *AppPlayer) loadCurrentTrack(paused, drop, resume bool, delay time.Durat
 	p.narrationJumped = false
 
 	metadata := maps.Clone(p.state.player.Track.GetMetadata())
+	// spotui patch: DJ's acknowledgement of a request rides on the first
+	// track of its answer.
+	if welcome := p.djWelcome; len(welcome) > 0 {
+		p.djWelcome = nil
+		if metadata == nil {
+			metadata = map[string]string{}
+		}
+		maps.Copy(metadata, welcome)
+		prefetchedSource = nil // re-narrate the prefetched stream with the welcome
+	}
 	p.loadInFlight = true
 
 	var notBefore time.Time

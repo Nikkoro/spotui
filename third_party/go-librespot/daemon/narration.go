@@ -16,6 +16,9 @@ const (
 	narrationIntroPrefix = "narration.intro"
 	narrationJumpPrefix  = "narration.jump"
 	narrationOutroPrefix = "narration.outro"
+	// DJ's acknowledgement of an "Ask DJ" request, spoken before the first
+	// track it picked for it (spotui patch, see third_party/PATCHES.md).
+	narrationWelcomePrefix = "narration.welcome"
 )
 
 // narrationTimeout bounds the synthesis round trip plus the download. Narration
@@ -135,12 +138,16 @@ func (p *AppPlayer) narrate(ctx context.Context, metadata map[string]string, uri
 	source librespot.AudioSource, introPrefix string) librespot.AudioSource {
 	intro := p.narrationFor(ctx, metadata, uri, introPrefix)
 	outro := p.narrationFor(ctx, metadata, uri, narrationOutroPrefix)
+	welcome := p.narrationFor(ctx, metadata, uri, narrationWelcomePrefix)
 
-	if intro == nil && outro == nil {
-		return source
+	if intro != nil || outro != nil {
+		source = player.NewNarratedSource(p.app.log, intro, source, outro)
 	}
-
-	return player.NewNarratedSource(p.app.log, intro, source, outro)
+	if welcome != nil {
+		// The acknowledgement comes first, then the track's own intro.
+		source = player.NewNarratedSource(p.app.log, welcome, source, nil)
+	}
+	return source
 }
 
 func narrationVoice(metadata map[string]string, prefix string) narrationpb.ResolveRequest_TtsVoice {
