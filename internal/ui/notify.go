@@ -20,7 +20,7 @@ type notifyDueMsg struct{ uri string }
 // notifyTrack schedules a notification if t is a new track. It must run
 // before setTrack updates m.track.
 func (m *Model) notifyTrack(t *daemon.ApiTrack) tea.Cmd {
-	if m.notifier == nil || t.Uri == "" || (m.track != nil && m.track.Uri == t.Uri) {
+	if m.notifier == nil || m.notifyOff || t.Uri == "" || (m.track != nil && m.track.Uri == t.Uri) {
 		return nil
 	}
 	uri := t.Uri

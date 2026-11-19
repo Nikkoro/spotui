@@ -745,6 +745,12 @@ func (m Model) handlePageKey(key string) (bool, tea.Model, tea.Cmd) {
 		}
 		eng, uri := m.eng, it.uri
 		return true, m, call("Like", func(ctx context.Context) error { return eng.SetLiked(ctx, []string{uri}, on) })
+	case "ctrl+p":
+		// Play the whole page from the top.
+		if cp := m.ctxPage; m.page == pageContext && cp != nil {
+			return true, m, m.playWhole(cp.uri, cp.title, false)
+		}
+		return false, m, nil
 	case "a":
 		it := list.selected()
 		if it == nil || it.kind != kindTrack {

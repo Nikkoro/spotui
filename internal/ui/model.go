@@ -136,7 +136,8 @@ type Model struct {
 	webAuthURL    string
 	pendingLibTab int
 
-	notifier notify.Notifier
+	notifier  notify.Notifier
+	notifyOff bool
 
 	// lyrics
 	lyr           *lyrics.Client

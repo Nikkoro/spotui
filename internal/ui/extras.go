@@ -191,3 +191,20 @@ func truncate(s string, w int) string {
 	}
 	return string(r[:w-1]) + "…"
 }
+
+// playWhole plays a playlist, album or artist from the start, optionally
+// shuffled.
+func (m *Model) playWhole(uri, title string, shuffle bool) tea.Cmd {
+	eng := m.eng
+	if shuffle {
+		m.setFlash("Shuffling "+title, false)
+	} else {
+		m.setFlash("Playing "+title, false)
+	}
+	return call("Play", func(ctx context.Context) error {
+		if err := eng.SetShuffle(ctx, shuffle); err != nil {
+			return err
+		}
+		return eng.PlayContext(ctx, uri, "")
+	})
+}

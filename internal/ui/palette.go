@@ -82,6 +82,34 @@ func (m Model) paletteCommands() []paletteCmd {
 		{title: "Quit", group: "app", key: "q"},
 	}
 
+	// Whatever page is open can be played as a whole.
+	if cp := m.ctxPage; m.page == pageContext && cp != nil {
+		uri, title := cp.uri, cp.title
+		cmds = append([]paletteCmd{
+			{title: "Play " + title, group: "this page", key: "ctrl+p", run: func(m Model) (tea.Model, tea.Cmd) {
+				return m, m.playWhole(uri, title, false)
+			}},
+			{title: "Shuffle " + title, group: "this page", run: func(m Model) (tea.Model, tea.Cmd) {
+				return m, m.playWhole(uri, title, true)
+			}},
+		}, cmds...)
+	}
+	cmds = append(cmds,
+		paletteCmd{title: "Notifications on / off", group: "app", run: func(m Model) (tea.Model, tea.Cmd) {
+			m.notifyOff = !m.notifyOff
+			if m.notifyOff {
+				m.setFlash("Notifications off", false)
+			} else {
+				m.setFlash("Notifications on", false)
+			}
+			return m, nil
+		}},
+		paletteCmd{title: "Lyrics line on Now Playing on / off", group: "look", run: func(m Model) (tea.Model, tea.Cmd) {
+			m.cfg.Lyrics.NowPlayingLine = !m.cfg.Lyrics.NowPlayingLine
+			return m, nil
+		}},
+	)
+
 	names := make([]string, 0, len(palettes))
 	for name := range palettes {
 		names = append(names, name)
