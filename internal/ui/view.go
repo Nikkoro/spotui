@@ -124,6 +124,8 @@ func (m Model) viewFooter(w int) string {
 	switch {
 	case m.overlay == overlayDevices:
 		keys = [][2]string{{"↑↓", "move"}, {"enter", "move playback"}, {"esc", "close"}}
+	case m.overlay == overlayPalette:
+		keys = [][2]string{{"type", "find"}, {"↑↓", "choose"}, {"enter", "run"}, {"esc", "close"}}
 	case m.overlay == overlayPlaylists:
 		keys = [][2]string{{"type", "filter"}, {"enter", "add"}, {"esc", "close"}}
 	case m.overlay == overlayDj:
@@ -137,7 +139,7 @@ func (m Model) viewFooter(w int) string {
 	case m.page == pageNowPlaying:
 		keys = [][2]string{
 			{"space", "play"}, {"n/p", "next/prev"}, {"←→", "seek"}, {"+/-", "vol"},
-			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"D", "DJ"}, {"d", "devices"}, {"?", "help"}, {"q", "quit"},
+			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"D", "DJ"}, {"ctrl+k", "commands"}, {"?", "help"}, {"q", "quit"},
 		}
 	case m.page == pageLyrics:
 		keys = [][2]string{{"< >", "sync offset"}, {"0", "reset"}, {"↑↓", "scroll (plain)"},
@@ -154,7 +156,7 @@ func (m Model) viewFooter(w int) string {
 		if m.page == pageContext {
 			keys = append(keys, [2]string{"esc", "back"})
 		}
-		keys = append(keys, [][2]string{{"space", "play"}, {"?", "help"}, {"q", "quit"}}...)
+		keys = append(keys, [][2]string{{"space", "play"}, {"ctrl+k", "commands"}, {"?", "help"}, {"q", "quit"}}...)
 	}
 
 	parts := make([]string, 0, len(keys))

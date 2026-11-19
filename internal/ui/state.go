@@ -15,6 +15,8 @@ type uiState struct {
 	Visualizer    *bool    `json:"visualizer"`
 	VizStyle      string   `json:"viz_style"`
 	SearchHistory []string `json:"search_history"`
+	Theme         string   `json:"theme,omitempty"`
+	DynamicAccent *bool    `json:"dynamic_accent,omitempty"`
 }
 
 const maxSearchHistory = 30
@@ -59,6 +61,14 @@ func (m *Model) restoreState() {
 		m.vizStyle = s.VizStyle
 	}
 	m.searchHistory = s.SearchHistory
+	// A theme picked in the palette wins over config.toml's default.
+	if s.Theme != "" && ApplyPalette(s.Theme) {
+		m.themeName = s.Theme
+	}
+	if s.DynamicAccent != nil {
+		m.dynamicAccent = *s.DynamicAccent
+	}
+	m.applyAccent()
 }
 
 // SaveState remembers pages, look settings and search history for next time.
@@ -71,7 +81,7 @@ func (m Model) SaveState() error {
 	if pg == pageContext {
 		pg = pageLibrary
 	}
-	levels, viz := m.levels, m.vizOn
+	levels, viz, dyn := m.levels, m.vizOn, m.dynamicAccent
 	b, err := json.MarshalIndent(uiState{
 		Page:          int(pg),
 		LibraryTab:    m.lib.tab,
@@ -80,6 +90,8 @@ func (m Model) SaveState() error {
 		Visualizer:    &viz,
 		VizStyle:      m.vizStyle,
 		SearchHistory: m.searchHistory,
+		Theme:         m.themeName,
+		DynamicAccent: &dyn,
 	}, "", "  ")
 	if err != nil {
 		return err

@@ -73,6 +73,12 @@ Polish 1:
 - [x] Rebind any key in `[keys]`; seek and volume steps configurable
 - [x] Player restarts on its own after a lost session, backing off 5 s → 1 min
 
+Command palette:
+
+- [x] `ctrl+k` (or `:`) runs any action by name, jumps to any playlist,
+      album or artist in your library, switches themes live, or searches
+      Spotify for whatever you typed
+
 ## Install
 
 Grab `spotui-linux-amd64.tar.gz` (Linux/WSL) or `spotui-windows-amd64.zip`
@@ -126,6 +132,7 @@ The Windows build is a single static `.exe`.
 | `<` `>` / `0` | lyrics sync offset ±250 ms / reset (Lyrics page) |
 | `D` | DJ: start it; while it plays, ask it for something |
 | `d` | devices: move playback |
+| `ctrl+k` / `:` | command palette |
 | `?` | help |
 | `V` | visualizer style (bars / mirror) |
 | `P` | add selected / playing track to a playlist |

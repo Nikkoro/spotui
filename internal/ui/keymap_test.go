@@ -28,3 +28,18 @@ func TestKeymap(t *testing.T) {
 		}
 	}
 }
+
+func TestPaletteSearchEntryOnce(t *testing.T) {
+	m := Model{pal: newPalette()}
+	m.pal.cmds = []paletteCmd{{title: "Search", key: "3"}, {title: "Queue", key: "4"}}
+	m.setPaletteItems("search")
+	n := 0
+	for _, v := range m.pal.list.visible {
+		if m.pal.list.items[v].uri == "palette:search" {
+			n++
+		}
+	}
+	if n != 1 || m.pal.list.visible[0] != 0 {
+		t.Fatalf("search entry shown %d times, visible=%v", n, m.pal.list.visible)
+	}
+}

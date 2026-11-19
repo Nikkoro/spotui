@@ -17,6 +17,7 @@ const (
 	overlayDevices
 	overlayDj
 	overlayPlaylists
+	overlayPalette
 )
 
 type devicesMsg struct {
@@ -122,6 +123,8 @@ func (m Model) viewOverlay(w, h int) string {
 		card = m.viewDj(w, h)
 	case overlayPlaylists:
 		card = m.viewPlaylistPicker(w, h)
+	case overlayPalette:
+		card = m.viewPalette(w, h)
 	}
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
@@ -134,6 +137,7 @@ var helpSections = []struct {
 		{"1 … 5", "now playing · library · search · queue · lyrics"},
 		{"D", "DJ: start · while it plays, ask it"},
 		{"d", "devices: move playback"},
+		{"ctrl+k  :", "command palette: run anything by name"},
 		{"?", "this help"},
 		{"q", "quit"},
 	}},
