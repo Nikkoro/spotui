@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"time"
 
@@ -189,7 +190,6 @@ func (m Model) viewSyncedLyrics(w, h int) string {
 	cur := lyrics.Index(lines, m.lyricsPos())
 	anchor := h * 2 / 5
 
-	current := m.theme.title.Bold(true)
 	next := m.theme.text
 	past := m.theme.dim
 	far := lipgloss.NewStyle().Foreground(colTrack)
@@ -212,8 +212,9 @@ func (m Model) viewSyncedLyrics(w, h int) string {
 		var st lipgloss.Style
 		switch d := i - cur; {
 		case d == 0:
-			st = current
-			text = "› " + text + " ‹"
+			// Karaoke: the line fills in as it is sung, up to the next one.
+			rows[r] = lipgloss.PlaceHorizontal(w, lipgloss.Center, m.karaokeLine(text, i))
+			continue
 		case d < 0 && d >= -2:
 			st = past
 		case d < 0:
@@ -226,6 +227,27 @@ func (m Model) viewSyncedLyrics(w, h int) string {
 		rows[r] = lipgloss.PlaceHorizontal(w, lipgloss.Center, st.Render(text))
 	}
 	return strings.Join(rows, "\n")
+}
+
+// karaokeLine renders the current line, the sung part in the accent.
+func (m Model) karaokeLine(text string, i int) string {
+	lines := m.lyrics.Synced
+	start := lines[i].At
+	end := start + 4*time.Second
+	if i+1 < len(lines) {
+		end = lines[i+1].At
+	}
+	progress := 1.0
+	if span := end - start; span > 0 {
+		progress = float64(m.lyricsPos()-start) / float64(span)
+	}
+	progress = math.Max(0, math.Min(1, progress))
+
+	runes := []rune(text)
+	n := int(math.Round(progress * float64(len(runes))))
+	sung := m.theme.title.Bold(true).Render(string(runes[:n]))
+	rest := m.theme.text.Bold(true).Render(string(runes[n:]))
+	return m.theme.accentTxt.Render("› ") + sung + rest + m.theme.accentTxt.Render(" ‹")
 }
 
 func (m Model) viewPlainLyrics(w, h int) string {

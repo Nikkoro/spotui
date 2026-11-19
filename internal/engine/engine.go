@@ -71,6 +71,8 @@ func New(cfg *config.Config, log librespot.Logger) (*Engine, error) {
 		VolumeSteps:           100,
 		InitialVolume:         cfg.InitialVolume,
 		NormalisationDisabled: !cfg.Normalisation,
+		CrossfadeDuration:     max(cfg.CrossfadeMs, 0),
+		DisableAutoplay:       !cfg.Autoplay,
 		SkipDebounce:          600 * time.Millisecond,
 
 		// Discovery happens through Spotify's servers once logged in, which
