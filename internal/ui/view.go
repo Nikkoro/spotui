@@ -124,7 +124,7 @@ func (m Model) viewFooter(w int) string {
 	case m.page == pageNowPlaying:
 		keys = [][2]string{
 			{"space", "play"}, {"n/p", "next/prev"}, {"←→", "seek"}, {"+/-", "vol"},
-			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"[ ]", "pixels"}, {"{ }", "colours"},
+			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"v", "viz"}, {"[ ]", "pixels"}, {"{ }", "colours"},
 			{"u", "link"}, {"q", "quit"},
 		}
 	case m.page == pageSearch && m.search.input.Focused():
@@ -252,6 +252,12 @@ func (m Model) viewNowPlaying(w int) string {
 	availH := m.height - 12
 	availW := w - 8
 
+	vizH := 0
+	if m.vizVisible() && availH >= 14 {
+		vizH = clamp(availH/4, 4, 8)
+		availH -= vizH + 1
+	}
+
 	// Prefer the cover beside the info, shrinking both (cover never below
 	// 12 px) rather than dropping the cover on smaller terminals.
 	coverSize := 0
@@ -271,6 +277,10 @@ func (m Model) viewNowPlaying(w int) string {
 	}
 	if content == "" {
 		content = info
+	}
+	if vizH > 0 {
+		content = lipgloss.JoinVertical(lipgloss.Left, content, "",
+			m.viewVisualizer(lipgloss.Width(content), vizH))
 	}
 
 	return m.theme.card.Render(content)

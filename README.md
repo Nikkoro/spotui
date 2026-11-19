@@ -26,9 +26,13 @@ Stage 2:
 - [x] Queue view, add to queue, like/unlike the current track
 - [x] Fuzzy filter on every list
 
+Stage 3:
+
+- [x] Real-time spectrum visualizer from the decoded audio itself (FFT, log bands,
+      auto gain, peak caps), tinted with the cover colour; `v` toggles it
+
 Next:
 
-- [ ] Real-time audio visualizer (FFT of the decoded audio)
 - [ ] Live synced lyrics
 - [ ] Media keys and notifications (MPRIS on Linux, SMTC on Windows)
 - [ ] Themes, mouse support
@@ -76,6 +80,7 @@ The Windows build is a single static `.exe`.
 | `s` | shuffle |
 | `r` | repeat: off → all → track |
 | `f` | like / unlike the current track |
+| `v` | visualizer on / off |
 | `u` | play a Spotify link or URI |
 | `[` / `]` | cover pixel resolution |
 | `{` / `}` | cover colour depth |
@@ -102,6 +107,11 @@ enabled = true
 pixel_size = 32           # 8–64; lower = chunkier pixels
 levels = 8                # colour levels per channel; 0 = full colour
 dynamic_accent = true     # tint the UI with the cover's colour
+
+[visualizer]
+enabled = true
+delay_ms = 120            # raise if bars run ahead of what you hear
+bar_width = 2
 ```
 
 ### Your own Spotify app (recommended)
@@ -128,6 +138,11 @@ Render sample screens without a Spotify connection:
 PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
 python3 scripts/ans2png.py /tmp/frames/1-now-playing.ans /tmp/np.png 120 36
 ```
+
+## Vendored go-librespot
+
+`third_party/go-librespot` is go-librespot with a tiny patch that exposes the
+PCM stream for the visualizer; see `third_party/PATCHES.md`.
 
 ## Building
 

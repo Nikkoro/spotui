@@ -20,6 +20,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/Nikkoro/spotui/internal/config"
+	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/internal/webapi"
 )
 
@@ -47,7 +48,7 @@ func sampleCover() image.Image {
 func sampleModel(t *testing.T) Model {
 	cfg := config.Default()
 	cfg.DeviceName = "spotui (desktop)"
-	m := New(nil, &cfg)
+	m := New(nil, &cfg, viz.NewTap())
 	m.width, m.height = 120, 36
 	m.phase = phaseReady
 	m.username = "niko"
@@ -67,6 +68,16 @@ func sampleModel(t *testing.T) Model {
 	m.shuffle = true
 	m.repeatCtx = true
 	m.liked["spotify:track:1"] = true
+
+	// Fake a spectrum: a rough pink-noise slope with some bumps.
+	_ = m.View() // lets the visualizer size its bands
+	n := m.vizAn.Bands()
+	m.vizLevels, m.vizPeaks = make([]float64, n), make([]float64, n)
+	for i := range m.vizLevels {
+		x := float64(i) / float64(n)
+		m.vizLevels[i] = math.Max(0.05, 0.9-0.6*x+0.25*math.Sin(x*17))
+		m.vizPeaks[i] = math.Min(1, m.vizLevels[i]+0.12)
+	}
 	return m
 }
 
@@ -146,6 +157,18 @@ func TestPreview(t *testing.T) {
 	small := sampleModel(t)
 	small.width, small.height = 80, 24
 	write(t, "7-now-playing-small", small)
+
+	tall := sampleModel(t)
+	tall.width, tall.height = 100, 44
+	_ = tall.View()
+	n := tall.vizAn.Bands()
+	tall.vizLevels, tall.vizPeaks = make([]float64, n), make([]float64, n)
+	for i := range tall.vizLevels {
+		x := float64(i) / float64(n)
+		tall.vizLevels[i] = math.Max(0.05, 0.9-0.6*x+0.25*math.Sin(x*17))
+		tall.vizPeaks[i] = math.Min(1, tall.vizLevels[i]+0.12)
+	}
+	write(t, "8-now-playing-tall", tall)
 
 	var _ tea.Model = m
 }

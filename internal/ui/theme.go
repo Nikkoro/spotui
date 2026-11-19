@@ -7,7 +7,8 @@ const defaultAccent = "#1DB954" // Spotify green
 // theme holds every style derived from the current accent colour, so the
 // whole UI can be re-tinted when the album cover changes.
 type theme struct {
-	accent lipgloss.Color
+	accent    lipgloss.Color
+	accentHex string
 
 	app       lipgloss.Style
 	card      lipgloss.Style
@@ -37,7 +38,8 @@ var (
 func newTheme(accentHex string) theme {
 	accent := lipgloss.Color(accentHex)
 	return theme{
-		accent: accent,
+		accent:    accent,
+		accentHex: accentHex,
 
 		app: lipgloss.NewStyle().Padding(1, 2),
 		card: lipgloss.NewStyle().

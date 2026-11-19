@@ -16,6 +16,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/cover"
 	"github.com/Nikkoro/spotui/internal/engine"
 	"github.com/Nikkoro/spotui/internal/platform"
+	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/internal/webapi"
 )
 
@@ -99,6 +100,17 @@ type Model struct {
 	// Web API authorization in progress
 	webAuthURL string
 
+	// visualizer
+	vizOn      bool
+	vizTap     *viz.Tap
+	vizAn      *viz.Analyzer
+	vizBuf     []float32
+	vizLevels  []float64
+	vizPeaks   []float64
+	vizSeen    int64
+	vizStalled int
+	vizAt      time.Time
+
 	flash      string
 	flashErr   bool
 	flashUntil time.Time
@@ -106,7 +118,7 @@ type Model struct {
 }
 
 // New builds the UI around a running engine.
-func New(eng *engine.Engine, cfg *config.Config) Model {
+func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot))
 
 	in := textinput.New()
@@ -136,6 +148,10 @@ func New(eng *engine.Engine, cfg *config.Config) Model {
 		lib:       newLibraryPage(),
 		search:    newSearchPage(),
 		queue:     newQueuePage(),
+		vizOn:     cfg.Visualizer.Enabled && tap != nil,
+		vizTap:    tap,
+		vizAn:     viz.NewAnalyzer(32),
+		vizBuf:    make([]float32, 2048),
 	}
 
 	var tokens webapi.TokenSource = webapi.TokenFunc(eng.Token)
@@ -216,7 +232,7 @@ func (m Model) fetchLiked(uri string) tea.Cmd {
 
 // Init starts listening to the engine.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(waitEvent(m.eng.Events()), m.spinner.Tick, tick())
+	return tea.Batch(waitEvent(m.eng.Events()), m.spinner.Tick, tick(), vizTick(vizIdleInterval))
 }
 
 // --- update ---
@@ -235,6 +251,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		return m, tick()
+
+	case vizTickMsg:
+		return m, m.stepVisualizer(time.Time(msg))
 
 	case engineMsg:
 		cmd := m.handleEvent(msg.ev)
@@ -543,6 +562,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.setFlash("Removed from Liked Songs", false)
 		}
 		return m, call("Like", func(ctx context.Context) error { return e.SetLiked(ctx, []string{uri}, on) })
+	case "v":
+		if m.vizTap == nil {
+			return m, nil
+		}
+		m.vizOn = !m.vizOn
+		if m.vizOn {
+			m.setFlash("Visualizer on", false)
+		} else {
+			m.setFlash("Visualizer off", false)
+		}
+		return m, nil
 	case "u":
 		m.inputting = true
 		m.input.SetValue("")

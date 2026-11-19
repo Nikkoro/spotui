@@ -11,11 +11,13 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/devgianlu/go-librespot/output"
 	"github.com/sirupsen/logrus"
 
 	"github.com/Nikkoro/spotui/internal/config"
 	"github.com/Nikkoro/spotui/internal/engine"
 	"github.com/Nikkoro/spotui/internal/ui"
+	"github.com/Nikkoro/spotui/internal/viz"
 )
 
 var version = "dev"
@@ -59,6 +61,11 @@ func run() error {
 	}
 	logger.Infof("spotui %s, audio backend %s", version, cfg.AudioBackend)
 
+	// Tap the PCM going to the audio device for the visualizer. This must be
+	// set before the first output is opened.
+	tap := viz.NewTap()
+	output.ReaderHook = tap.Wrap
+
 	eng, err := engine.New(cfg, engine.NewLogger(logger))
 	if err != nil {
 		return err
@@ -71,7 +78,7 @@ func run() error {
 		eng.Run(ctx)
 	}()
 
-	p := tea.NewProgram(ui.New(eng, cfg), tea.WithAltScreen())
+	p := tea.NewProgram(ui.New(eng, cfg, tap), tea.WithAltScreen())
 	_, uiErr := p.Run()
 
 	cancel()
