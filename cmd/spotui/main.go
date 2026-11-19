@@ -36,6 +36,16 @@ func run() error {
 	configDir := flag.String("config-dir", "", "configuration directory (default: OS config dir/spotui)")
 	debug := flag.Bool("debug", false, "verbose logging to spotui.log")
 	showVersion := flag.Bool("version", false, "print version and exit")
+	flag.Usage = func() {
+		out := flag.CommandLine.Output()
+		fmt.Fprintf(out, "spotui %s: a Spotify Connect player for the terminal\n\n", version)
+		fmt.Fprintf(out, "usage: spotui [flags] [command]\n\ncommands:\n")
+		fmt.Fprintf(out, "  (none)       start the player\n")
+		fmt.Fprintf(out, "  logout       forget the Spotify login; the next start pairs again\n")
+		fmt.Fprintf(out, "  paths        print where config, cache and logs live\n")
+		fmt.Fprintf(out, "  clear-cache  delete cached covers, lyrics, library and audio\n\nflags:\n")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
 	if *showVersion {
@@ -48,8 +58,35 @@ func run() error {
 		return err
 	}
 
-	// The TUI owns the terminal, so logs go to a file.
+	switch cmd := flag.Arg(0); cmd {
+	case "":
+	case "logout":
+		if err := engine.Logout(cfg.ConfigDir); err != nil {
+			return err
+		}
+		fmt.Println("Logged out. The next start will show a pairing code.")
+		return nil
+	case "paths":
+		fmt.Println("config:", filepath.Join(cfg.ConfigDir, "config.toml"))
+		fmt.Println("state: ", filepath.Join(cfg.ConfigDir, "state.json"))
+		fmt.Println("log:   ", filepath.Join(cfg.ConfigDir, "spotui.log"))
+		fmt.Println("cache: ", cfg.CacheDir)
+		return nil
+	case "clear-cache":
+		if err := os.RemoveAll(cfg.CacheDir); err != nil {
+			return err
+		}
+		fmt.Println("Cleared", cfg.CacheDir)
+		return nil
+	default:
+		flag.Usage()
+		return fmt.Errorf("unknown command %q", cmd)
+	}
+
+	// The TUI owns the terminal, so logs go to a file. The previous run's
+	// log is kept as spotui.log.1, handy after a crash or a restart.
 	logPath := filepath.Join(cfg.ConfigDir, "spotui.log")
+	_ = os.Rename(logPath, logPath+".1")
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("opening log file: %w", err)

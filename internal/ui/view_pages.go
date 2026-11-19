@@ -55,6 +55,7 @@ func (m Model) listBlock(l *listModel, w, h, above int) string {
 		m.hits.listTop = m.hits.bodyTop + above + len(lines)
 		m.hits.listRows = max(listH, 0)
 	}
+	l.liked = m.liked
 	lines = append(lines, l.view(m.theme, w, listH, m.currentURI()))
 	return strings.Join(lines, "\n")
 }

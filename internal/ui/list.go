@@ -43,6 +43,8 @@ type listModel struct {
 	numbered bool
 	// ranked orders filter matches by quality instead of list order.
 	ranked bool
+	// liked marks tracks in Liked Songs with a heart; set while rendering.
+	liked map[string]bool
 }
 
 func (l *listModel) setItems(items []listItem) {
@@ -284,15 +286,20 @@ func (l *listModel) row(t theme, it listItem, selected, playing bool, width, num
 		titleStyle = titleStyle.Bold(true)
 	}
 
+	heart := ""
+	if it.kind == kindTrack && l.liked[it.uri] {
+		heart = " ♥"
+		avail -= 2
+	}
 	title := ansi.Truncate(" "+it.title, avail, "…")
-	titleW := ansi.StringWidth(title)
+	titleW := ansi.StringWidth(title) + ansi.StringWidth(heart)
 	sub := ""
 	if it.subtitle != "" && avail-titleW > 6 {
 		sub = ansi.Truncate("  "+it.subtitle, avail-titleW, "…")
 	}
 	pad := max(avail-titleW-ansi.StringWidth(sub), 0)
 
-	return marker + num_ + titleStyle.Render(title) + dim.Render(sub+strings.Repeat(" ", pad)) + dim.Render(right)
+	return marker + num_ + titleStyle.Render(title) + accent.Render(heart) + dim.Render(sub+strings.Repeat(" ", pad)) + dim.Render(right)
 }
 
 func padLeft(s string, w int) string {
