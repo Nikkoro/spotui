@@ -6,10 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-# go-librespot is pinned to a master commit for its library/queue API.
-env:
-  LIBRESPOT_REF: fdfa7ee115fd0e1d914c27a6513ae0047d8ace56
-
 jobs:
   linux:
     runs-on: ubuntu-24.04
@@ -23,22 +19,10 @@ jobs:
       - name: Install audio libraries
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libvorbis-dev libogg-dev libflac-dev libmpg123-dev
 
-      - name: Resolve dependencies
+      - name: Check dependencies
         run: |
-          if [ ! -f go.sum ]; then
-            go get github.com/devgianlu/go-librespot@${LIBRESPOT_REF}
-          fi
           go mod tidy
-          echo "----- go.mod -----"; cat go.mod
-          echo "----- go.sum -----"; cat go.sum
-
-      - name: Upload resolved module files
-        uses: actions/upload-artifact@v4
-        with:
-          name: go-mod
-          path: |
-            go.mod
-            go.sum
+          git diff --exit-code go.mod go.sum
 
       - name: Format
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
@@ -91,13 +75,6 @@ jobs:
         env:
           VCPKG_ROOT: /tmp/vcpkg
         run: /tmp/vcpkg/vcpkg install --triplet x64-mingw-static
-
-      - name: Resolve dependencies
-        run: |
-          if [ ! -f go.sum ]; then
-            go get github.com/devgianlu/go-librespot@${LIBRESPOT_REF}
-          fi
-          go mod tidy
 
       - name: Cross-compile
         env:
