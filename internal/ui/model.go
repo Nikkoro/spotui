@@ -304,6 +304,29 @@ func (m Model) prefetchNextCover() tea.Cmd {
 	}
 }
 
+// fetchLikedMany asks for the hearts of many tracks, in batches.
+func (m Model) fetchLikedMany(uris []string) tea.Cmd {
+	if len(uris) == 0 {
+		return nil
+	}
+	eng := m.eng
+	return func() tea.Msg {
+		all := map[string]bool{}
+		for start := 0; start < len(uris); start += 100 {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			states, err := eng.Liked(ctx, uris[start:min(start+100, len(uris))])
+			cancel()
+			if err != nil {
+				break
+			}
+			for k, v := range states {
+				all[k] = v
+			}
+		}
+		return likedMsg{states: all}
+	}
+}
+
 func (m Model) fetchLiked(uri string) tea.Cmd {
 	if uri == "" {
 		return nil

@@ -94,16 +94,18 @@ type contextPage struct {
 	title    string
 	subtitle string
 	cover    *cover.Pixels
-	kind     string
-	list     listModel
-	loading  bool
-	ready    bool
-	length   int
-	cached   int
-	err      error
-	back     page
-	backCtx  *contextPage
-	openedAt time.Time
+	// likedLoaded: the hearts for this page have been asked for.
+	likedLoaded bool
+	kind        string
+	list        listModel
+	loading     bool
+	ready       bool
+	length      int
+	cached      int
+	err         error
+	back        page
+	backCtx     *contextPage
+	openedAt    time.Time
 }
 
 // activeList returns the list the cursor keys drive on the current page.
@@ -496,6 +498,16 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cp.list.setItems(items)
 		done := res.Ready && res.Cached >= res.Length
 		cp.loading = !done
+		if done && !cp.likedLoaded {
+			cp.likedLoaded = true
+			uris := make([]string, 0, len(items))
+			for _, it := range items {
+				if strings.HasPrefix(it.uri, "spotify:track:") {
+					uris = append(uris, it.uri)
+				}
+			}
+			return m, m.fetchLikedMany(uris)
+		}
 		if !done && time.Since(cp.openedAt) < 3*time.Minute {
 			uri := cp.uri
 			return m, tea.Tick(800*time.Millisecond, func(time.Time) tea.Msg { return ctxPollMsg{uri: uri} })
@@ -658,6 +670,21 @@ func (m Model) handlePageKey(key string) (bool, tea.Model, tea.Cmd) {
 		return false, m, nil
 	case "enter":
 		return true, m, m.activate(list.selected())
+	case "f":
+		// Like the selected track; without one, f acts on the playing track.
+		it := list.selected()
+		if it == nil || it.kind != kindTrack || !strings.HasPrefix(it.uri, "spotify:track:") {
+			return false, m, nil
+		}
+		on := !m.liked[it.uri]
+		m.liked[it.uri] = on
+		if on {
+			m.setFlash("Added “"+it.title+"” to Liked Songs", false)
+		} else {
+			m.setFlash("Removed “"+it.title+"” from Liked Songs", false)
+		}
+		eng, uri := m.eng, it.uri
+		return true, m, call("Like", func(ctx context.Context) error { return eng.SetLiked(ctx, []string{uri}, on) })
 	case "a":
 		it := list.selected()
 		if it == nil || it.kind != kindTrack {

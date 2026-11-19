@@ -70,3 +70,32 @@ func (s *fileStateStore) Save(state *librespot.AppState) error {
 	}
 	return nil
 }
+
+// Logout forgets the stored Spotify login (and the Web API token) so the
+// next start asks to pair again. The device id and volume are kept.
+func Logout(configDir string) error {
+	path := filepath.Join(configDir, "state.json")
+	b, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+	case err != nil:
+		return err
+	default:
+		var state map[string]json.RawMessage
+		if err := json.Unmarshal(b, &state); err != nil {
+			return fmt.Errorf("parsing %s: %w", path, err)
+		}
+		delete(state, "credentials")
+		out, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, out, 0o600); err != nil {
+			return err
+		}
+	}
+	if err := os.Remove(filepath.Join(configDir, "webapi_token.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}

@@ -85,6 +85,13 @@ Mouse & pages:
       progress bar to seek; the wheel is the volume knob on Now Playing
 - [x] Playlist, album and artist pages show their cover next to the title
 
+Small things:
+
+- [x] Hearts on liked tracks in playlist / album pages; `f` likes the
+      selected track in a list (the playing one elsewhere)
+- [x] `spotui logout`, `spotui paths`, `spotui clear-cache`; the previous
+      run's log is kept as `spotui.log.1`
+
 ## Install
 
 Grab `spotui-linux-amd64.tar.gz` (Linux/WSL) or `spotui-windows-amd64.zip`
