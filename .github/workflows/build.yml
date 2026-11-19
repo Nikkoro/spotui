@@ -1,0 +1,117 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# go-librespot is pinned to a master commit for its library/queue API.
+env:
+  LIBRESPOT_REF: fdfa7ee115fd0e1d914c27a6513ae0047d8ace56
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install audio libraries
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libvorbis-dev libogg-dev libflac-dev libmpg123-dev
+
+      - name: Resolve dependencies
+        run: |
+          if [ ! -f go.sum ]; then
+            go get github.com/devgianlu/go-librespot@${LIBRESPOT_REF}
+          fi
+          go mod tidy
+          echo "----- go.mod -----"; cat go.mod
+          echo "----- go.sum -----"; cat go.sum
+
+      - name: Upload resolved module files
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-mod
+          path: |
+            go.mod
+            go.sum
+
+      - name: Format
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_SHA::7}" -o spotui ./cmd/spotui
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spotui-linux-amd64
+          path: spotui
+          retention-days: 14
+
+  windows:
+    # Cross-compiled from Linux against static MinGW builds of the decoders,
+    # so the result is a single .exe with no DLLs to ship.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install MinGW cross compiler
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 pkg-config curl zip unzip tar
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            /tmp/vcpkg
+            vcpkg_installed
+          key: vcpkg-mingw-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'vcpkg-triplets/**') }}
+
+      - name: Bootstrap vcpkg
+        run: |
+          if [ ! -x /tmp/vcpkg/vcpkg ]; then
+            git clone --depth 1 --branch 2025.09.17 https://github.com/microsoft/vcpkg.git /tmp/vcpkg
+            /tmp/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+          fi
+
+      - name: Install decode libraries
+        env:
+          VCPKG_ROOT: /tmp/vcpkg
+        run: /tmp/vcpkg/vcpkg install --triplet x64-mingw-static
+
+      - name: Resolve dependencies
+        run: |
+          if [ ! -f go.sum ]; then
+            go get github.com/devgianlu/go-librespot@${LIBRESPOT_REF}
+          fi
+          go mod tidy
+
+      - name: Cross-compile
+        env:
+          CGO_ENABLED: 1
+          GOOS: windows
+          GOARCH: amd64
+          CC: x86_64-w64-mingw32-gcc
+          CGO_LDFLAGS: -static
+          PKG_CONFIG_LIBDIR: ${{ github.workspace }}/vcpkg_installed/x64-mingw-static/lib/pkgconfig
+          PKG_CONFIG_PATH: ${{ github.workspace }}/vcpkg_installed/x64-mingw-static/lib/pkgconfig
+        run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_SHA::7}" -o spotui.exe ./cmd/spotui
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spotui-windows-amd64
+          path: spotui.exe
+          retention-days: 14

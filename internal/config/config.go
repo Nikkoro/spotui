@@ -1,0 +1,177 @@
+// Package config loads and stores the spotui configuration file.
+package config
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+
+	"github.com/BurntSushi/toml"
+)
+
+const appName = "spotui"
+
+// Config is the user-editable configuration stored in config.toml.
+type Config struct {
+	// DeviceName is the name shown in the Spotify Connect device list.
+	DeviceName string `toml:"device_name"`
+
+	// AudioBackend selects the output driver: alsa, pulseaudio, wasapi,
+	// audio-toolbox or pipe. Empty picks the best one for the platform.
+	AudioBackend string `toml:"audio_backend"`
+	// AudioDevice is the output device name (alsa and pulseaudio only).
+	AudioDevice string `toml:"audio_device"`
+
+	// Bitrate is the preferred stream quality: 96, 160 or 320.
+	Bitrate int `toml:"bitrate"`
+	// InitialVolume is the volume (0-100) used when no previous volume is known.
+	InitialVolume uint32 `toml:"initial_volume"`
+	// Normalisation enables Spotify loudness normalisation.
+	Normalisation bool `toml:"normalisation"`
+
+	// AudioCache keeps downloaded (encrypted) audio on disk.
+	AudioCache bool `toml:"audio_cache"`
+	// AudioCacheSizeMB caps the audio cache size; 0 means unlimited.
+	AudioCacheSizeMB int64 `toml:"audio_cache_size_mb"`
+
+	// Cover controls album art rendering.
+	Cover CoverConfig `toml:"cover"`
+
+	// Dirs are resolved at load time and never written to the file.
+	ConfigDir string `toml:"-"`
+	CacheDir  string `toml:"-"`
+}
+
+// CoverConfig controls how the album cover is rendered.
+type CoverConfig struct {
+	// Enabled shows the cover at all.
+	Enabled bool `toml:"enabled"`
+	// PixelSize is the resolution of the pixel-art cover in pixels per side.
+	PixelSize int `toml:"pixel_size"`
+	// Levels is the number of colour levels per channel (posterisation).
+	// 0 or 256 keeps the full palette.
+	Levels int `toml:"levels"`
+	// DynamicAccent derives the UI accent colour from the cover.
+	DynamicAccent bool `toml:"dynamic_accent"`
+}
+
+// Default returns the configuration used when no file exists yet.
+func Default() Config {
+	host, _ := os.Hostname()
+	name := appName
+	if host != "" {
+		name = fmt.Sprintf("%s (%s)", appName, host)
+	}
+
+	return Config{
+		DeviceName:       name,
+		Bitrate:          320,
+		InitialVolume:    70,
+		Normalisation:    true,
+		AudioCache:       true,
+		AudioCacheSizeMB: 1024,
+		Cover: CoverConfig{
+			Enabled:       true,
+			PixelSize:     32,
+			Levels:        8,
+			DynamicAccent: true,
+		},
+	}
+}
+
+// Load reads config.toml from the config directory, creating it with
+// defaults when it does not exist. dir overrides the default location.
+func Load(dir string) (*Config, error) {
+	if dir == "" {
+		base, err := os.UserConfigDir()
+		if err != nil {
+			return nil, fmt.Errorf("resolving config dir: %w", err)
+		}
+		dir = filepath.Join(base, appName)
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("creating config dir: %w", err)
+	}
+
+	cfg := Default()
+	path := filepath.Join(dir, "config.toml")
+
+	switch _, err := toml.DecodeFile(path, &cfg); {
+	case err == nil:
+	case errors.Is(err, os.ErrNotExist):
+		if err := write(path, &cfg); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	cfg.ConfigDir = dir
+	if base, err := os.UserCacheDir(); err == nil {
+		cfg.CacheDir = filepath.Join(base, appName)
+	} else {
+		cfg.CacheDir = filepath.Join(dir, "cache")
+	}
+	if err := os.MkdirAll(cfg.CacheDir, 0o700); err != nil {
+		return nil, fmt.Errorf("creating cache dir: %w", err)
+	}
+
+	if cfg.AudioBackend == "" {
+		cfg.AudioBackend = DefaultAudioBackend()
+	}
+	if cfg.AudioDevice == "" {
+		cfg.AudioDevice = "default"
+	}
+
+	return &cfg, nil
+}
+
+func write(path string, cfg *Config) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return fmt.Errorf("creating %s: %w", path, err)
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString("# spotui configuration\n# Empty audio_backend picks the best driver for this platform.\n\n"); err != nil {
+		return err
+	}
+	return toml.NewEncoder(f).Encode(cfg)
+}
+
+// DefaultAudioBackend picks the output driver for the current platform.
+// On Linux PulseAudio (or PipeWire's Pulse server) is preferred when a server
+// is reachable, which also covers WSLg; plain ALSA is the fallback.
+func DefaultAudioBackend() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "wasapi"
+	case "darwin":
+		return "audio-toolbox"
+	}
+
+	if os.Getenv("PULSE_SERVER") != "" {
+		return "pulseaudio"
+	}
+	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
+		if _, err := os.Stat(filepath.Join(dir, "pulse", "native")); err == nil {
+			return "pulseaudio"
+		}
+	}
+	return "alsa"
+}
+
+// IsWSL reports whether the process runs inside Windows Subsystem for Linux.
+func IsWSL() bool {
+	if runtime.GOOS != "linux" {
+		return false
+	}
+	b, err := os.ReadFile("/proc/version")
+	if err != nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(string(b)), "microsoft")
+}
