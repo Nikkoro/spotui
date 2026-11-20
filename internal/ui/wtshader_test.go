@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/shaders"
 )
@@ -32,9 +33,18 @@ func TestShaderStripOnlyWhenAskedAndLyricsShow(t *testing.T) {
 	if w := lipgloss.Width(row); w != m.width {
 		t.Fatalf("top row %d wide, want %d", w, m.width)
 	}
+	// An instrumental, or no lyrics found: the strip stays.
+	m.lyrics = &lyrics.Lyrics{Instrumental: true}
+	if !strings.HasPrefix(first(m), sigEscape()) {
+		t.Fatal("no strip for an instrumental")
+	}
+	m.lyrics = nil
+	if !strings.HasPrefix(first(m), sigEscape()) {
+		t.Fatal("no strip without lyrics")
+	}
 	m.page = pageQueue
 	if strings.Contains(first(m), sigEscape()) {
-		t.Fatal("strip drawn without lyrics on screen")
+		t.Fatal("strip drawn without the lyrics page or panel")
 	}
 }
 
