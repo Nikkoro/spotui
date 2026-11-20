@@ -66,6 +66,7 @@ func (m Model) View() string {
 	}
 
 	out := m.theme.app.Render(lipgloss.JoinVertical(lipgloss.Left, header, "", body, footer))
+	out = m.withShaderStrip(out)
 	if m.img != nil && m.frame != nil {
 		out = m.img.Update(out, m.frame.imgs)
 	}

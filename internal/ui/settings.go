@@ -310,6 +310,13 @@ func (m Model) settings() []setting {
 			help:    "The line being sung moves to the music: subtle flashes on the beat, party adds sparkles and a shake on drops, nightcore runs a wave through it letter by letter on each beat and flows with colour.",
 			value:   func(m Model) string { return m.fxLevel() },
 			set:     func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.Effects = v; return v, nil }},
+		{group: "Lyrics", label: "Windows Terminal shader", kind: setBool, section: "lyrics", key: "wt_shader",
+			help:  "Feeds the beat to shaders/spotui.hlsl, a Windows Terminal pixel shader that draws behind the lyrics. Set it as experimental.pixelShaderPath in your Windows Terminal profile first, or you will see coloured squares in the corner.",
+			value: func(m Model) string { return boolStr(m.cfg.Lyrics.WTShader) },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				m.cfg.Lyrics.WTShader = v == "true"
+				return m.cfg.Lyrics.WTShader, nil
+			}},
 		{group: "Lyrics", label: "Line on classic Now Playing", kind: setBool, section: "lyrics", key: "now_playing_line",
 			help:  "The current line under the progress bar in the classic layout.",
 			value: func(m Model) string { return boolStr(m.cfg.Lyrics.NowPlayingLine) },
