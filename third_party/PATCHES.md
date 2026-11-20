@@ -52,3 +52,21 @@ tag next to them and run `go test -tags test_unit ./daemon/ ./spclient/`.
 To update: copy the new release over this directory (minus `.github`, `cmd`,
 `*_test.go`, Docker and vcpkg files), re-apply the patch above, run
 `go mod tidy` and update the version here.
+
+## jfreymuth/pulse
+
+`third_party/pulse` is [jfreymuth/pulse](https://github.com/jfreymuth/pulse)
+v0.1.3 (MIT), go-librespot's PulseAudio client, with one fix (marked
+`spotui patch`):
+
+- `PlaybackStream.Start` waited without limit for the server's `Started`.
+  After `Stop` and a flush, which go-librespot does on every skip, WSLg's
+  PulseAudio never sends it: the new track played while the player loop hung,
+  so the track was never reported (the UI kept the old one) and every later
+  seek, volume change or status request timed out. Start now waits at most
+  500 ms, the `started` channel is buffered, and the client's dispatcher never
+  blocks sending on it.
+
+To update: copy the new release over the directory (minus `.github` and
+`demo`) and re-apply the fix.
+
