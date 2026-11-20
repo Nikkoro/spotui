@@ -1,187 +1,115 @@
 # spotui
 
-A good-looking terminal Spotify client written in Go. The terminal itself is a
-Spotify Connect device (powered by an embedded
-[go-librespot](https://github.com/devgianlu/go-librespot)), so audio plays
-right here and the device shows up in the Connect list on your phone.
+Spotify in your terminal, and good-looking while at it. spotui is itself a
+Spotify Connect device: music plays right in the terminal, and it shows up
+next to your speakers in the Spotify app on your phone, so you can control it
+from either side.
 
-Runs on Linux, WSL and Windows. Requires Spotify Premium.
+Runs on Linux, WSL and Windows. Needs Spotify Premium.
 
-## Status
-
-Stage 1 (current):
-
-- [x] Embedded Spotify Connect device, playback through ALSA / PulseAudio (WSLg) / WASAPI
-- [x] Login by approving a code at spotify.com/pair (no browser needed on the machine)
-- [x] Now-playing view: progress, volume, shuffle, repeat
-- [x] Pixel-art album covers with adjustable resolution and colour depth
-- [x] UI accent colour taken from the current cover
-- [x] Play any Spotify link or URI
-
-Stage 2:
-
-- [x] Library: playlists (with folders), Liked Songs, saved albums, followed artists
-- [x] Playlist / album / artist pages, play from any track
-- [x] Search (tracks, albums, artists, playlists) through the Web API
-- [x] Queue view, add to queue, like/unlike the current track
-- [x] Fuzzy filter on every list
-
-Stage 3:
-
-- [x] Real-time spectrum visualizer from the decoded audio itself (FFT, log bands,
-      auto gain, peak caps), tinted with the cover colour; `v` toggles it
-
-Stage 4:
-
-- [x] Live synced lyrics from [LRCLIB](https://lrclib.net) on their own page (`5`),
-      current line on Now Playing, sync offset with `<` `>`
-- [x] Polite LRCLIB client: identifying User-Agent, one request at a time,
-      debounced lookups, Retry-After with jitter, on-disk cache incl. misses
-
-Stage 5:
-
-- [x] MPRIS on Linux: media keys, `playerctl`, desktop media widgets
-- [x] Global media keys on Windows (play/pause, next, previous, stop)
-- [x] Track-change notifications with the cover: freedesktop on Linux,
-      Windows toasts on Windows and from WSL (via `powershell.exe`)
-
-Stage 6:
-
-- [x] Devices overlay (`d`): see every Connect device, move playback
-      anywhere, including pulling it to this terminal
-- [x] Help overlay (`?`)
-- [x] Themes: spotify, catppuccin, gruvbox, nord, rose-pine, tokyo-night
-- [x] Mirror visualizer style (`V`)
-- [x] Mouse: wheel scrolls lists and lyrics, click the page tabs
-
-Stage 7:
-
-- [x] Spotify DJ: `D` (or "◉ DJ" at the top of Library) starts it, with the
-      DJ talking between tracks (go-librespot plays its narration)
-- [x] Ask DJ: while it plays, `D` opens a panel to type a request or pick one
-      of Spotify's suggested prompts; "Pick something different" starts a new set
-
-Polish 1:
-
-- [x] Covers cached on disk (instant on replays, work offline), next track's
-      cover prefetched; library cached per account and shown at once while
-      it refreshes
-- [x] Remembers page, library tab, cover look, visualizer and search
-      history (`↑` `↓` in the search box) between runs
-- [x] Add to playlist (`P`), go to album / artist of the playing track
-      (`A` / `I`), sleep timer (`z`)
-- [x] Rebind any key in `[keys]`; seek and volume steps configurable
-- [x] Player restarts on its own after a lost session, backing off 5 s → 1 min
-
-Command palette:
-
-- [x] `ctrl+k` (or `:`) runs any action by name, jumps to any playlist,
-      album or artist in your library, switches themes live, or searches
-      Spotify for whatever you typed
-
-Mouse & pages:
-
-- [x] Click a row to select it, double-click to open or play; click the
-      progress bar to seek; the wheel is the volume knob on Now Playing
-- [x] Playlist, album and artist pages show their cover next to the title
-
-Small things:
-
-- [x] Hearts on liked tracks in playlist / album pages; `f` likes the
-      selected track in a list (the playing one elsewhere)
-- [x] `spotui logout`, `spotui paths`, `spotui clear-cache`; the previous
-      run's log is kept as `spotui.log.1`
-
-- [x] Karaoke-style fill of the current lyric line
-- [x] Crossfade and autoplay settings
-- [x] `[colors]` overrides single colours on top of any theme
-- [x] Oscilloscope visualizer style drawn with braille dots (`V` → wave)
-- [x] Now Playing layouts (`L`): split (cover and info beside synced
-      lyrics), panels (plus up next, device and DJ), compact (for small or
-      zoomed-in terminals, the visualizer shrinks but stays) and the classic
-      card; `auto` picks by the window's size
-- [x] Library tabs for Recently played (resumes in the playlist or album it
-      came from) and your Top tracks / Top artists of the last weeks
-
-Real cover images:
-
-- [x] Sixel (Windows Terminal 1.22+, foot, WezTerm, mlterm, Konsole, …) and
-      the kitty graphics protocol (kitty, Ghostty, WezTerm), detected at
-      start; pixel blocks everywhere else
-- [x] Pixelated on purpose if you like: `[` `]` pick 8…128 pixels per side
-      or full detail (default 64, crisp square pixels), `{` `}` colours
-- [x] `c` switches between the real image and pixel blocks
-- [x] The image is sent once per track: everything that moves sits below
-      it, and it is only redrawn when something actually covered it
+- **Pixel-art covers**: real images in terminals that show them (Sixel,
+  kitty), pixelated as much as you like, or pixel blocks everywhere else.
+- **Synced lyrics** that fill in as they are sung, on their own page or
+  beside the cover.
+- **Audio visualizer** drawn from the music itself: bars, mirror or wave.
+- **Spotify's DJ**, talking between tracks; ask it for something.
+- **Your library**: playlists, Liked Songs, albums, artists, recently played,
+  top tracks; search; queue; add to playlists.
+- **Now Playing layouts** for wide screens and small or zoomed-in terminals.
+- **Themes**, a command palette (`ctrl+k`), a settings page (`,`), mouse
+  support, media keys, notifications, a sleep timer, self-update.
 
 ## Install
 
-Grab `spotui-linux-amd64.tar.gz` (Linux/WSL) or `spotui-windows-amd64.zip`
-(Windows) from the latest [release](../../releases). Every push to `main` also
-leaves binaries as [build](../../actions/workflows/build.yml) artifacts.
+Download the latest [release](../../releases): `spotui-linux-amd64.tar.gz`
+for Linux and WSL, `spotui-windows-amd64.zip` for Windows.
 
-Releases are made by pushing a `v*` tag.
-
-### Linux / WSL runtime libraries
+**Linux / WSL** (Ubuntu 24.04 or newer, Debian 13): unpack it somewhere on
+your `PATH`, and install the audio libraries:
 
 ```sh
-# Debian/Ubuntu
-sudo apt install libasound2 libvorbis0a libogg0 libflac12 libmpg123-0
+VERSION=v0.1.6   # the newest one on the releases page
+mkdir -p ~/.local/bin
+curl -L https://github.com/Nikkoro/spotui/releases/download/$VERSION/spotui-linux-amd64.tar.gz | tar xz -C ~/.local/bin spotui
+sudo apt install libasound2t64 libvorbis0a libvorbisfile3 libogg0 libflac12t64 libmpg123-0t64
 ```
 
-On WSL, audio goes through WSLg's PulseAudio server (Windows 11).
+After this first install, `spotui update` keeps it current.
 
-The Windows build is a single static `.exe`.
+On WSL, sound goes through WSLg (Windows 11), nothing else to set up.
+
+**Windows**: unzip `spotui.exe` anywhere and run it in Windows Terminal.
+
+**Updating**: `spotui update` installs the newest release over the one you
+have. While releases are marked pre-release, use `spotui update --pre` or
+set the release channel to pre-release in the settings (`,`). spotui also
+checks once a day and shows a new version in the header.
 
 ## First run
 
 1. Start `spotui`.
-2. Open the shown link (press `o`) and approve the device. Credentials are
-   stored, so this happens once.
-3. Pick the device in Spotify Connect on any client, or press `u` and paste a
-   Spotify link.
+2. Press `o` to open the link it shows, and approve the device. This happens
+   only once.
+3. Pick the device in Spotify Connect on your phone or computer, or browse
+   your library right in spotui (`2`).
+
+### Your own Spotify app (recommended)
+
+Playback and your library work out of the box. Search and the Recently
+played and Top lists use Spotify's Web API, which without an app of your own
+goes through a shared, often rate-limited access. To use your own:
+
+1. Create an app at <https://developer.spotify.com/dashboard> (or reuse the
+   one you made for spotify_player).
+2. Add `http://127.0.0.1:8989/login` as a redirect URI.
+3. Put its client id in Settings (`,` → Account), or as `client_id` in
+   `config.toml`. No secret is needed.
+
+The first search opens your browser once to approve it.
 
 ## Keys
 
+`?` shows them all in the app, and `ctrl+k` finds any action by name.
+
 | Key | Action |
 | --- | --- |
-| `1` `2` `3` `4` `5` | Now Playing / Library / Search / Queue / Lyrics |
-| `↑` `↓` (`k` `j`), `g` `G`, `ctrl+u` `ctrl+d` | move in lists |
-| `enter` | open playlist/album/artist, play track |
-| `esc` / `backspace` | back, clear filter |
-| `tab` / `shift+tab` | switch section (Library, Search results) |
-| `/` | filter the list (on Search: edit the query) |
-| `a` | add selected track to the queue |
-| `ctrl+p` | play the whole playlist / album page (shuffle via `ctrl+k`) |
-| `R` | reload the current list |
+| `1` … `5` | Now Playing · Library · Search · Queue · Lyrics |
 | `space` | play / pause |
 | `n` / `p` | next / previous |
-| `←` `→` (`h` `l`) | seek ±5 s |
+| `←` `→` | seek |
 | `+` / `-` | volume |
-| `s` | shuffle |
-| `r` | repeat: off → all → track |
-| `f` | like / unlike the current track |
-| `v` | visualizer on / off |
-| `u` | play a Spotify link or URI |
-| `[` / `]` | cover pixel resolution |
-| `c` | cover: real image / pixel blocks |
-| `{` / `}` | cover colour depth |
-| `<` `>` / `0` | lyrics sync offset ±250 ms / reset (Lyrics page) |
+| `s` / `r` | shuffle / repeat (off → all → track) |
+| `f` | like / unlike |
+| `↑` `↓`, `enter` | move in lists, open or play |
+| `/` | filter the list |
+| `a` / `P` | add to queue / to a playlist |
+| `A` / `I` | go to the album / artist of what is playing |
 | `D` | DJ: start it; while it plays, ask it for something |
-| `d` | devices: move playback |
-| `ctrl+k` / `:` | command palette |
-| `?` | help |
-| `V` | visualizer style (bars / mirror / wave) |
-| `L` | Now Playing layout (auto / split / panels / compact / classic) |
-| `P` | add selected / playing track to a playlist |
-| `A` / `I` | go to album / artist of the playing track |
-| `z` | sleep timer: 15, 30, 45, 60, 90 min, end of track, off |
+| `d` | devices: move playback anywhere |
+| `u` | play a Spotify link |
+| `L` | Now Playing layout: auto · split · panels · compact · classic |
+| `tab` | on Now Playing: move to the lyrics or Up next |
+| `<` `>` / `0` | lyrics sync earlier / later / reset |
+| `v` / `V` | visualizer on / off, style |
+| `c`, `[` `]`, `{` `}` | cover: image or blocks, pixels, colours |
+| `z` | sleep timer |
+| `,` | settings |
+| `ctrl+k` | command palette |
 | `q` | quit |
 
-## Configuration
+The mouse works too: click to select, double-click to play, click the
+progress bar to seek, scroll lists and lyrics.
 
-`config.toml` lives in your config folder (`~/.config/spotui` on Linux,
-`%APPDATA%\spotui` on Windows) and is created on first run.
+## Settings
+
+Press `,` for the settings page: playback, look, visualizer, lyrics, updates
+and account. Changes apply at once where they can and are saved to
+`config.toml` straight away; the few marked ↻ need the player restarted,
+which `R` does from that page.
+
+`config.toml` lives in `~/.config/spotui` (Linux) or `%APPDATA%\spotui`
+(Windows), and `spotui paths` prints where. Everything can also be set
+there by hand:
 
 ```toml
 device_name = "spotui (my-pc)"
@@ -210,7 +138,7 @@ theme = "spotify"         # spotify | catppuccin | gruvbox | nord | rose-pine | 
 # actions: play_pause next previous seek_forward seek_backward volume_up
 # volume_down shuffle repeat like add_to_queue add_to_playlist go_to_album
 # go_to_artist devices dj sleep_timer visualizer visualizer_style play_link
-# filter help quit now_playing library search queue lyrics reload
+# filter help quit now_playing library search queue lyrics reload layout settings
 
 [cover]
 enabled = true
@@ -240,56 +168,23 @@ check = true              # look for a new release once a day, shown in the head
 prerelease = false        # include releases marked pre-release on GitHub
 ```
 
-### Updating
+## Troubleshooting
 
-`spotui update` downloads the newest release for your platform, checks it
-against the release's `SHA256SUMS` and replaces the binary in place
-(restart spotui afterwards). `--pre` includes pre-releases, `--check` only
-says whether there is a newer one. GitHub is asked once per run, with the
-last answer's ETag; the in-app check runs at most once a day.
+- **Logs**: `spotui.log` next to `config.toml`; the previous run is kept as
+  `spotui.log.1`. Start with `spotui --debug` for more detail.
+- **No sound or crackles on WSL**: restart WSL with `wsl --shutdown` in
+  PowerShell. spotui uses a 200 ms audio buffer; set `PULSE_LATENCY_MSEC`
+  to change it.
+- **Visualizer ahead of the music**: raise its delay in Settings.
+- **No real cover images**: they need Sixel (Windows Terminal 1.22+, foot,
+  WezTerm, Konsole, …) or the kitty protocol (kitty, Ghostty, WezTerm).
+- **Start over**: `spotui logout` forgets the login, `spotui clear-cache`
+  drops cached covers, lyrics and audio.
 
-### Your own Spotify app (recommended)
+## More
 
-Library, playlists and playback go through the Connect protocol and need no
-app. Search uses the Web API: without `client_id` it borrows the session
-token, which is shared by every librespot client and often rate limited.
-
-1. Create an app at <https://developer.spotify.com/dashboard> (or reuse the
-   one you use with spotify_player).
-2. Add `http://127.0.0.1:8989/login` as a redirect URI.
-3. Put its client id in `client_id`. No secret is needed (PKCE).
-
-The first search opens the browser to approve the app; the token is kept in
-`webapi_token.json`.
-
-Logs are written to `spotui.log` in the same folder (`--debug` for more).
-
-## Development
-
-Render sample screens without a Spotify connection:
-
-```sh
-PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
-python3 scripts/ans2png.py /tmp/frames/1-now-playing.ans /tmp/np.png 120 36
-```
-
-## Vendored go-librespot
-
-`third_party/go-librespot` is go-librespot with a tiny patch that exposes the
-PCM stream for the visualizer; see `third_party/PATCHES.md`.
-
-## Building
-
-Needs Go 1.25+ and cgo with `libogg`, `libvorbis`, `flac`, `mpg123` (and
-`alsa` on Linux):
-
-```sh
-sudo apt install libasound2-dev libvorbis-dev libogg-dev libflac-dev libmpg123-dev
-go build ./cmd/spotui
-```
-
-Windows binaries are cross-compiled in CI with static vcpkg builds of the
-decoders; see `.github/workflows/build.yml`.
+- [Feature log](docs/FEATURES.md)
+- [Building and developing](docs/DEVELOPMENT.md)
 
 ## License
 

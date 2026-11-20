@@ -66,7 +66,7 @@ type Config struct {
 	VolumeStep int `toml:"volume_step"`
 
 	// Keys adds key bindings: action = "key" (several separated by commas).
-	// The default keys keep working. See the README for action names.
+	// The default keys keep working. Action names: see [keys] in the README.
 	Keys map[string]string `toml:"keys"`
 
 	// Lyrics controls synced lyrics.
