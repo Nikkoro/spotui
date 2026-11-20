@@ -94,6 +94,7 @@ The first search opens your browser once to approve it.
 | `v` / `V` | visualizer on / off, style |
 | `c`, `[` `]`, `{` `}` | cover: image or blocks, pixels, colours |
 | `z` | sleep timer |
+| `y` | copy the link to the selected entry or the playing track |
 | `,` | settings |
 | `ctrl+k` | command palette |
 | `q` | quit |
@@ -141,6 +142,7 @@ theme = "spotify"         # spotify | catppuccin | gruvbox | nord | rose-pine | 
 # volume_down shuffle repeat like add_to_queue add_to_playlist go_to_album
 # go_to_artist devices dj sleep_timer visualizer visualizer_style play_link
 # filter help quit now_playing library search queue lyrics reload layout settings
+# copy_link
 
 [cover]
 enabled = true
@@ -165,6 +167,12 @@ effects = "subtle"        # off | subtle (flash on the beat) | party (sparkles, 
 
 [now_playing]
 layout = "auto"           # auto | split | panels | compact | classic  (L switches)
+
+[ui]
+progress_style = "shimmer" # plain | gradient | shimmer
+splash = true             # animated start-up screen
+like_animation = true     # the heart sparkles when you like a track
+copy_as = "url"           # what y copies: url (open.spotify.com) | uri
 
 [update]
 check = true              # look for a new release once a day, shown in the header

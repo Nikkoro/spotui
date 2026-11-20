@@ -174,6 +174,7 @@ var helpSections = []struct {
 		{"V", "visualizer style: bars · mirror · wave"},
 		{"L", "Now Playing layout: auto · split · panels · compact · classic"},
 		{",", "settings: everything in config.toml, saved as you change it"},
+		{"y", "copy the link to the selected entry or the playing track"},
 		{"tab", "Now Playing: move to lyrics (< > offset) or up next (enter plays)"},
 		{"< > 0", "lyrics offset (lyrics page)"},
 	}},

@@ -78,6 +78,9 @@ type Config struct {
 	// Update controls checking for and installing new releases.
 	Update UpdateConfig `toml:"update"`
 
+	// UI holds small touches of the interface.
+	UI UIConfig `toml:"ui"`
+
 	// Notifications shows a desktop notification when the track changes.
 	Notifications bool `toml:"notifications"`
 	// MediaControls exposes the player to the OS: MPRIS on Linux (media
@@ -144,6 +147,18 @@ type NowPlayingConfig struct {
 	Layout string `toml:"layout"`
 }
 
+type UIConfig struct {
+	// ProgressStyle is "plain", "gradient" (the cover's colour, light to
+	// dark) or "shimmer" (gradient with a light running along it).
+	ProgressStyle string `toml:"progress_style"`
+	// Splash animates the start-up screen.
+	Splash bool `toml:"splash"`
+	// LikeAnimation sparkles the heart when you like a track.
+	LikeAnimation bool `toml:"like_animation"`
+	// CopyAs is what y copies: "url" (open.spotify.com link) or "uri".
+	CopyAs string `toml:"copy_as"`
+}
+
 type UpdateConfig struct {
 	// Check looks for a newer release once a day and says so in the UI.
 	Check bool `toml:"check"`
@@ -190,6 +205,8 @@ func Default() Config {
 			Effects:        "subtle",
 		},
 		NowPlaying:      NowPlayingConfig{Layout: "auto"},
+		Update:          UpdateConfig{Check: true},
+		UI:              UIConfig{ProgressStyle: "shimmer", Splash: true, LikeAnimation: true, CopyAs: "url"},
 		SeekStepSeconds: 5,
 		VolumeStep:      5,
 		Notifications:   true,
