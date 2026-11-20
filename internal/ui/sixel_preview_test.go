@@ -22,3 +22,17 @@ func TestPreviewSixel(t *testing.T) {
 		_ = os.WriteFile(dir+"/cover-"+itoa(px)+".six", []byte(termimg.EncodeSixel(img.Pix)), 0o644)
 	}
 }
+
+func TestPreviewBarImage(t *testing.T) {
+	m := sampleModel(t)
+	m.caps = termimg.Caps{Protocol: termimg.Sixel, CellW: 10, CellH: 20}
+	m.img = termimg.NewWriter(os.Stdout, termimg.Sixel)
+	m.imageMode = true
+	m.frame = &imgFrame{}
+	m.page = pageLyrics
+	out := m.View()
+	t.Logf("\n%s", out)
+	if m.frame.tmpl == nil {
+		t.Fatal("no image placed in the bar")
+	}
+}

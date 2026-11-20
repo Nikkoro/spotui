@@ -45,6 +45,8 @@ const (
 
 // Model is the root Bubble Tea model.
 type Model struct {
+	statusCheckedAt time.Time
+
 	eng  *engine.Engine
 	cfg  *config.Config
 	api  *webapi.Client
@@ -387,6 +389,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tickMsg:
+		// Now and then make sure the screen shows what the player is on, in
+		// case a track change was missed. Asks the embedded player, not Spotify.
+		if m.phase == phaseReady && time.Since(m.statusCheckedAt) >= statusCheckEvery {
+			m.statusCheckedAt = time.Now()
+			return m, tea.Batch(tick(), m.refreshStatus(0))
+		}
 		return m, tick()
 
 	case vizTickMsg:
@@ -395,6 +403,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case engineMsg:
 		cmd := m.handleEvent(msg.ev)
 		return m, tea.Batch(cmd, waitEvent(m.eng.Events()))
+
+	case statusMsg:
+		if msg.s != nil && msg.s.Track != nil && m.trackStale(msg.s.Track.Uri) {
+			m.eng.Debugf("ui: status brought %s, was showing %s", msg.s.Track.Uri, m.currentURI())
+			return m, m.applyStatus(msg.s)
+		}
+		return m, nil
 
 	case djSuggestionsMsg:
 		m.setDjSuggestions(msg)
@@ -565,9 +580,11 @@ func (m *Model) applyPlayerEvent(ev engine.PlayerEvent) tea.Cmd {
 	switch d := ev.Data.(type) {
 	case daemon.ApiEventDataMetadata:
 		t := daemon.ApiTrack(d)
+		m.eng.Debugf("ui: metadata %s %q", t.Uri, t.Name)
 		cmds = append(cmds, m.notifyTrack(&t), m.setTrack(&t))
 	case *daemon.ApiEventDataMetadata:
 		t := daemon.ApiTrack(*d)
+		m.eng.Debugf("ui: metadata %s %q", t.Uri, t.Name)
 		cmds = append(cmds, m.notifyTrack(&t), m.setTrack(&t))
 	case daemon.ApiEventDataSeek:
 		m.setPosition(int64(d.Position))
@@ -586,8 +603,19 @@ func (m *Model) applyPlayerEvent(ev engine.PlayerEvent) tea.Cmd {
 		m.setFlash(playbackErrorText(d), true)
 	case daemon.ApiEventDataPlaying:
 		m.contextURI = d.ContextUri
+		if m.trackStale(d.Uri) {
+			// Playing something other than what is shown: the metadata event
+			// went missing, so ask the player what it is on.
+			m.eng.Debugf("ui: playing %s but showing %s, refreshing status", d.Uri, m.currentURI())
+			cmds = append(cmds, m.refreshStatus(0))
+		}
 	case daemon.ApiEventDataWillPlay:
 		m.contextURI = d.ContextUri
+		if m.trackStale(d.Uri) {
+			// The metadata event normally follows once the track has loaded;
+			// check back in case it does not.
+			cmds = append(cmds, m.refreshStatus(statusRecheckDelay))
+		}
 	}
 
 	switch ev.Type {
@@ -615,6 +643,37 @@ func (m *Model) applyPlayerEvent(ev engine.PlayerEvent) tea.Cmd {
 		}
 	}
 	return tea.Batch(cmds...)
+}
+
+// statusRecheckDelay is how long after a track starts loading the UI checks
+// that it was told about it.
+const statusRecheckDelay = 2500 * time.Millisecond
+
+// statusCheckEvery is how often the shown track is checked against the player.
+const statusCheckEvery = 5 * time.Second
+
+type statusMsg struct{ s *daemon.ApiStatus }
+
+func (m Model) trackStale(uri string) bool {
+	return uri != "" && (m.track == nil || m.track.Uri != uri)
+}
+
+// refreshStatus reads the player's state (in-process, no network) after d.
+func (m Model) refreshStatus(d time.Duration) tea.Cmd {
+	e := m.eng
+	return func() tea.Msg {
+		if d > 0 {
+			time.Sleep(d)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		s, err := e.Status(ctx)
+		if err != nil {
+			e.Debugf("ui: status refresh failed: %v", err)
+			return nil
+		}
+		return statusMsg{s}
+	}
 }
 
 func (m *Model) setTrack(t *daemon.ApiTrack) tea.Cmd {

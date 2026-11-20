@@ -18,6 +18,7 @@ type hitMap struct {
 	progressY int
 	progressX int
 	progressW int
+	barRow    int // progress line's row within the player bar, after the rule
 }
 
 const doubleClick = 400 * time.Millisecond
