@@ -181,6 +181,8 @@ type Model struct {
 	vizLevels   []float64
 	vizPeaks    []float64
 	vizAt       time.Time
+	vizAcc      float64     // seconds since the last analysis, when feeding the shader
+	frames      *frameStats // shared by the model's copies
 
 	warnings       []string
 	restart        bool
@@ -238,6 +240,7 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		npChoice:      cfg.NowPlaying.Layout,
 		vizAn:         viz.NewAnalyzer(32),
 		vizBuf:        make([]float32, 2048),
+		frames:        &frameStats{},
 	}
 	m.covers = cover.NewCache(cfg.CacheDir+"/covers", int64(cfg.Cover.CacheSizeMB)<<20)
 	go m.covers.Prune()
@@ -248,6 +251,10 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 	m.picker.filter = textinput.New()
 	m.picker.filter.Prompt = "/ "
 	m.picker.filter.Placeholder = "playlist name"
+	if !validShaderStyle(cfg.Lyrics.WTShaderStyle) {
+		m.warnings = append(m.warnings, "lyrics.wt_shader_style \""+cfg.Lyrics.WTShaderStyle+"\" is not one of "+strings.Join(shaderStyles, ", "))
+		cfg.Lyrics.WTShaderStyle = shaderStyles[0]
+	}
 	if !validFxLevel(cfg.Lyrics.Effects) {
 		m.warnings = append(m.warnings, "lyrics.effects \""+cfg.Lyrics.Effects+"\" is not one of "+strings.Join(fxLevels, ", "))
 		cfg.Lyrics.Effects = fxSubtle

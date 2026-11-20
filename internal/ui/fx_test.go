@@ -176,3 +176,37 @@ func TestNightcoreDropRunsFromTheMiddle(t *testing.T) {
 		t.Fatalf("crests not either side of the middle: %q", plain)
 	}
 }
+
+func TestLyricEffectsFollowTheTempoGrid(t *testing.T) {
+	m := fxModel(t, fxNightcore)
+	// 12 s of a kick every half second (120 bpm) under a steady bass line.
+	const fps = 30
+	per := viz.SampleRate / fps
+	sig := make([]float32, 12*viz.SampleRate)
+	for i := range sig {
+		x := float64(i) / viz.SampleRate
+		v := 0.3 * math.Sin(2*math.Pi*82*x)
+		if b := math.Mod(x, 0.5); b < 0.1 {
+			v += 0.6 * math.Exp(-b/0.04) * math.Sin(2*math.Pi*55*b)
+		}
+		sig[i] = float32(v)
+	}
+	beats := 0
+	for end := 2048; end+per <= len(sig); end += per {
+		before := m.fx.sinceBeat
+		m.stepFx(sig[end-2048:end], 1.0/fps)
+		if end > 8*viz.SampleRate && m.fx.sinceBeat < before {
+			beats++
+		}
+	}
+	if !m.fx.beats.onGrid {
+		t.Fatal("the tempo grid was never trusted")
+	}
+	if math.Abs(m.fx.beatMs-500) > 15 {
+		t.Fatalf("lyric effects keep a beat of %.0f ms, want 500", m.fx.beatMs)
+	}
+	// About 8 beats in the last 4 s, one every half second.
+	if beats < 7 || beats > 9 {
+		t.Fatalf("%d beats in the last 4 s, want about 8", beats)
+	}
+}

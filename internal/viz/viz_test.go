@@ -71,6 +71,8 @@ func TestAnalyzerDecaysToIdle(t *testing.T) {
 
 func TestTapSnapshot(t *testing.T) {
 	tap := NewTap()
+	clock := time.Unix(0, 0)
+	tap.now = func() time.Time { return clock }
 	r := tap.Wrap(readerFunc(func(buf []float32) (int, error) {
 		for i := range buf {
 			buf[i] = float32(i / 2)
@@ -122,6 +124,48 @@ func TestTapWalksThroughBigReads(t *testing.T) {
 	clock = clock.Add(3 * time.Second)
 	if tap.Active() {
 		t.Fatal("no read for 3 s: not active")
+	}
+}
+
+func TestTapMovesOnBetweenSmallReads(t *testing.T) {
+	tap := NewTap()
+	clock := time.Unix(0, 0)
+	tap.now = func() time.Time { return clock }
+	next := float32(0)
+	r := tap.Wrap(readerFunc(func(buf []float32) (int, error) {
+		for i := 0; i+1 < len(buf); i += 2 {
+			buf[i], buf[i+1] = next, next
+			next++
+		}
+		return len(buf), nil
+	}))
+	// 80 ms reads, as WSLg's PulseAudio makes them, heard 200 ms late.
+	read := SampleRate * 80 / 1000
+	for i := 0; i < 10; i++ {
+		if _, err := r.Read(make([]float32, 2*read)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	delay := SampleRate / 5
+	dst := make([]float32, 100)
+	var ends []float32
+	for _, ms := range []int{0, 20, 40, 60} {
+		clock = time.Unix(0, 0).Add(time.Duration(ms) * time.Millisecond)
+		if !tap.Snapshot(dst, delay) {
+			t.Fatal("snapshot failed")
+		}
+		ends = append(ends, dst[99])
+	}
+	// The window moves on with time between two reads, 20 ms each step.
+	for i := 1; i < len(ends); i++ {
+		if step := ends[i] - ends[i-1]; step < float32(SampleRate/50)-2 || step > float32(SampleRate/50)+2 {
+			t.Fatalf("window ends %v: steps should be %d samples", ends, SampleRate/50)
+		}
+	}
+	// And never runs past what has been read.
+	clock = time.Unix(0, 0).Add(time.Second)
+	if !tap.Snapshot(dst, 0) || dst[99] != next-1 {
+		t.Fatalf("window ran past the read: ends at %v, read up to %v", dst[99], next-1)
 	}
 }
 

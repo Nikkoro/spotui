@@ -59,9 +59,9 @@ type sparkle struct {
 }
 
 type lyricFx struct {
-	beats  *viz.BeatDetector
-	pulse  float64 // 1 on a beat, fading to 0
-	shake  int     // frames of shaking left
+	beats  beatSource // what every effect follows (beats.go)
+	pulse  float64    // 1 on a beat, fading to 0
+	shake  int        // frames of shaking left
 	sparks []sparkle
 
 	// nightcore
@@ -72,9 +72,7 @@ type lyricFx struct {
 	beatMs    float64 // the beat interval, smoothed (0: unknown yet)
 
 	// for the Windows Terminal shader (wtshader.go), whatever the level
-	kick  float64 // 1 on a beat, fading to 0
-	bass  float64 // bass against its recent average, smoothed, 0…1
-	level float64 // loudness, smoothed, 0…1
+	shader shaderFx
 }
 
 // hop is a wave running through the line being sung: the letter at its
@@ -140,9 +138,6 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 		f.shake--
 	}
 	f.zoom *= math.Exp(-dt * 9)
-	f.kick *= math.Exp(-dt * 6)
-	f.bass *= math.Exp(-dt * 3)
-	f.level *= math.Exp(-dt * 2)
 	waves := f.waves[:0]
 	for _, h := range f.waves {
 		h.age += dt
@@ -167,22 +162,25 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 	f.sparks = kept
 
 	shader := m.shaderActive()
+	if shader && samples == nil && f.shader.spec != nil {
+		f.shader.bands, _ = f.shader.spec.Update(nil, dt) // paused: let the spectrum fall
+	}
 	if samples == nil || !(m.fxActive() || shader) {
 		return
 	}
-	if f.beats == nil {
-		f.beats = viz.NewBeatDetector()
-	}
 	n := clamp(int(dt*viz.SampleRate), 1, len(samples))
-	b := f.beats.Feed(samples[len(samples)-n:], dt*1000)
+	raw, b, t := f.beats.feed(samples[len(samples)-n:], dt)
 	if shader {
-		f.feedShader(samples[len(samples)-n:], b)
+		f.shader.feed(samples, samples[len(samples)-n:], raw, b, t, f.beats.onGrid, dt)
+	}
+	if f.beats.onGrid {
+		f.beatMs = 60000 / t.BPM
 	}
 	if !b.Hit || !m.fxActive() {
 		return
 	}
 	f.pulse = math.Max(f.pulse, math.Min(1, 0.55+(b.Strength-1)/3))
-	if since := f.sinceBeat; since > 250 && since < 1500 {
+	if since := f.sinceBeat; !f.beats.onGrid && since > 250 && since < 1500 {
 		if f.beatMs == 0 {
 			f.beatMs = since
 		} else {

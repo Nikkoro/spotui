@@ -25,24 +25,59 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
 ## Where things are
 
 - `cmd/spotui`: flags, subcommands (`update`, `logout`, `paths`,
-  `clear-cache`), session loop that restarts the player.
+  `clear-cache`, `shader`), session loop that restarts the player.
 - `internal/engine`: wraps go-librespot's daemon in-process; every player
   call is a request on a channel.
 - `internal/ui`: the interface. `model.go` (state, keys, events), `view.go`,
   `view_pages.go`, `nowplaying.go` (layouts split/panels/compact/classic),
-  `lyrics.go`, `fx.go` (beat effects: subtle/party/nightcore), `fun.go`
+  `lyrics.go`, `fx.go` (beat effects: subtle/party/nightcore), `beats.go`
+  (the beats every effect follows: tempo grid, plain detector before it),
+  `fun.go`
   (progress bar styles, splash, heart, copy link), `settings.go` (the `,`
   page; each setting writes its own line of config.toml), `images.go`
   (Sixel/kitty covers), `palette.go` (ctrl+k).
 - `shaders/spotui.hlsl` with `internal/ui/wtshader.go`: the Windows
-  Terminal pixel shader behind the lyrics. spotui paints five data cells
-  at the start of the top row (signature, beat/bass/loudness, accent,
-  hue/drop/zoom, signature); the shader finds and hides them. WT hands
-  the shader a premultiplied texture where the background is transparent
-  black, so the effect is added with alpha untouched. Signature and cell
-  count must match in both files (a test checks).
+  Terminal pixel shader behind the lyrics, embedded by `shaders/` for
+  `spotui shader`. spotui paints twelve data cells at the start of the
+  top row (layout at the top of both files: beat, bass, accent, style,
+  travel, 12 spectrum bands, tempo phase, snare, energy); the shader finds
+  and hides them. They are sent 60 times a second; the analysis behind
+  them runs at 30 (the beat detector is tuned for it). One file holds every
+  effect, picked by the style cell, so switching needs no reload. The
+  shader keeps no state between frames: anything that moves at a speed
+  the music sets is integrated in Go (`shaderFx.step`) and sent as a
+  position. Values reach WT a little unevenly, which shows on slow steady
+  motion, so the steady flow is timed by the shader's `Time` and the
+  music drives brightness and fast beat moves. The plasma reads its own
+  cell 10, the jumpy values it was first tuned with: the user preferred
+  how that followed the music, so keep it. New effects follow the same
+  rule: their core reacts at once to those jumpy values (ck, cb, cl), and
+  tempo, the first of four beats, snares and energy are extras on top;
+  effects built only on the smooth, "smarter" values felt bland. Slow
+  effects (aurora) are the exception for shape: there the jumpy values
+  only set brightness and the shape follows smooth ones (bass, level,
+  bands), or it looks nervous. Give
+  every effect a soft ceiling on brightness (warp: fx / (1 + 1.5 fx)). The `debug` style (config only)
+  and the "shader frames" debug log line show where judder comes from.
+  WT hands the shader a premultiplied texture where the
+  background is transparent black, so the effect is added with alpha
+  untouched. Signature, cell and band counts and style numbers must match
+  in both files (a test checks). A new effect: a function in the HLSL, a
+  branch in `main`, a name in `shaderStyles`, the style list in the HLSL
+  header.
 - `internal/viz`: audio tap, FFT analyzer, renderers, `beat.go` (beat and
-  drop detection).
+  drop detection: a bass threshold, which misses kicks under a steady bass
+  line), `tempo.go` (tempo tracking: onset envelope, autocorrelation, a
+  beat grid locked to it, snares from the highs; the shader uses it).
+  Tune against a real track: `spotui --debug`, then
+  `grep "shader values" spotui.log` (one line a second with the position).
+  To tune the tracker offline, record a track's frames with
+  `SPOTUI_TEMPO_DUMP=track.csv spotui` (log energies only, no audio) and
+  replay them: `SPOTUI_TEMPO_RECORDING=track.csv SPOTUI_TEMPO_EXPECT=148
+  go test -run OnRecording -v ./internal/viz`.
+  The audio tap must hand out a playhead that moves on smoothly: under
+  WSLg the output reads 70-100 ms at a time, and a playhead that jumped by
+  reads put every kick on a read's edge (see `playheadLocked`).
 - `internal/termimg`: Sixel/kitty encoding and the writer that places
   images; image cells are skipped with cursor moves so text beside them
   never erases them.
