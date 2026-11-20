@@ -323,7 +323,7 @@ func (m Model) settings() []setting {
 			value:   func(m Model) string { return shaderStyles[m.shaderStyle()] },
 			set:     func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.WTShaderStyle = v; return v, nil }},
 		{group: "Lyrics", label: "Shader motion", kind: setBool, section: "lyrics", key: "wt_shader_motion",
-			help:  "The shader's view moves with the music, the way MilkDrop does: it zooms in with the bass, turns with the treble and ripples with the vocals and melody.",
+			help:  "The shader's view moves with the music, the way MilkDrop does: it zooms in with the bass, turns with the treble and ripples with the vocals and melody, each effect as suits it (the tunnel turns without zooming, the aurora only ripples).",
 			value: func(m Model) string { return boolStr(m.cfg.Lyrics.WTShaderMotion) },
 			set: func(m *Model, v string) (any, tea.Cmd) {
 				m.cfg.Lyrics.WTShaderMotion = v == "true"

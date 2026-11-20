@@ -168,7 +168,7 @@ effects = "subtle"        # off | subtle (flash on the beat) | party (sparkles, 
                           # | nightcore (party, plus letter waves and flowing colours)
 wt_shader = false         # feed the beat to the Windows Terminal shader (spotui shader)
 wt_shader_style = "plasma" # its effect: plasma | tunnel | warp | aurora
-wt_shader_motion = true   # its view zooms, turns and ripples with the music
+wt_shader_motion = true   # its view zooms, turns and ripples with the music (MilkDrop-style)
 
 [now_playing]
 layout = "auto"           # auto | split | panels | compact | classic  (L switches)

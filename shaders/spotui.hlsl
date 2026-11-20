@@ -188,16 +188,18 @@ Music readMusic(int2 origin, int2 cell)
 // (vocals, melody). MilkDrop's small per-frame moves pile up through its
 // feedback; there is none here, so the moves are bigger. Zoom follows
 // the smoothed bass, so it glides; the ripple's size follows the mid.
-float2 camera(float2 p, Music m)
+// Each effect takes as much of each move as suits it (zoomK, turnK,
+// rippleK; 1 = the plasma's).
+float2 camera(float2 p, Music m, float zoomK, float turnK, float rippleK)
 {
     if (m.motion <= 0.0)
         return p;
-    float zoom = 1.0 + 0.25 * clamp(m.bassAtt - 1.0, -0.4, 1.0);
+    float zoom = 1.0 + zoomK * 0.25 * clamp(m.bassAtt - 1.0, -0.4, 1.0);
     p /= zoom;
-    float turn = 6.2832 * m.spin;
+    float turn = turnK * 6.2832 * m.spin;
     float c = cos(turn), s = sin(turn);
     p = float2(c * p.x - s * p.y, s * p.x + c * p.y);
-    float ripple = 0.04 * clamp(0.5 * (m.mid3 + m.midAtt) - 0.7, 0.0, 1.5);
+    float ripple = rippleK * 0.04 * clamp(0.5 * (m.mid3 + m.midAtt) - 0.7, 0.0, 1.5);
     p += ripple * float2(sin(p.y * 9.0 + Time * 1.7), cos(p.x * 8.0 + Time * 1.3));
     return p;
 }
@@ -210,7 +212,7 @@ float2 camera(float2 p, Music m)
 float3 plasma(float2 tex, Music m)
 {
     float aspect = Resolution.x / Resolution.y;
-    float2 q = camera((tex - 0.5) * float2(aspect, 1.0), m) * 3.0;
+    float2 q = camera((tex - 0.5) * float2(aspect, 1.0), m, 1.0, 1.0, 1.0) * 3.0;
     float t = Time * 0.5;
     float r = length(q);
     float v = sin(q.x * 1.7 + t) + sin(q.y * 2.3 - t * 1.3) +
@@ -241,7 +243,9 @@ float3 plasma(float2 tex, Music m)
 float3 tunnel(float2 tex, Music m)
 {
     float aspect = Resolution.x / Resolution.y;
-    float2 q = (tex - 0.5) * float2(aspect, 1.0);
+    // The camera turns and ripples, but does not zoom: zooming out reads
+    // as the tunnel jumping backwards.
+    float2 q = camera((tex - 0.5) * float2(aspect, 1.0), m, 0.0, 1.0, 0.7);
     // The far end drifts a little, so the flight curves.
     q -= 0.06 * float2(sin(Time * 0.37), cos(Time * 0.29));
     float r = max(length(q), 1e-3);
@@ -290,7 +294,9 @@ float hash1(float n)
 float3 warp(float2 tex, Music m)
 {
     float aspect = Resolution.x / Resolution.y;
-    float2 q = (tex - 0.5) * float2(aspect, 1.0);
+    // The star field turns and zooms a little with the bass; a ripple
+    // would only smear the stars.
+    float2 q = camera((tex - 0.5) * float2(aspect, 1.0), m, 0.5, 1.0, 0.0);
     float r = max(length(q), 1e-3);
     float a = atan2(q.y, q.x) / 6.2832 + 0.5; // 0…1 around the middle
 
@@ -344,8 +350,11 @@ float3 warp(float2 tex, Music m)
 float3 aurora(float2 tex, Music m)
 {
     float aspect = Resolution.x / Resolution.y;
-    float x = tex.x * aspect;
-    float y = tex.y;
+    // Only a gentle ripple with the vocals: a turn would tilt the sky and a
+    // zoom would rush what should be calm.
+    float2 cam = camera((tex - 0.5) * float2(aspect, 1.0), m, 0.0, 0.0, 0.5);
+    float x = cam.x + 0.5 * aspect;
+    float y = cam.y + 0.5;
     float t = Time;
     float high = (m.bands[8] + m.bands[9] + m.bands[10] + m.bands[11]) * 0.25;
     float sway = 1.0 + 0.6 * m.bass;
