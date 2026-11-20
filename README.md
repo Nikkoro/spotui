@@ -9,8 +9,9 @@ Runs on Linux, WSL and Windows. Needs Spotify Premium.
 
 - **Pixel-art covers**: real images in terminals that show them (Sixel,
   kitty), pixelated as much as you like, or pixel blocks everywhere else.
-- **Synced lyrics** that fill in as they are sung, on their own page or
-  beside the cover.
+- **Synced lyrics** from Spotify (LRCLIB when Spotify has none) that fill in
+  as they are sung, on their own page or beside the cover; click a line to
+  jump there.
 - **Audio visualizer** drawn from the music itself: bars, mirror or wave.
 - **Spotify's DJ**, talking between tracks; ask it for something.
 - **Your library**: playlists, Liked Songs, albums, artists, recently played,
@@ -98,7 +99,8 @@ The first search opens your browser once to approve it.
 | `q` | quit |
 
 The mouse works too: click to select, double-click to play, click the
-progress bar to seek, scroll lists and lyrics.
+progress bar or a lyric line to seek, click an Up next track to play it,
+scroll lists and lyrics.
 
 ## Settings
 
@@ -152,7 +154,7 @@ cache_size_mb = 200       # on-disk cover cache
 
 [visualizer]
 enabled = true
-delay_ms = 120            # raise if bars run ahead of what you hear
+delay_ms = -1             # -1: match the audio buffer; or ms, raise if bars run ahead
 bar_width = 2
 style = "bars"            # bars | mirror | wave
 

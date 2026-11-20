@@ -19,6 +19,14 @@ type hitMap struct {
 	progressX int
 	progressW int
 	barRow    int // progress line's row within the player bar, after the rule
+
+	// Synced lyrics on screen: rows from lyrTop, columns lyrX0…lyrX1, and
+	// for each row the line it shows (-1: none).
+	lyrTop, lyrX0, lyrX1 int
+	lyrIdx               []int
+
+	// Up next on Now Playing: two rows per entry from nextTop.
+	nextTop, nextX0, nextX1, nextFirst, nextCount int
 }
 
 const doubleClick = 400 * time.Millisecond
@@ -64,6 +72,11 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if p, ok := m.tabAt(msg.X, msg.Y); ok {
 			m.overlay = overlayNone
 			return m, m.switchPage(p)
+		}
+		if m.overlay == overlayNone && m.hits != nil {
+			if cmd, ok := m.clickLyricsOrNext(msg.X, msg.Y); ok {
+				return m, cmd
+			}
 		}
 		if m.overlay != overlayNone || m.hits == nil {
 			return m, nil
@@ -116,4 +129,33 @@ func (m Model) tabAt(x, y int) (page, bool) {
 		pos += w + 3
 	}
 	return 0, false
+}
+
+// clickLyricsOrNext seeks to a clicked lyric line, or plays a clicked Up
+// next entry.
+func (m *Model) clickLyricsOrNext(x, y int) (tea.Cmd, bool) {
+	h := m.hits
+	if r := y - h.lyrTop; r >= 0 && r < len(h.lyrIdx) && x >= h.lyrX0 && x < h.lyrX1 && m.lyrics != nil {
+		i := h.lyrIdx[r]
+		if i < 0 || i >= len(m.lyrics.Synced) {
+			return nil, false
+		}
+		// The line shows at At on the lyrics clock, which runs offset ahead.
+		pos := max(int64((m.lyrics.Synced[i].At-m.lyricsOffset)/time.Millisecond), 0)
+		m.setPosition(pos)
+		eng := m.eng
+		return call("Seek", func(ctx context.Context) error { return eng.Seek(ctx, pos, false) }), true
+	}
+	if r := y - h.nextTop; h.nextCount > 0 && r >= 0 && r < 2*h.nextCount && x >= h.nextX0 && x < h.nextX1 {
+		next := m.upNext()
+		i := h.nextFirst + r/2
+		if i >= len(next) {
+			return nil, false
+		}
+		it := next[i]
+		m.setFlash("Playing "+it.title, false)
+		eng, uri := m.eng, it.uri
+		return call("Skip to track", func(ctx context.Context) error { return eng.SkipTo(ctx, uri) }), true
+	}
+	return nil, false
 }

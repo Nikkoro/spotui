@@ -119,7 +119,8 @@ type CoverConfig struct {
 type VisualizerConfig struct {
 	Enabled bool `toml:"enabled"`
 	// DelayMs shifts the analysed audio back to match what is audible; the
-	// output reads ahead of playback by its buffer size.
+	// output reads ahead of playback by its buffer size. -1 matches it to
+	// the audio output's buffer.
 	DelayMs int `toml:"delay_ms"`
 	// BarWidth is the width of each bar in columns.
 	BarWidth int `toml:"bar_width"`
@@ -176,7 +177,7 @@ func Default() Config {
 		},
 		Visualizer: VisualizerConfig{
 			Enabled:  true,
-			DelayMs:  120,
+			DelayMs:  -1,
 			BarWidth: 2,
 			Style:    "bars",
 		},

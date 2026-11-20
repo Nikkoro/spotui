@@ -227,6 +227,7 @@ func (m Model) npSplitView(w, h int) string {
 	}
 	leftW := clamp(w*2/5, 28, 64)
 	rightW := w - leftW - 3
+	m.lyricsHits(2+leftW+3, rightW)
 	main := lipgloss.JoinHorizontal(lipgloss.Top,
 		m.npInfoColumn(leftW, mainH), vrule(mainH), m.npLyricsPanel(rightW, mainH))
 	return m.withViz(main, w, vizH)
@@ -241,6 +242,10 @@ func (m Model) npPanelsView(w, h int) string {
 	leftW := clamp(w/4, 30, 48)
 	rightW := clamp(w/4, 30, 44)
 	midW := w - leftW - rightW - 6
+	m.lyricsHits(2+leftW+3, midW)
+	if m.hits != nil {
+		m.hits.nextX0, m.hits.nextX1 = 2+leftW+3+midW+3, 2+leftW+3+midW+3+rightW
+	}
 	main := lipgloss.JoinHorizontal(lipgloss.Top,
 		m.npInfoColumn(leftW, mainH), vrule(mainH),
 		m.npLyricsPanel(midW, mainH), vrule(mainH),
@@ -269,6 +274,10 @@ func (m Model) npSidePanel(w, h int) string {
 	start := 0
 	if focused {
 		start = clamp(m.npNextCursor-room+1, 0, max(len(next)-room, 0))
+	}
+	if m.hits != nil {
+		m.hits.nextTop, m.hits.nextFirst = m.hits.bodyTop+2, start
+		m.hits.nextCount = max(min(room, len(next)-start), 0)
 	}
 	for i := start; i < len(next); i++ {
 		it := next[i]
@@ -509,4 +518,12 @@ func (m Model) handleNpKey(key string) (bool, tea.Model, tea.Cmd) {
 		}
 	}
 	return false, m, nil
+}
+
+// lyricsHits records where the lyrics panel sits, for clicks: x0 is its
+// first screen column, under a heading and a blank line.
+func (m Model) lyricsHits(x0, w int) {
+	if m.hits != nil {
+		m.hits.lyrTop, m.hits.lyrX0, m.hits.lyrX1 = m.hits.bodyTop+2, x0, x0+w
+	}
 }
