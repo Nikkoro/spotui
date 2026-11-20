@@ -1,6 +1,8 @@
 package termimg
 
 import (
+	"github.com/charmbracelet/x/ansi"
+
 	"image"
 	"image/color"
 	"os"
@@ -73,12 +75,16 @@ func TestWriterRedrawsOnlyWhenNeeded(t *testing.T) {
 		t.Fatalf("redrew without a reason (%d extra bytes)", got-int64(len("frame2")))
 	}
 
-	// A change on the image's row means the text overwrote it: redraw.
+	// Text beside the image changes: the image's cells are skipped over,
+	// so it is not erased and needs no redraw.
 	before := size()
-	w.Update("header\n  "+Marker+"  INFO\nfooter", img)
+	out := w.Update("header\n  "+Marker+"  INFO\nfooter", img)
 	_, _ = w.Write([]byte("frame3"))
-	if size()-before <= int64(len("frame3")) {
-		t.Fatal("image not redrawn after its row changed")
+	if size()-before != int64(len("frame3")) {
+		t.Fatal("redrew although only text beside it changed")
+	}
+	if want := "\x1b[2C"; !strings.Contains(strings.Split(out, "\n")[1], want) {
+		t.Fatalf("image cells not skipped: %q", out)
 	}
 
 	// A change elsewhere does not touch it.
@@ -95,6 +101,13 @@ func TestWriterRedrawsOnlyWhenNeeded(t *testing.T) {
 	_, _ = w.Write([]byte("frame5"))
 	if size()-before != int64(len("frame5")) {
 		t.Fatal("drew an image that is not on screen")
+	}
+}
+
+func TestSkipCells(t *testing.T) {
+	got := SkipCells("ab\x1b[1mcdef\x1b[0mgh", 2, 3)
+	if !strings.HasPrefix(got, "ab") || !strings.Contains(got, "\x1b[3C") || !strings.HasSuffix(ansi.Strip(got), "fgh") {
+		t.Fatalf("got %q", got)
 	}
 }
 

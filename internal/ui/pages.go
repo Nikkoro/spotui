@@ -671,6 +671,9 @@ func (m Model) handlePageKey(key string) (bool, tea.Model, tea.Cmd) {
 	if m.page == pageLyrics {
 		return m.handleLyricsKey(key)
 	}
+	if m.page == pageNowPlaying {
+		return m.handleNpKey(key)
+	}
 
 	if m.webAuthURL != "" && key == "o" {
 		_ = platform.OpenURL(m.webAuthURL)

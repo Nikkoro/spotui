@@ -5,6 +5,7 @@ import (
 	"math/cmplx"
 	"strings"
 	"testing"
+	"time"
 )
 
 func sine(freq float64) []float32 {
@@ -89,6 +90,38 @@ func TestTapSnapshot(t *testing.T) {
 	}
 	if tap.Snapshot(make([]float32, 3000), 500) {
 		t.Fatal("snapshot larger than history must fail")
+	}
+}
+
+func TestTapWalksThroughBigReads(t *testing.T) {
+	tap := NewTap()
+	clock := time.Unix(0, 0)
+	tap.now = func() time.Time { return clock }
+	r := tap.Wrap(readerFunc(func(buf []float32) (int, error) {
+		for i := range buf {
+			buf[i] = float32(i / 2)
+		}
+		return len(buf), nil
+	}))
+	// One second pulled at once, as PulseAudio under WSLg does.
+	if _, err := r.Read(make([]float32, 2*SampleRate)); err != nil {
+		t.Fatal(err)
+	}
+	dst := make([]float32, 100)
+	clock = clock.Add(250 * time.Millisecond)
+	if !tap.Snapshot(dst, 0) || dst[99] != float32(SampleRate/4-1) {
+		t.Fatalf("after 250 ms the window ends at %v, want %d", dst[99], SampleRate/4-1)
+	}
+	clock = clock.Add(500 * time.Millisecond)
+	if !tap.Snapshot(dst, 0) || dst[99] != float32(3*SampleRate/4-1) {
+		t.Fatalf("after 750 ms the window ends at %v", dst[99])
+	}
+	if !tap.Active() {
+		t.Fatal("still inside its read: active")
+	}
+	clock = clock.Add(3 * time.Second)
+	if tap.Active() {
+		t.Fatal("no read for 3 s: not active")
 	}
 }
 

@@ -167,8 +167,7 @@ func (m Model) viewLyrics(w, h int) string {
 }
 
 // lyricsBody is the lyrics, or why there are none, w×h. karaoke fills the
-// current line as it is sung; off where every change costs a redraw of an
-// image beside it.
+// current line as it is sung.
 func (m Model) lyricsBody(w, h int, karaoke bool) string {
 	switch {
 	case m.lyr == nil:

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -186,17 +187,18 @@ func (m Model) npInfoColumn(w, h int) string {
 		Render(lipgloss.JoinVertical(lipgloss.Left, parts...))
 }
 
-// npLyricsPanel is a small heading over the lyrics. Beside a real image the
-// current line does not fill in as it is sung: each change would draw the
-// image again.
+// npLyricsPanel is a small heading over the lyrics.
 func (m Model) npLyricsPanel(w, h int) string {
 	head := m.theme.dim.Bold(true).Render("LYRICS")
+	if m.npFocused(npFocusLyrics) {
+		head = m.theme.accentTxt.Bold(true).Render("▌LYRICS") + m.theme.dim.Render("  < > offset · 0 reset · esc")
+	}
 	if info := m.lyricsInfo(); info != "" {
 		head += m.theme.dim.Render(" · " + info)
 	}
 	head = ansi.Truncate(head, w, "…")
 	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).
-		Render(lipgloss.JoinVertical(lipgloss.Left, head, "", m.lyricsBody(w, max(h-2, 1), !m.imagesOn())))
+		Render(lipgloss.JoinVertical(lipgloss.Left, head, "", m.lyricsBody(w, max(h-2, 1), true)))
 }
 
 // vrule is a vertical line h rows tall with a space either side.
@@ -250,23 +252,36 @@ func (m Model) npPanelsView(w, h int) string {
 func (m Model) npSidePanel(w, h int) string {
 	title := func(s string) string { return m.theme.dim.Bold(true).Render(s) }
 	var lines []string
-
-	lines = append(lines, title("UP NEXT"), "")
+	focused := m.npFocused(npFocusNext)
+	if focused {
+		lines = append(lines, m.theme.accentTxt.Bold(true).Render("▌UP NEXT")+m.theme.dim.Render("  enter play · esc"), "")
+	} else {
+		lines = append(lines, title("UP NEXT"), "")
+	}
 	next := m.upNext()
-	room := max(h-9, 1)
+	room := max((h-9)/2, 1)
 	switch {
 	case len(next) == 0 && m.queue.loading:
 		lines = append(lines, m.theme.dim.Render("…"))
 	case len(next) == 0:
 		lines = append(lines, m.theme.dim.Render("Nothing queued"))
 	}
-	for i, it := range next {
-		if i >= room/2 {
+	start := 0
+	if focused {
+		start = clamp(m.npNextCursor-room+1, 0, max(len(next)-room, 0))
+	}
+	for i := start; i < len(next); i++ {
+		it := next[i]
+		if i-start >= room {
 			lines = append(lines, m.theme.dim.Render(itoa(len(next)-i)+" more · 4 queue"))
 			break
 		}
+		name := m.theme.text.Render(it.title)
+		if focused && i == m.npNextCursor {
+			name = m.theme.accentTxt.Render("› ") + m.theme.title.Render(it.title)
+		}
 		lines = append(lines,
-			ansi.Truncate(m.theme.text.Render(it.title), w, "…"),
+			ansi.Truncate(name, w, "…"),
 			ansi.Truncate(m.theme.dim.Render(it.subtitle), w, "…"))
 	}
 
@@ -304,7 +319,6 @@ func (m Model) upNext() []listItem {
 // progress under it, three lyric lines and the visualizer in what is left,
 // which shrinks before it goes.
 func (m Model) npCompactView(w, h int) string {
-	img := m.imagesOn()
 	dynamic := m.compactDynamic(w)
 	dynH := lipgloss.Height(dynamic)
 
@@ -317,9 +331,7 @@ func (m Model) npCompactView(w, h int) string {
 		if block != "" {
 			infoW = w - cols - 3
 		}
-		// Beside a real image the title does not scroll: each step would
-		// draw the image again.
-		static := m.viewTrackStatic(infoW, !img || block == "")
+		static := m.viewTrackStatic(infoW, true)
 		if block != "" {
 			top = lipgloss.JoinHorizontal(lipgloss.Top, block, "   ", static)
 		} else {
@@ -399,4 +411,98 @@ func (m *Model) loadQueueForNp() tea.Cmd {
 	}
 	m.queue.loading = true
 	return m.loadQueue()
+}
+
+// Sections of Now Playing that tab moves between.
+const (
+	npFocusNone = iota
+	npFocusLyrics
+	npFocusNext
+)
+
+// npFocusable lists the sections the current layout shows, after none.
+func (m Model) npFocusable() []int {
+	out := []int{npFocusNone}
+	switch m.npLayout() {
+	case npSplit, npCompact:
+		out = append(out, npFocusLyrics)
+	case npPanels:
+		out = append(out, npFocusLyrics, npFocusNext)
+	}
+	return out
+}
+
+// focused reports whether section f has the focus in the current layout.
+func (m Model) npFocused(f int) bool {
+	if m.npFocus != f {
+		return false
+	}
+	for _, x := range m.npFocusable() {
+		if x == f {
+			return true
+		}
+	}
+	return false
+}
+
+// handleNpKey moves between Now Playing's sections and handles keys for the
+// one in focus. The lyric offset keys work whatever has the focus.
+func (m Model) handleNpKey(key string) (bool, tea.Model, tea.Cmd) {
+	switch key {
+	case "tab", "shift+tab":
+		order := m.npFocusable()
+		if len(order) < 2 {
+			return false, m, nil
+		}
+		idx := 0
+		for i, f := range order {
+			if f == m.npFocus {
+				idx = i
+			}
+		}
+		step := 1
+		if key == "shift+tab" {
+			step = len(order) - 1
+		}
+		m.npFocus = order[(idx+step)%len(order)]
+		m.npNextCursor = 0
+		return true, m, nil
+	case "<", ",", ">", ".", "0":
+		if m.track != nil && m.npLayout() != npClassic {
+			return m.handleLyricsKey(key)
+		}
+	case "esc":
+		if m.npFocus != npFocusNone {
+			m.npFocus = npFocusNone
+			return true, m, nil
+		}
+	}
+
+	switch {
+	case m.npFocused(npFocusLyrics):
+		switch key {
+		case "up", "k", "down", "j":
+			return m.handleLyricsKey(key) // scrolls lyrics that are not synced
+		}
+	case m.npFocused(npFocusNext):
+		next := m.upNext()
+		switch key {
+		case "up", "k":
+			m.npNextCursor = max(m.npNextCursor-1, 0)
+			return true, m, nil
+		case "down", "j":
+			m.npNextCursor = clamp(m.npNextCursor+1, 0, max(len(next)-1, 0))
+			return true, m, nil
+		case "enter":
+			if m.npNextCursor >= len(next) {
+				return true, m, nil
+			}
+			it := next[m.npNextCursor]
+			m.npNextCursor = 0
+			m.setFlash("Playing "+it.title, false)
+			eng, uri := m.eng, it.uri
+			return true, m, call("Skip to track", func(ctx context.Context) error { return eng.SkipTo(ctx, uri) })
+		}
+	}
+	return false, m, nil
 }
