@@ -57,6 +57,9 @@ type Client struct {
 	mu      sync.Mutex // serialises requests
 	lastReq time.Time
 	backoff time.Time
+
+	spotify        SpotifySource // asked first when set
+	spotifyBackoff time.Time
 }
 
 // NewClient caches results under cacheDir (empty disables caching).
@@ -96,8 +99,12 @@ type cacheEntry struct {
 // Misses are retried after a while, lyrics get added to LRCLIB over time.
 const missTTL = 3 * 24 * time.Hour
 
-// Get returns lyrics for q.
+// Get returns lyrics for q: Spotify's when a Spotify source is set and has
+// them, LRCLIB's otherwise.
 func (c *Client) Get(ctx context.Context, q Query) (*Lyrics, error) {
+	if l, ok := c.fromSpotify(ctx, q); ok {
+		return l, nil
+	}
 	if e, ok := c.readCache(q); ok {
 		if !e.Found {
 			return nil, ErrNotFound

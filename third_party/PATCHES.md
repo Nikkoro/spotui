@@ -37,6 +37,11 @@ Local changes:
    DJ with 404), and its next page is taken as a fresh set, as Spotify's
    clients and librespot#1797 do. Only `hm://lexicon-session-provider/` urls
    are followed.
+9. Lyrics from Spotify (`spclient/lyrics.go`, `daemon/lyrics_spotui.go`
+   (new), one case in `player.go`): a `lyrics` API request fetches
+   `/color-lyrics/v2/track/<id>`, as librespot's `Lyrics::get` (used by
+   spotify_player and cloofy), off the player loop. 404 means none; 429 is
+   reported with its Retry-After and not retried.
 8. Release dates (`daemon/api_server.go`): `releaseDate` returned the
    protobuf's text form (`year:2011 month:10 day:18`) instead of
    `2011-10-18`, so "year" showed after every album name.

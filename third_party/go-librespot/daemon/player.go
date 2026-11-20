@@ -1050,6 +1050,9 @@ func (p *AppPlayer) handleApiRequest(req ApiRequest) (any, error) {
 	case ApiRequestTypeDjSuggestions, ApiRequestTypeDjAsk:
 		// spotui patch, see third_party/PATCHES.md
 		return p.handleDjRequest(req)
+	case ApiRequestTypeLyrics:
+		// spotui patch, see third_party/PATCHES.md
+		return p.handleLyricsRequest(req)
 	default:
 		return nil, fmt.Errorf("unknown request type: %s", req.Type)
 	}

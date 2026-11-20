@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"strconv"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -41,7 +43,7 @@ func (m *Model) stepVisualizer(now time.Time) tea.Cmd {
 	// the last buffer would freeze on screen when paused.
 	var samples []float32
 	if !m.paused && !m.stopped && m.vizTap.Active() {
-		delay := m.cfg.Visualizer.DelayMs * viz.SampleRate / 1000
+		delay := m.vizDelayMs() * viz.SampleRate / 1000
 		if m.vizTap.Snapshot(m.vizBuf, delay) {
 			samples = m.vizBuf
 		}
@@ -85,4 +87,22 @@ func (m Model) viewVisualizer(width, height int) string {
 		return viz.RenderMirror(levels, peaks, barW, height, bottom, top)
 	}
 	return viz.Render(levels, peaks, barW, height, bottom, top)
+}
+
+// vizDelayMs is how far the analysed audio is held back to match what is
+// heard: the configured delay, or with -1 (auto) the output's buffer.
+func (m Model) vizDelayMs() int {
+	if d := m.cfg.Visualizer.DelayMs; d >= 0 {
+		return d
+	}
+	switch m.cfg.AudioBackend {
+	case "pulseaudio":
+		if v, err := strconv.Atoi(os.Getenv("PULSE_LATENCY_MSEC")); err == nil && v > 0 {
+			return min(max(v, 20), 2000)
+		}
+		return 200 // what the PulseAudio output asks for
+	case "wasapi":
+		return 100
+	}
+	return 120
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/devgianlu/go-librespot/daemon"
+	"github.com/devgianlu/go-librespot/spclient"
 )
 
 const libraryPageSize = 500
@@ -190,4 +191,9 @@ func (e *Engine) AddToPlaylist(ctx context.Context, playlistURI string, uris []s
 func (e *Engine) SkipTo(ctx context.Context, uri string) error {
 	_, err := e.request(ctx, daemon.ApiRequestTypeNext, daemon.ApiNext{Uri: &uri})
 	return err
+}
+
+// Lyrics returns a track's lyrics from Spotify.
+func (e *Engine) Lyrics(ctx context.Context, uri string) (*spclient.Lyrics, error) {
+	return decode[spclient.Lyrics](e.request(ctx, daemon.ApiRequestTypeLyrics, daemon.ApiLyrics{Uri: uri}))
 }

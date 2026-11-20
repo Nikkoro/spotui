@@ -162,6 +162,9 @@ func (m Model) viewLyrics(w, h int) string {
 	}
 
 	head := m.pageTitle(m.track.Name+m.theme.dim.Render("  "+strings.Join(m.track.ArtistNames, ", ")), m.lyricsInfo(), w)
+	if m.hits != nil {
+		m.hits.lyrTop, m.hits.lyrX0, m.hits.lyrX1 = m.hits.bodyTop+2, 2, 2+w
+	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, head, "", m.lyricsBody(w, h-2, true))
 }
@@ -202,13 +205,24 @@ func (m Model) viewSyncedLyrics(w, h int, karaoke bool) string {
 	far := lipgloss.NewStyle().Foreground(colTrack)
 
 	rows := make([]string, h)
+	var idx []int
+	if m.hits != nil {
+		idx = make([]int, h)
+		m.hits.lyrIdx = idx
+	}
 	for r := 0; r < h; r++ {
 		i := cur + (r - anchor)
 		if cur < 0 {
 			i = r - anchor // before the first line: show it below the anchor
 		}
+		if idx != nil {
+			idx[r] = -1
+		}
 		if i < 0 || i >= len(lines) {
 			continue
+		}
+		if idx != nil {
+			idx[r] = i
 		}
 		text := lines[i].Text
 		if text == "" {

@@ -255,7 +255,7 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		m.notifier = notify.New(config.IsWSL())
 	}
 	if cfg.Lyrics.Enabled {
-		m.lyr = lyrics.NewClient(cfg.CacheDir+"/lyrics", Version)
+		m.lyr = newLyricsClient(cfg, eng)
 	}
 
 	var tokens webapi.TokenSource = webapi.TokenFunc(eng.Token)

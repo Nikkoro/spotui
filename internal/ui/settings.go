@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Nikkoro/spotui/internal/config"
-	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/notify"
 	"github.com/Nikkoro/spotui/internal/update"
 )
@@ -87,6 +86,14 @@ func themeNames() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+func vizDelayOptions() []string {
+	opts := []string{"auto"}
+	for d := 0; d <= 600; d += 20 {
+		opts = append(opts, itoa(d))
+	}
+	return opts
 }
 
 func audioBackends() []string {
@@ -238,12 +245,20 @@ func (m Model) settings() []setting {
 			help:    "Bars, mirrored bars, or an oscilloscope.",
 			value:   func(m Model) string { return m.vizStyle },
 			set:     func(m *Model, v string) (any, tea.Cmd) { m.vizStyle = v; m.vizWaveGain = 1; return v, nil }},
-		{group: "Visualizer", label: "Delay", kind: setInt, section: "visualizer", key: "delay_ms",
-			min: 0, max: 800, step: 20, unit: " ms",
-			help:  "Raise it if the bars run ahead of what you hear.",
-			value: func(m Model) string { return itoa(m.cfg.Visualizer.DelayMs) },
+		{group: "Visualizer", label: "Delay", kind: setChoice, section: "visualizer", key: "delay_ms",
+			options: vizDelayOptions(),
+			help:    "auto matches the audio buffer; raise it if the bars run ahead of what you hear.",
+			value: func(m Model) string {
+				if m.cfg.Visualizer.DelayMs < 0 {
+					return "auto"
+				}
+				return itoa(m.cfg.Visualizer.DelayMs)
+			},
 			set: func(m *Model, v string) (any, tea.Cmd) {
-				m.cfg.Visualizer.DelayMs = atoiOr(v, 120)
+				m.cfg.Visualizer.DelayMs = atoiOr(v, -1)
+				if v == "auto" {
+					m.cfg.Visualizer.DelayMs = -1
+				}
 				return m.cfg.Visualizer.DelayMs, nil
 			}},
 		{group: "Visualizer", label: "Bar width", kind: setInt, section: "visualizer", key: "bar_width",
@@ -265,7 +280,7 @@ func (m Model) settings() []setting {
 				var cmd tea.Cmd
 				switch {
 				case on && m.lyr == nil:
-					m.lyr = lyrics.NewClient(m.cfg.CacheDir+"/lyrics", Version)
+					m.lyr = newLyricsClient(m.cfg, m.eng)
 					if m.track != nil {
 						cmd = m.fetchLyrics(m.track)
 					}
@@ -545,6 +560,9 @@ func (m Model) settingRow(s setting, selected bool, labelW, valueW int) string {
 		shown := cur + s.unit
 		if s.kind == setInt && cur == "0" && s.key == "crossfade_ms" {
 			shown = "off"
+		}
+		if s.key == "delay_ms" && cur == "auto" {
+			shown = "auto (" + itoa(m.vizDelayMs()) + " ms)"
 		}
 		if s.key == "image_pixels" && cur == "0" {
 			shown = "full detail"
