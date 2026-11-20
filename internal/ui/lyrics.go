@@ -111,10 +111,10 @@ func (m Model) currentLyric() string {
 
 func (m Model) handleLyricsKey(key string) (bool, tea.Model, tea.Cmd) {
 	switch key {
-	case ">", ".":
+	case ">":
 		m.lyricsOffset += lyricsOffsetStep
 		m.setFlash("Lyrics offset "+fmtOffset(m.lyricsOffset), false)
-	case "<", ",":
+	case "<":
 		m.lyricsOffset -= lyricsOffsetStep
 		m.setFlash("Lyrics offset "+fmtOffset(m.lyricsOffset), false)
 	case "0":

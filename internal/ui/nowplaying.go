@@ -471,7 +471,7 @@ func (m Model) handleNpKey(key string) (bool, tea.Model, tea.Cmd) {
 		m.npFocus = order[(idx+step)%len(order)]
 		m.npNextCursor = 0
 		return true, m, nil
-	case "<", ",", ">", ".", "0":
+	case "<", ">", "0":
 		if m.track != nil && m.npLayout() != npClassic {
 			return m.handleLyricsKey(key)
 		}

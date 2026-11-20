@@ -162,6 +162,8 @@ func (m Model) viewFooter(w int) string {
 		keys = [][2]string{{"type", "filter"}, {"enter", "add"}, {"esc", "close"}}
 	case m.overlay == overlayDj:
 		keys = [][2]string{{"enter", "ask"}, {"↑↓", "suggestions"}, {"esc", "close"}}
+	case m.overlay == overlaySettings:
+		keys = [][2]string{{"↑↓", "choose"}, {"←→", "change"}, {"enter", "toggle / edit"}, {"esc", "close"}}
 	case m.overlay == overlayHelp:
 		keys = [][2]string{{"esc", "close"}}
 	case m.phase == phaseAuth:
@@ -177,7 +179,7 @@ func (m Model) viewFooter(w int) string {
 	case m.page == pageNowPlaying:
 		keys = [][2]string{
 			{"space", "play"}, {"n/p", "next/prev"}, {"←→", "seek"}, {"+/-", "vol"},
-			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"D", "DJ"}, {"L", "layout"}, {"tab", "sections"}, {"ctrl+k", "commands"}, {"?", "help"}, {"q", "quit"},
+			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"D", "DJ"}, {"L", "layout"}, {"tab", "sections"}, {",", "settings"}, {"ctrl+k", "commands"}, {"?", "help"}, {"q", "quit"},
 		}
 	case m.page == pageLyrics:
 		keys = [][2]string{{"< >", "sync offset"}, {"0", "reset"}, {"↑↓", "scroll (plain)"},
