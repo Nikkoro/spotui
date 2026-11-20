@@ -26,13 +26,14 @@ Download the latest [release](../../releases): `spotui-linux-amd64.tar.gz`
 for Linux and WSL, `spotui-windows-amd64.zip` for Windows.
 
 **Linux / WSL** (Ubuntu 24.04 or newer, Debian 13): unpack it somewhere on
-your `PATH`, and install the audio libraries:
+your `PATH`. The audio decoders are built in; only ALSA comes from the
+system:
 
 ```sh
 VERSION=v0.1.6   # the newest one on the releases page
 mkdir -p ~/.local/bin
 curl -L https://github.com/Nikkoro/spotui/releases/download/$VERSION/spotui-linux-amd64.tar.gz | tar xz -C ~/.local/bin spotui
-sudo apt install libasound2t64 libvorbis0a libvorbisfile3 libogg0 libflac12t64 libmpg123-0t64
+sudo apt install libasound2t64
 ```
 
 After this first install, `spotui update` keeps it current.
