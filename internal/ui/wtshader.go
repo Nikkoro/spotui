@@ -53,7 +53,7 @@ var shaderSig = [3]int{13, 37, 241}
 // shaderStyles are the effects in shaders/spotui.hlsl, by index. The last,
 // "debug", is for checking how evenly frames arrive and is left out of
 // the Settings page (shaderChoices).
-var shaderStyles = []string{"plasma", "tunnel", "debug"}
+var shaderStyles = []string{"plasma", "tunnel", "warp", "debug"}
 
 var shaderChoices = shaderStyles[:len(shaderStyles)-1]
 

@@ -48,7 +48,11 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   motion, so the steady flow is timed by the shader's `Time` and the
   music drives brightness and fast beat moves. The plasma reads its own
   cell 10, the jumpy values it was first tuned with: the user preferred
-  how that followed the music, so keep it. The `debug` style (config only)
+  how that followed the music, so keep it. New effects follow the same
+  rule: their core reacts at once to those jumpy values (ck, cb, cl), and
+  tempo, the first of four beats, snares and energy are extras on top;
+  effects built only on the smooth, "smarter" values felt bland. Give
+  every effect a soft ceiling on brightness (warp: fx / (1 + 1.5 fx)). The `debug` style (config only)
   and the "shader frames" debug log line show where judder comes from.
   WT hands the shader a premultiplied texture where the
   background is transparent black, so the effect is added with alpha

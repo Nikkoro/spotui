@@ -12,7 +12,7 @@
 //   cell 3     R colour phase in the track's tempo, G drop (1 for half a
 //              second; debug style: the frame count), B energy (this part
 //              of the track against the last half minute)
-//   cell 4     R style (0 plasma, 1 tunnel, 2 debug), G B travel (16 bits, 0…1):
+//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 debug), G B travel (16 bits, 0…1):
 //              the distance the music has pushed the effect, on top of
 //              its own steady pace (debug style: spotui's clock)
 //   cell 5…8   the spectrum, 12 bands low to high, three a cell
@@ -230,6 +230,63 @@ float3 tunnel(float2 tex, Music m)
     return c * fog * amount * (strength * (0.2 + 0.8 * tile * lit) + flash * 0.18 + shot * 0.28);
 }
 
+// hash1 is a repeatable pseudo-random number in 0…1 for n.
+float hash1(float n)
+{
+    return frac(sin(n * 12.9898) * 43758.5453);
+}
+
+// warp: a field of stars flying at you at a steady pace (timed here, plus
+// the music's travel). The core reacts at once, like the plasma: the kick
+// and the bass stretch the stars into streaks and light the nebula in the
+// middle, a drop throws it into hyperspace (long streaks in the cover's
+// colour). On top: the first beat of four lights the nebula harder,
+// snares make some stars twinkle, and a verse is calmer than a chorus.
+float3 warp(float2 tex, Music m)
+{
+    float aspect = Resolution.x / Resolution.y;
+    float2 q = (tex - 0.5) * float2(aspect, 1.0);
+    float r = max(length(q), 1e-3);
+    float a = atan2(q.y, q.x) / 6.2832 + 0.5; // 0…1 around the middle
+
+    // Each star sits in a sector around the middle and comes closer as
+    // its depth z runs 0…1; at depth z it shows at radius 0.04 / (1 - z).
+    // travel wraps from 1 to 0, and so does z, so the wrap does not show.
+    float T = Time * 0.12 + m.travel;
+    float zPix = 1.0 - 0.04 / r; // the depth this pixel's radius shows
+    float streak = 0.03 + 0.10 * m.cb + 0.15 * m.ck + 0.45 * m.drop;
+
+    float light = 0.0;
+    [unroll] for (int layer = 0; layer < 3; layer++)
+    {
+        float sectors = 48.0 + 40.0 * layer;
+        float id = floor(a * sectors);
+        float seed = id * 7.13 + layer * 101.7;
+        float h1 = hash1(seed), h2 = hash1(seed + 3.1), h3 = hash1(seed + 5.7);
+        float centre = (id + 0.2 + 0.6 * h1) / sectors;
+        float across = abs(a - centre) * 6.2832 * r; // distance from its line
+        float head = frac(h2 + T * (0.6 + 0.4 * h3));
+        // How far behind the star's head this pixel is, along its streak.
+        float behind = frac(head - zPix);
+        float along = 1.0 - saturate(behind / streak);
+        float width = 0.0015 + 0.004 * saturate(zPix);
+        float s = along * smoothstep(width, 0.0, across) * smoothstep(0.0, 0.3, zPix);
+        s *= step(0.35, h3);                                  // some sectors are empty
+        s *= 0.3 + 0.7 * saturate(zPix);                      // nearer, brighter
+        s *= 1.0 + 2.0 * m.snare * step(0.75, h1);            // twinkle on snares
+        light += s;
+    }
+
+    float punch = m.ck * (m.first ? 1.25 : 1.0);
+    float glow = exp(-r * 5.0) * (0.2 + 0.8 * punch + 0.3 * m.cb);
+    float3 star = lerp(float3(0.9, 0.9, 0.95), m.accent, 0.3 + 0.5 * m.drop);
+    float3 nebula = lerp(m.accent, m.accent.gbr, 0.5 + 0.5 * sin(Time * 0.2 + m.hue * 6.2832));
+
+    float amount = 0.6 + 0.8 * m.energy; // the verse calmer, the chorus wilder
+    float3 fx = (star * light * 0.35 + nebula * glow * 0.25) * amount;
+    return fx / (1.0 + 1.5 * fx); // a soft ceiling, so nothing glares
+}
+
 // debugView shows how evenly things move, top to bottom:
 //   1. a white bar timed by this shader: how smooth the terminal draws
 //   2. a yellow bar timed by spotui (its clock, sent each frame) at the
@@ -306,8 +363,10 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
 
     Music m = readMusic(origin, cell);
     float3 fx;
-    if (m.style == 2)
+    if (m.style == 3)
         fx = debugView(tex, m);
+    else if (m.style == 2)
+        fx = warp(tex, m);
     else if (m.style == 1)
         fx = tunnel(tex, m);
     else
