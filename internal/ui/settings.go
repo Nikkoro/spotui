@@ -307,7 +307,7 @@ func (m Model) settings() []setting {
 			}},
 		{group: "Lyrics", label: "Beat effects", kind: setChoice, section: "lyrics", key: "effects",
 			options: fxLevels,
-			help:    "The line being sung moves to the music: subtle flashes on the beat, party adds sparkles and a shake on drops, nightcore makes it zoom, flash capitals and flow with colour.",
+			help:    "The line being sung moves to the music: subtle flashes on the beat, party adds sparkles and a shake on drops, nightcore runs a wave through it letter by letter on each beat and flows with colour.",
 			value:   func(m Model) string { return m.fxLevel() },
 			set:     func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.Effects = v; return v, nil }},
 		{group: "Lyrics", label: "Line on classic Now Playing", kind: setBool, section: "lyrics", key: "now_playing_line",

@@ -243,8 +243,6 @@ func (m Model) viewSyncedLyrics(w, h int, karaoke bool) string {
 			}
 			rows[r] = m.fxRow(line, w)
 			continue
-		case (d == -1 || d == 1) && m.fxAtLeast(fxNightcore) && m.fx.pulse > 0.5:
-			st = m.theme.text.Bold(true) // the lines around it pulse too
 		case d < 0 && d >= -2:
 			st = past
 		case d < 0:

@@ -5,6 +5,7 @@ import (
 	"math/rand/v2"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -20,10 +21,10 @@ const (
 	fxOff    = "off"
 	fxSubtle = "subtle"
 	fxParty  = "party"
-	// fxNightcore adds to party: the line zooms out on each beat (letters
-	// spread apart and pull back), flashes to capitals on the hardest ones,
-	// a light sweeps through it letter by letter, colours flow in the
-	// track's tempo, and the lines around it pulse.
+	// fxNightcore adds to party: on each beat a wave runs through the line
+	// letter by letter (the letter at its crest hops up: capital, bold,
+	// brightest, with a soft tail behind it), the hardest beats spread the
+	// letters a little, and colours flow in the track's tempo.
 	fxNightcore = "nightcore"
 )
 
@@ -64,18 +65,44 @@ type lyricFx struct {
 	sparks []sparkle
 
 	// nightcore
-	zoom      float64 // 1 on a beat: letters spread, pulling back to 0
-	caps      float64 // seconds of capitals left
-	wave      float64 // the light's sweep through the line, 0…1 and on
+	zoom      float64 // 1 on a hard beat: letters spread, pulling back to 0
+	waves     []hop   // waves running through the line
 	hue       float64 // colour phase, turning in the track's tempo
 	sinceBeat float64 // ms since the last beat
 	beatMs    float64 // the beat interval, smoothed (0: unknown yet)
 }
 
+// hop is a wave running through the line being sung: the letter at its
+// crest hops up, the one or two behind it glow.
+type hop struct {
+	age    float64 // seconds
+	dur    float64 // seconds to cross the line (or half of it, from the middle)
+	bright float64 // 0…1, how far the crest goes towards white
+	dir    int     // +1 left to right, -1 right to left
+	middle bool    // starts from the middle of the line instead of an edge
+}
+
 const (
 	sparkLife  = 0.7 // seconds
 	sparkWidth = 10  // columns either side of the line they fly through
+
+	hopTail = 2.5 // letters of tail behind a wave's crest
+	maxHops = 6
 )
+
+// at is the crest's position in a line of n letters, -1…n+tail and on.
+func (h hop) at(n int) float64 {
+	p := h.age / h.dur
+	if h.middle {
+		c := float64(n-1) / 2
+		return c + float64(h.dir)*p*(float64(n)/2+hopTail)
+	}
+	pos := -1 + p*(float64(n)+hopTail+1)
+	if h.dir < 0 {
+		pos = float64(n-1) - pos
+	}
+	return pos
+}
 
 // fxLevel is the effects level in use.
 func (m Model) fxLevel() string {
@@ -103,8 +130,14 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 		f.shake--
 	}
 	f.zoom *= math.Exp(-dt * 9)
-	f.caps = math.Max(0, f.caps-dt)
-	f.wave += dt / 0.35
+	waves := f.waves[:0]
+	for _, h := range f.waves {
+		h.age += dt
+		if h.age < h.dur {
+			waves = append(waves, h)
+		}
+	}
+	f.waves = waves
 	f.sinceBeat += dt * 1000
 	beat := 500.0
 	if f.beatMs > 0 {
@@ -153,10 +186,20 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 		f.pulse = 1
 	}
 	if m.fxAtLeast(fxNightcore) {
-		f.zoom = math.Max(f.zoom, math.Min(1, 0.6+(b.Strength-1)/2))
-		f.wave = 0
-		if b.Strength > 2.2 || b.Drop {
-			f.caps = 0.18
+		// Only the harder beats spread the letters (see nightcoreLine).
+		f.zoom = math.Max(f.zoom, math.Min(1, 0.3+(b.Strength-1)/2))
+		// Harder beats run faster and brighter: 0.4 s across down to 0.28.
+		k := math.Max(0, math.Min(1, (b.Strength-1)/2))
+		h := hop{dur: 0.4 - 0.12*k, bright: 0.55 + 0.45*k, dir: 1}
+		if b.Drop {
+			// Out from the middle both ways at once.
+			h = hop{dur: 0.25, bright: 1, dir: 1, middle: true}
+			f.waves = append(f.waves, h)
+			h.dir = -1
+		}
+		f.waves = append(f.waves, h)
+		if len(f.waves) > maxHops {
+			f.waves = f.waves[len(f.waves)-maxHops:]
 		}
 		burst *= 2
 		if b.Drop {
@@ -250,13 +293,11 @@ func (m Model) fxMarkers() (string, string) {
 // --- nightcore
 
 // nightcoreLine draws the line being sung (line i, text) for at most w
-// columns: letters spread apart on the beat, capitals on the hardest ones,
-// colours flowing in tempo over the sung part and a light sweeping through.
+// columns: colours flowing in tempo over the sung part, waves running
+// through it letter by letter on the beat, and on the hardest beats the
+// letters spread a little.
 func (m Model) nightcoreLine(text string, i, w int) string {
 	f := m.fx
-	if f.caps > 0 {
-		text = strings.ToUpper(text)
-	}
 	runes := []rune(text)
 	n := len(runes)
 	if n == 0 {
@@ -281,9 +322,11 @@ func (m Model) nightcoreLine(text string, i, w int) string {
 	if m.fxAtLeast(fxParty) {
 		avail -= 2 * sparkWidth
 	}
+	// One column between letters at most, and only for a moment on the
+	// harder beats: a wider spread moves the words too far to read.
 	gap := 0
-	if f.zoom > 0.12 && n > 1 {
-		gap = min(int(math.Round(f.zoom*2)), max((avail-n)/(n-1), 0))
+	if f.zoom > 0.45 && n > 1 && avail >= 2*n-1 {
+		gap = 1
 	}
 
 	base, ok := parseRGB(m.theme.accentHex)
@@ -294,7 +337,6 @@ func (m Model) nightcoreLine(text string, i, w int) string {
 	sat = math.Max(sat, 0.55)
 	l = math.Min(math.Max(l, 0.5), 0.68)
 	text0, _ := parseRGB(string(colSubtle))
-	wavePos := f.wave * float64(n+4)
 
 	var sb strings.Builder
 	before, after := m.fxMarkers()
@@ -310,11 +352,19 @@ func (m Model) nightcoreLine(text string, i, w int) string {
 				c = rgb{200, 200, 205}
 			}
 		}
-		if d := math.Abs(float64(k) - wavePos); d < 2.5 {
-			c = c.mix(rgb{255, 255, 255}, 0.75*(1-d/2.5))
+		crest, glow := f.hopAt(k, n)
+		bold := k < sung
+		if glow > 0 {
+			c = c.mix(rgb{255, 255, 255}, glow)
+		}
+		if crest {
+			bold = true
+			if u := unicode.ToUpper(r); ansi.StringWidth(string(u)) == ansi.StringWidth(string(r)) {
+				r = u
+			}
 		}
 		style := lipgloss.NewStyle().Foreground(c.color())
-		if k < sung {
+		if bold {
 			style = style.Bold(true)
 		}
 		sb.WriteString(style.Render(string(r)))
@@ -324,6 +374,23 @@ func (m Model) nightcoreLine(text string, i, w int) string {
 	}
 	sb.WriteString(after)
 	return sb.String()
+}
+
+// hopAt reports whether letter k of n is at a wave's crest, and how far
+// towards white the waves light it (0: not at all).
+func (f lyricFx) hopAt(k, n int) (crest bool, glow float64) {
+	for _, h := range f.waves {
+		// Distance behind the crest, in the wave's direction.
+		d := (h.at(n) - float64(k)) * float64(h.dir)
+		switch {
+		case d > -0.5 && d <= 0.5:
+			crest = true
+			glow = math.Max(glow, 0.85*h.bright)
+		case d > 0.5 && d < hopTail:
+			glow = math.Max(glow, 0.45*h.bright*(1-(d-0.5)/(hopTail-0.5)))
+		}
+	}
+	return crest, glow
 }
 
 // hsl returns hue (0…1), saturation and lightness.
