@@ -75,8 +75,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "spotui $GITHUB_REF_NAME" \
-            --generate-notes \
-            spotui-linux-amd64.tar.gz spotui-windows-amd64.zip
+          # A release made by hand on GitHub (which creates the tag) gets
+          # the binaries attached; otherwise one is created.
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber \
+              spotui-linux-amd64.tar.gz spotui-windows-amd64.zip
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "spotui $GITHUB_REF_NAME" \
+              --generate-notes \
+              spotui-linux-amd64.tar.gz spotui-windows-amd64.zip
+          fi
