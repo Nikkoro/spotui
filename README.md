@@ -167,7 +167,8 @@ now_playing_line = true   # show the current line on Now Playing (classic layout
 effects = "subtle"        # off | subtle (flash on the beat) | party (sparkles, shake on drops)
                           # | nightcore (party, plus letter waves and flowing colours)
 wt_shader = false         # feed the beat to the Windows Terminal shader (spotui shader)
-wt_shader_style = "plasma" # its effect: plasma | tunnel | warp | aurora
+wt_shader_style = "plasma" # its effect: plasma | tunnel | warp | aurora | auto
+wt_shader_motion = true   # its view zooms, turns and ripples with the music (MilkDrop-style)
 
 [now_playing]
 layout = "auto"           # auto | split | panels | compact | classic  (L switches)
@@ -204,6 +205,10 @@ several effects, switched in Settings (`,` → Shader effect) with no reload:
   lights them up, the bass swings them wider, a soft glow sweeps along
   them once a beat in the track's tempo and they swell before the next,
   the highs make their edges ripple
+- **auto**: moves between them by itself, like MilkDrop presets in
+  Winamp, fading from one to the next at a drop, when a louder part comes
+  in, on a new track or every 32 bars; calm parts lean to the aurora, loud
+  and fast ones to the tunnel and the warp
 
 A shader only sees the window, so spotui sends it the music through a row
 of coloured cells in the top-left corner, which the shader reads and

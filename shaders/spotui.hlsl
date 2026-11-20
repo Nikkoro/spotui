@@ -2,7 +2,7 @@
 // lyrics, moving to the music. Write it out with `spotui shader`.
 //
 // A pixel shader only sees the rendered window, so spotui sends the music
-// as colour: with `wt_shader = true` under [lyrics] it paints twelve cells
+// as colour: with `wt_shader = true` under [lyrics] it paints sixteen cells
 // at the start of its top row (see internal/ui/wtshader.go):
 //
 //   cell 0     signature (13, 37, 241)
@@ -21,7 +21,15 @@
 //              the high bands, fading fast)
 //   cell 10    the first plasma's values, as they were: R kick, G bass
 //              against its last second, B loudness
-//   cell 11    signature again
+//   cell 11    bass, mid, treble as MilkDrop hears them: each against its
+//              own recent average, 1 = as usual, divided by 3
+//   cell 12    the same, smoothed (MilkDrop's bass_att and so on)
+//   cell 13    R how much the camera moves with them (wt_shader_motion),
+//              G B its turn (16 bits, 0…1 a whole turn): a slow spin
+//              that the treble speeds up
+//   cell 14    R the style faded from (auto), G how far the fade has got
+//              (0 showing that one … 255 showing the style in cell 4)
+//   cell 15    signature again
 //
 // This shader finds them, reads them, hides them, and adds the effect
 // wherever the window shows its background, kept dim so the text on top
@@ -46,7 +54,7 @@ cbuffer PixelShaderSettings
 };
 
 static const float3 SIG = float3(13.0, 37.0, 241.0) / 255.0;
-static const int STRIP_CELLS = 12;
+static const int STRIP_CELLS = 16;
 static const int BANDS = 12;
 static const int SEARCH = 64; // pixels searched for the strip from the corner
 
@@ -113,6 +121,12 @@ struct Music
     // swell: rising just before the next one.
     float pulse, swell;
     float ck, cb, cl; // the first plasma's kick, bass, loudness
+    // MilkDrop's bass, mid, treb (1 = as usual) and their smoothed _att
+    float bass3, mid3, treb3, bassAtt, midAtt, trebAtt;
+    float motion; // how much the camera moves with them, 0…1
+    float spin;   // its turn, 0…1 a whole circle
+    int prevStyle; // the style faded from (auto)…
+    float blend;   // …and how far: 0 that one, 1 style
     float3 accent;
     int style;
     float bands[BANDS];
@@ -137,6 +151,20 @@ Music readMusic(int2 origin, int2 cell)
     m.phase = d9.r;
     m.first = d9.g < 0.1;
     m.snare = d9.b;
+    float3 d11 = cellColour(origin, cell, 11) * 3.0;
+    float3 d12 = cellColour(origin, cell, 12) * 3.0;
+    m.bass3 = d11.r;
+    m.mid3 = d11.g;
+    m.treb3 = d11.b;
+    m.bassAtt = d12.r;
+    m.midAtt = d12.g;
+    m.trebAtt = d12.b;
+    float3 d13 = round(cellColour(origin, cell, 13) * 255.0);
+    m.motion = d13.r / 255.0;
+    m.spin = (d13.g * 256.0 + d13.b) / 65536.0;
+    float3 d14 = round(cellColour(origin, cell, 14) * 255.0);
+    m.prevStyle = int(d14.r);
+    m.blend = d14.g / 255.0;
     float3 d10 = cellColour(origin, cell, 10);
     m.ck = d10.r;
     m.cb = d10.g;
@@ -161,14 +189,37 @@ Music readMusic(int2 origin, int2 cell)
 // the beat (a ring shot away, a zoom punch, the bass bending the waves)
 // come from spotui's values: they are over before judder can show.
 
+// camera moves the view the way MilkDrop presets do, p being centred,
+// aspect-corrected coordinates: it zooms in with the bass, keeps turning
+// (faster with the treble, added up by spotui), and ripples with the mid
+// (vocals, melody). MilkDrop's small per-frame moves pile up through its
+// feedback; there is none here, so the moves are bigger. Zoom follows
+// the smoothed bass, so it glides; the ripple's size follows the mid.
+// Each effect takes as much of each move as suits it (zoomK, turnK,
+// rippleK; 1 = the plasma's).
+float2 camera(float2 p, Music m, float zoomK, float turnK, float rippleK)
+{
+    if (m.motion <= 0.0)
+        return p;
+    float zoom = 1.0 + zoomK * 0.25 * clamp(m.bassAtt - 1.0, -0.4, 1.0);
+    p /= zoom;
+    float turn = turnK * 6.2832 * m.spin;
+    float c = cos(turn), s = sin(turn);
+    p = float2(c * p.x - s * p.y, s * p.x + c * p.y);
+    float ripple = rippleK * 0.04 * clamp(0.5 * (m.mid3 + m.midAtt) - 0.7, 0.0, 1.5);
+    p += ripple * float2(sin(p.y * 9.0 + Time * 1.7), cos(p.x * 8.0 + Time * 1.3));
+    return p;
+}
+
 // plasma: the first effect, kept as it was because it followed the music
 // best: sums of waves in the cover's colours, the bass pushing the rings
 // out, a ring running from the middle on each beat. It reads its own
-// values (cell 10), which jump with the music and fade.
+// values (cell 10), which jump with the music and fade. With
+// wt_shader_motion its view moves with the music too (camera).
 float3 plasma(float2 tex, Music m)
 {
     float aspect = Resolution.x / Resolution.y;
-    float2 q = (tex - 0.5) * float2(aspect, 1.0) * 3.0;
+    float2 q = camera((tex - 0.5) * float2(aspect, 1.0), m, 1.0, 1.0, 1.0) * 3.0;
     float t = Time * 0.5;
     float r = length(q);
     float v = sin(q.x * 1.7 + t) + sin(q.y * 2.3 - t * 1.3) +
@@ -199,7 +250,9 @@ float3 plasma(float2 tex, Music m)
 float3 tunnel(float2 tex, Music m)
 {
     float aspect = Resolution.x / Resolution.y;
-    float2 q = (tex - 0.5) * float2(aspect, 1.0);
+    // The camera turns and ripples, but does not zoom: zooming out reads
+    // as the tunnel jumping backwards.
+    float2 q = camera((tex - 0.5) * float2(aspect, 1.0), m, 0.0, 1.0, 0.7);
     // The far end drifts a little, so the flight curves.
     q -= 0.06 * float2(sin(Time * 0.37), cos(Time * 0.29));
     float r = max(length(q), 1e-3);
@@ -248,7 +301,9 @@ float hash1(float n)
 float3 warp(float2 tex, Music m)
 {
     float aspect = Resolution.x / Resolution.y;
-    float2 q = (tex - 0.5) * float2(aspect, 1.0);
+    // The star field turns and zooms a little with the bass; a ripple
+    // would only smear the stars.
+    float2 q = camera((tex - 0.5) * float2(aspect, 1.0), m, 0.5, 1.0, 0.0);
     float r = max(length(q), 1e-3);
     float a = atan2(q.y, q.x) / 6.2832 + 0.5; // 0…1 around the middle
 
@@ -302,8 +357,11 @@ float3 warp(float2 tex, Music m)
 float3 aurora(float2 tex, Music m)
 {
     float aspect = Resolution.x / Resolution.y;
-    float x = tex.x * aspect;
-    float y = tex.y;
+    // Only a gentle ripple with the vocals: a turn would tilt the sky and a
+    // zoom would rush what should be calm.
+    float2 cam = camera((tex - 0.5) * float2(aspect, 1.0), m, 0.0, 0.0, 0.5);
+    float x = cam.x + 0.5 * aspect;
+    float y = cam.y + 0.5;
     float t = Time;
     float high = (m.bands[8] + m.bands[9] + m.bands[10] + m.bands[11]) * 0.25;
     float sway = 1.0 + 0.6 * m.bass;
@@ -379,6 +437,20 @@ float3 debugView(float2 tex, Music m)
     return c * 0.6;
 }
 
+// effect draws the given style.
+float3 effect(int style, float2 tex, Music m)
+{
+    if (style == 4)
+        return debugView(tex, m);
+    if (style == 3)
+        return aurora(tex, m);
+    if (style == 2)
+        return warp(tex, m);
+    if (style == 1)
+        return tunnel(tex, m);
+    return plasma(tex, m);
+}
+
 // Windows Terminal hands the shader a premultiplied texture: where only
 // the background shows, pixels are transparent black, and the background
 // colour (and acrylic) goes underneath afterwards. Some setups draw the
@@ -411,17 +483,10 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
         return colour;
 
     Music m = readMusic(origin, cell);
-    float3 fx;
-    if (m.style == 4)
-        fx = debugView(tex, m);
-    else if (m.style == 3)
-        fx = aurora(tex, m);
-    else if (m.style == 2)
-        fx = warp(tex, m);
-    else if (m.style == 1)
-        fx = tunnel(tex, m);
-    else
-        fx = plasma(tex, m);
+    float3 fx = effect(m.style, tex, m);
+    // auto fading from one effect to the next: both, mixed.
+    if (m.blend < 1.0 && m.prevStyle != m.style)
+        fx = lerp(effect(m.prevStyle, tex, m), fx, smoothstep(0.0, 1.0, m.blend));
 
     // Premultiplied: adding colour with the alpha left alone lays the
     // effect over whatever is drawn underneath, background or acrylic.

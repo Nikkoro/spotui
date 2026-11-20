@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"strings"
 	"testing"
 	"time"
@@ -224,5 +225,118 @@ func TestShaderEnergyRisesInALouderPart(t *testing.T) {
 	feed(0.42, 3) // a chorus, 3 dB louder: mastered music is not more
 	if s.energy-verse < 0.3 {
 		t.Fatalf("energy %.2f in the verse, %.2f in the chorus", verse, s.energy)
+	}
+}
+
+func TestShaderBandsAgainstTheirAverage(t *testing.T) {
+	var s shaderFx
+	dt := 1.0 / 30
+	feed := func(hz, amp float64, frames int) {
+		for i := 0; i < frames; i++ {
+			s.feedBands3(tone(hz, amp, 1470), dt)
+		}
+	}
+	// A steady bass note: as usual, 1.
+	feed(80, 0.3, 90)
+	if math.Abs(s.band3[0]-1) > 0.1 {
+		t.Fatalf("steady bass reads %.2f, want about 1", s.band3[0])
+	}
+	// Twice as loud all of a sudden: well over 1, then settling back.
+	feed(80, 0.6, 1)
+	if s.band3[0] < 1.6 {
+		t.Fatalf("a louder bass reads %.2f", s.band3[0])
+	}
+	feed(80, 0.6, 150)
+	if math.Abs(s.band3[0]-1) > 0.1 || math.Abs(s.att[0]-1) > 0.1 {
+		t.Fatalf("bass %.2f att %.2f after five seconds, want about 1", s.band3[0], s.att[0])
+	}
+	// Each band hears its own range: a hat-like 6 kHz tone after silence
+	// lifts the treble, not the bass.
+	s = shaderFx{}
+	feed(80, 0.3, 60)
+	feed(6000, 0.3, 1)
+	if s.band3[2] < 1.5 || s.band3[0] > 1.2 {
+		t.Fatalf("a 6 kHz hit: bass %.2f treble %.2f", s.band3[0], s.band3[2])
+	}
+}
+
+func TestShaderAutoPicksForTheMood(t *testing.T) {
+	var a shaderAutoState
+	a.rng = rand.New(rand.NewPCG(1, 2))
+	count := func(mood float64) map[int]int {
+		got := map[int]int{}
+		for i := 0; i < 4000; i++ {
+			a.started, a.cur = true, 0 // the plasma showing
+			got[a.pick(mood)]++
+		}
+		return got
+	}
+	calm, wild := count(0.1), count(0.9)
+	if calm[0] != 0 || wild[0] != 0 {
+		t.Fatal("picked the effect already showing")
+	}
+	if calm[3] <= calm[1] || calm[3] <= calm[2] {
+		t.Fatalf("calm music should lean to the aurora: %v", calm)
+	}
+	if wild[1] <= wild[3] || wild[2] <= wild[3] {
+		t.Fatalf("intense music should lean to the tunnel and warp: %v", wild)
+	}
+	if calm[1] == 0 || wild[3] == 0 {
+		t.Fatalf("every effect should keep a chance: calm %v wild %v", calm, wild)
+	}
+}
+
+func TestShaderAutoChangesWithTheMusic(t *testing.T) {
+	var s shaderFx
+	s.auto.rng = rand.New(rand.NewPCG(3, 4))
+	dt := 1.0 / 30
+	run := func(seconds float64, drop bool, track string) {
+		for i := 0; i < int(seconds*30); i++ {
+			s.stepAuto(dt, false, drop && i == 0, track, nil)
+		}
+	}
+	run(1, false, "a")
+	first := s.auto.cur
+	if s.auto.blend != 1 {
+		t.Fatal("the first effect should show at once")
+	}
+	run(3, true, "a") // a drop too soon after the start: no change
+	if s.auto.cur != first {
+		t.Fatal("changed on a drop two seconds after the last change")
+	}
+	run(4, false, "a")
+	run(0.2, true, "a") // a drop now: a quick fade
+	if s.auto.cur == first || s.auto.fade != autoDropFade {
+		t.Fatalf("no quick change on a drop: cur %d fade %.2f", s.auto.cur, s.auto.fade)
+	}
+	run(1, false, "a")
+	if s.auto.blend != 1 {
+		t.Fatalf("the drop's fade should be over: %.2f", s.auto.blend)
+	}
+	before := s.auto.cur
+	run(0.1, false, "b") // a new track
+	if s.auto.cur == before || s.auto.prev != before || s.auto.fade != autoFade {
+		t.Fatal("no fade to a new effect on a new track")
+	}
+	run(1, false, "b")
+	if s.auto.blend <= 0.3 || s.auto.blend >= 0.5 {
+		t.Fatalf("a second into a %.1f s fade: blend %.2f", autoFade, s.auto.blend)
+	}
+}
+
+func TestShaderAutoDropsGoWild(t *testing.T) {
+	calm := 0
+	for i := 0; i < 400; i++ {
+		var s shaderFx // a quiet build-up: no energy, no bass, no tempo
+		s.auto.rng = rand.New(rand.NewPCG(uint64(i), 9))
+		s.stepAuto(1.0/30, false, false, "a", nil)
+		s.stepAuto(10, false, false, "a", nil)
+		s.stepAuto(1.0/30, false, true, "a", nil)
+		if s.auto.cur == 3 {
+			calm++
+		}
+	}
+	if calm > 60 {
+		t.Fatalf("a drop out of a quiet build-up went to the aurora %d times in 400", calm)
 	}
 }

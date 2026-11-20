@@ -40,7 +40,17 @@ import (
 //	          plasma followed the music best: R kick, G bass against its
 //	          last second, B loudness, each jumping up and fading, at 30
 //	          frames a second
-//	cell 11   signature again, so the shader knows where the strip ends
+//	cell 11   bass, mid and treble the way MilkDrop hears them: each
+//	          band's loudness against its own average of the last second
+//	          or so, 1 = as usual, sent divided by 3 (R bass up to 250 Hz,
+//	          G mid to 2 kHz, B treble above)
+//	cell 12   the same, smoothed (MilkDrop's bass_att and so on)
+//	cell 13   R how much the camera moves with them (wt_shader_motion),
+//	          G B its turn (16 bits, 0…1 a whole turn), added up here: a
+//	          slow spin that the treble speeds up
+//	cell 14   R the style faded from (auto), G how far the fade has got,
+//	          0 showing that one … 255 showing the style in cell 4
+//	cell 15   signature again, so the shader knows where the strip ends
 //
 // The shader keeps no state between frames, so anything that should move
 // at a speed the music sets (travel) is added up here and sent as a
@@ -48,21 +58,26 @@ import (
 // shader, smooth at the terminal's frame rate rather than spotui's 30.
 const (
 	shaderBands = 12
-	shaderCells = 8 + shaderBands/3
+	shaderCells = 12 + shaderBands/3
 )
 
 var shaderSig = [3]int{13, 37, 241}
 
 // shaderStyles are the effects in shaders/spotui.hlsl, by index. The last,
 // "debug", is for checking how evenly frames arrive and is left out of
-// the Settings page (shaderChoices).
+// the Settings page.
 var shaderStyles = []string{"plasma", "tunnel", "warp", "aurora", "debug"}
 
-var shaderChoices = shaderStyles[:len(shaderStyles)-1]
+// shaderChoices are what Settings offers: the effects, and auto, which
+// moves between them by itself (shaderauto.go).
+var shaderChoices = append(append([]string{}, shaderStyles[:len(shaderStyles)-1]...), shaderAuto)
 
 const shaderDebug = "debug"
 
 func validShaderStyle(s string) bool {
+	if s == shaderAuto {
+		return true
+	}
 	for _, x := range shaderStyles {
 		if x == s {
 			return true
@@ -71,8 +86,12 @@ func validShaderStyle(s string) bool {
 	return false
 }
 
-// shaderStyle is the index of the style in use.
+// shaderStyle is the index of the style showing: the one set, or with
+// auto, the one auto shows.
 func (m Model) shaderStyle() int {
+	if m.shaderIsAuto() {
+		return m.fx.shader.auto.cur
+	}
 	if m.cfg != nil {
 		for i, x := range shaderStyles {
 			if x == m.cfg.Lyrics.WTShaderStyle {
@@ -81,6 +100,11 @@ func (m Model) shaderStyle() int {
 		}
 	}
 	return 0
+}
+
+// shaderIsAuto reports whether auto picks the effect.
+func (m Model) shaderIsAuto() bool {
+	return m.cfg != nil && m.cfg.Lyrics.WTShaderStyle == shaderAuto
 }
 
 // shaderActive reports whether the shader cells are drawn: wherever the
@@ -117,6 +141,15 @@ type shaderFx struct {
 	pos      time.Duration
 	dump     *os.File // SPOTUI_TEMPO_DUMP, for tuning the tempo tracker
 
+	// bass, mid, treble against their averages, as MilkDrop has them
+	// (cells 11 and 12): lp1, lp2 filter states, avg the averages
+	lp1, lp2   float64
+	band3, att [3]float64
+	avg3       [3]float64
+	spin       float64 // the camera's turn, 0…1 wrapping
+
+	auto shaderAutoState // when the effect is "auto" (shaderauto.go)
+
 	// the first plasma's values (cell 10)
 	ck, cb, cl float64
 	dropLeft   float64 // seconds the drop is still shown
@@ -127,6 +160,7 @@ type shaderFx struct {
 
 	// for the debug log (logValues): sums over the current second
 	logT, logEnergy, logLevel, logBass, logCk float64
+	logBands3                                 [3]float64
 	logN, logBeats, logSnares                 int
 }
 
@@ -151,6 +185,11 @@ func (s *shaderFx) step(dt float64) {
 	s.speed += (target - s.speed) * math.Min(1, dt*12)
 	s.travel = math.Mod(s.travel+dt*s.speed, 1)
 	s.clock = math.Mod(s.clock+dt/2, 1)
+	// The camera turns a full circle in about 50 s, up to five times
+	// faster while the treble is up. MilkDrop's turns pile up frame on
+	// frame through its feedback; without one, a turn that only swung
+	// with the treble barely showed, so it is added up instead.
+	s.spin = math.Mod(s.spin+dt*(0.02+0.08*math.Max(0, math.Min(1, s.att[2]-0.9))), 1)
 	s.frames++
 }
 
@@ -203,6 +242,7 @@ func (s *shaderFx) feed(window, newest []float32, b, beat viz.Beat, t viz.Tempo,
 		s.logSnares++
 	}
 	s.feedClassic(newest, b, beat, dt)
+	s.feedBands3(newest, dt)
 	if s.spec == nil {
 		s.spec = viz.NewAnalyzer(shaderBands)
 	}
@@ -230,6 +270,38 @@ func (s *shaderFx) feedClassic(newest []float32, b, beat viz.Beat, dt float64) {
 		if beat.Drop {
 			s.ck, s.dropLeft = 1, 0.47
 		}
+	}
+}
+
+// feedBands3 works out bass, mid and treble the way MilkDrop does: each
+// band's loudness in this frame against its own average over the last
+// second and a half, 1 being as usual, and the same smoothed.
+func (s *shaderFx) feedBands3(newest []float32, dt float64) {
+	a1 := 1 - math.Exp(-2*math.Pi*250/viz.SampleRate)
+	a2 := 1 - math.Exp(-2*math.Pi*2000/viz.SampleRate)
+	var e [3]float64
+	for _, x := range newest {
+		v := float64(x)
+		s.lp1 += a1 * (v - s.lp1)
+		s.lp2 += a2 * (v - s.lp2)
+		lo, mid, hi := s.lp1, s.lp2-s.lp1, v-s.lp2
+		e[0] += lo * lo
+		e[1] += mid * mid
+		e[2] += hi * hi
+	}
+	n := float64(max(len(newest), 1))
+	for i := range e {
+		imm := math.Sqrt(e[i] / n)
+		if s.avg3[i] == 0 {
+			s.avg3[i] = imm
+		}
+		s.avg3[i] += (imm - s.avg3[i]) * math.Min(1, dt/1.5)
+		v := 0.0
+		if s.avg3[i] > 1e-5 {
+			v = math.Min(3, imm/s.avg3[i])
+		}
+		s.band3[i] = v
+		s.att[i] += (v - s.att[i]) * math.Min(1, dt/0.25)
 	}
 }
 
@@ -296,6 +368,18 @@ func (m Model) shaderStrip() string {
 	}
 	cells[9] = [3]int{byte8(s.phase()), ((s.count + 3) % 4) * 85, byte8(s.snare)}
 	cells[10] = [3]int{byte8(s.ck), byte8(s.cb), byte8(s.cl)}
+	cells[11] = [3]int{byte8(s.band3[0] / 3), byte8(s.band3[1] / 3), byte8(s.band3[2] / 3)}
+	cells[12] = [3]int{byte8(s.att[0] / 3), byte8(s.att[1] / 3), byte8(s.att[2] / 3)}
+	motion := 0
+	if m.cfg != nil && m.cfg.Lyrics.WTShaderMotion {
+		motion = 255
+	}
+	spin := clamp(int(s.spin*65536), 0, 65535)
+	cells[13] = [3]int{motion, spin >> 8, spin & 0xff}
+	cells[14] = [3]int{m.shaderStyle(), 255, 0}
+	if m.shaderIsAuto() {
+		cells[14] = [3]int{s.auto.prev, byte8(s.auto.blend), 0}
+	}
 	for i := 0; i < shaderBands; i++ {
 		if i < len(s.bands) {
 			cells[5+i/3][i%3] = byte8(s.bands[i])
@@ -365,6 +449,9 @@ func (s *shaderFx) logValues(dt float64, pos time.Duration, eng *engine.Engine) 
 	s.logLevel += s.level
 	s.logBass += s.bass
 	s.logCk += s.ck
+	for i := range s.logBands3 {
+		s.logBands3[i] += s.band3[i]
+	}
 	if s.logT < 1 {
 		return
 	}
@@ -373,11 +460,13 @@ func (s *shaderFx) logValues(dt float64, pos time.Duration, eng *engine.Engine) 
 	if s.beatSec > 0 {
 		bpm = 60 / s.beatSec
 	}
-	eng.Debugf("ui: shader values at %d:%02d: energy %.2f level %.2f bass %.2f kick %.2f, %d beats %d snares, tempo %.0f bpm (grid %.0f bpm, sure %.2f)",
+	eng.Debugf("ui: shader values at %d:%02d: energy %.2f level %.2f bass %.2f kick %.2f, %d beats %d snares, tempo %.0f bpm (grid %.0f bpm, sure %.2f), milkdrop bass %.2f mid %.2f treb %.2f",
 		int(pos.Minutes()), int(pos.Seconds())%60, s.logEnergy/n, s.logLevel/n, s.logBass/n, s.logCk/n,
-		s.logBeats, s.logSnares, bpm, s.tempoNow.BPM, s.tempoNow.Confidence)
+		s.logBeats, s.logSnares, bpm, s.tempoNow.BPM, s.tempoNow.Confidence,
+		s.logBands3[0]/n, s.logBands3[1]/n, s.logBands3[2]/n)
 	s.logT, s.logN, s.logBeats, s.logSnares = 0, 0, 0, 0
 	s.logEnergy, s.logLevel, s.logBass, s.logCk = 0, 0, 0, 0
+	s.logBands3 = [3]float64{}
 }
 
 // dumpFrame appends this analysis frame to the file named by
