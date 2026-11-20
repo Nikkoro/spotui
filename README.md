@@ -234,7 +234,19 @@ now_playing_line = true   # show the current line on Now Playing (classic layout
 
 [now_playing]
 layout = "auto"           # auto | split | panels | compact | classic  (L switches)
+
+[update]
+check = true              # look for a new release once a day, shown in the header
+prerelease = false        # include releases marked pre-release on GitHub
 ```
+
+### Updating
+
+`spotui update` downloads the newest release for your platform, checks it
+against the release's `SHA256SUMS` and replaces the binary in place
+(restart spotui afterwards). `--pre` includes pre-releases, `--check` only
+says whether there is a newer one. GitHub is asked once per run, with the
+last answer's ETag; the in-app check runs at most once a day.
 
 ### Your own Spotify app (recommended)
 

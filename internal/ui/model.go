@@ -47,6 +47,7 @@ const (
 type Model struct {
 	statusCheckedAt time.Time
 	npChoice        string // Now Playing layout picked: config, then L
+	updateTag       string // a newer release, once the daily check found one
 	npFocus         int    // Now Playing section tab moved to, npFocus*
 	npNextCursor    int    // selected entry in Up next
 
@@ -413,6 +414,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.handleEvent(msg.ev)
 		return m, tea.Batch(cmd, waitEvent(m.eng.Events()))
 
+	case updateMsg:
+		m.handleUpdateMsg(msg)
+		return m, nil
+
 	case statusMsg:
 		if msg.s != nil && msg.s.Track != nil && m.trackStale(msg.s.Track.Uri) {
 			m.eng.Debugf("ui: status brought %s, was showing %s", msg.s.Track.Uri, m.currentURI())
@@ -530,7 +535,7 @@ func (m *Model) handleEvent(ev engine.Event) tea.Cmd {
 	case engine.ReadyEvent:
 		m.phase = phaseReady
 		m.auth = nil
-		cmds := []tea.Cmd{tea.EnableMouseCellMotion, m.applyStatus(ev.Status)}
+		cmds := []tea.Cmd{tea.EnableMouseCellMotion, m.applyStatus(ev.Status), m.checkUpdate()}
 		if len(m.warnings) > 0 {
 			m.setFlash("config.toml: "+strings.Join(m.warnings, " · "), true)
 			m.warnings = nil

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/mediakeys"
 	"github.com/Nikkoro/spotui/internal/termimg"
 	"github.com/Nikkoro/spotui/internal/ui"
+	"github.com/Nikkoro/spotui/internal/update"
 	"github.com/Nikkoro/spotui/internal/viz"
 )
 
@@ -44,7 +46,8 @@ func run() error {
 		fmt.Fprintf(out, "  (none)       start the player\n")
 		fmt.Fprintf(out, "  logout       forget the Spotify login; the next start pairs again\n")
 		fmt.Fprintf(out, "  paths        print where config, cache and logs live\n")
-		fmt.Fprintf(out, "  clear-cache  delete cached covers, lyrics, library and audio\n\nflags:\n")
+		fmt.Fprintf(out, "  clear-cache  delete cached covers, lyrics, library and audio\n")
+		fmt.Fprintf(out, "  update       install the newest release (--pre: pre-releases too, --check: only look)\n\nflags:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -73,6 +76,8 @@ func run() error {
 		fmt.Println("log:   ", filepath.Join(cfg.ConfigDir, "spotui.log"))
 		fmt.Println("cache: ", cfg.CacheDir)
 		return nil
+	case "update":
+		return runUpdate(cfg, flag.Args()[1:])
 	case "clear-cache":
 		if err := os.RemoveAll(cfg.CacheDir); err != nil {
 			return err
@@ -82,6 +87,10 @@ func run() error {
 	default:
 		flag.Usage()
 		return fmt.Errorf("unknown command %q", cmd)
+	}
+
+	if exe, err := update.Executable(); err == nil {
+		update.CleanupOld(exe) // what a Windows update moved aside
 	}
 
 	// The TUI owns the terminal, so logs go to a file. The previous run's
@@ -226,4 +235,60 @@ func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current
 		logger.WithError(err).Warn("closing player")
 	}
 	return restart && uiErr == nil, uiErr
+}
+
+// runUpdate installs the newest release over the running binary.
+func runUpdate(cfg *config.Config, args []string) error {
+	fs := flag.NewFlagSet("update", flag.ContinueOnError)
+	pre := fs.Bool("pre", cfg.Update.Prerelease, "include pre-releases")
+	checkOnly := fs.Bool("check", false, "only say whether a newer release exists")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	if update.AssetName() == "" {
+		return fmt.Errorf("no release binaries for %s/%s; build from source", runtime.GOOS, runtime.GOARCH)
+	}
+	rels, err := update.NewChecker(cfg.CacheDir, version).Releases(ctx, true)
+	if err != nil {
+		return err
+	}
+	r := update.Pick(rels, *pre)
+	if r == nil {
+		if latest := update.Pick(rels, true); !*pre && latest != nil {
+			fmt.Printf("No stable release yet; the newest pre-release is %s.\n", latest.Tag)
+			fmt.Println("Run `spotui update --pre`, or set prerelease = true under [update] in config.toml.")
+			return nil
+		}
+		fmt.Println("No release with a binary for this platform yet.")
+		return nil
+	}
+	if !update.Newer(r.Tag, version) {
+		fmt.Printf("spotui %s is up to date.\n", version)
+		return nil
+	}
+	kind := ""
+	if r.Prerelease {
+		kind = " (pre-release)"
+	}
+	if *checkOnly {
+		fmt.Printf("spotui %s%s is available; you have %s.\n%s\n", r.Tag, kind, version, r.URL)
+		return nil
+	}
+
+	exe, err := update.Executable()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Installing spotui %s%s over %s (%s)…\n", r.Tag, kind, version, exe)
+	if err := update.Install(ctx, nil, r, exe, version); err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			return fmt.Errorf("%w\nThe folder of %s is not writable for you; run it with sudo or move spotui somewhere you own, such as ~/.local/bin", err, exe)
+		}
+		return err
+	}
+	fmt.Printf("Updated to %s. Restart spotui to use it.\n", r.Tag)
+	return nil
 }
