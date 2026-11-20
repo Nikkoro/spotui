@@ -67,6 +67,7 @@ func (m Model) paletteCommands() []paletteCmd {
 
 		{title: "Visualizer on / off", group: "look", key: "v"},
 		{title: "Visualizer style: bars / mirror", group: "look", key: "V"},
+		{title: "Cover: real image / pixel blocks", group: "look", key: "c"},
 		{title: "Cover: more pixels", group: "look", key: "]"},
 		{title: "Cover: fewer pixels", group: "look", key: "["},
 		{title: "Cover: more colours", group: "look", key: "}"},

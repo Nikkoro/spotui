@@ -96,6 +96,15 @@ type CoverConfig struct {
 	Levels int `toml:"levels"`
 	// DynamicAccent derives the UI accent colour from the cover.
 	DynamicAccent bool `toml:"dynamic_accent"`
+	// Mode is how covers are drawn: "auto" (real images where the terminal
+	// supports Sixel or the kitty protocol, pixel blocks elsewhere),
+	// "sixel", "kitty" or "blocks".
+	Mode string `toml:"mode"`
+	// ImagePixels pixelates real images to this many pixels per side
+	// (0: full detail).
+	ImagePixels int `toml:"image_pixels"`
+	// Size caps the cover width in columns (0: as large as fits).
+	Size int `toml:"size"`
 	// CacheSizeMB caps the on-disk cover cache.
 	CacheSizeMB int `toml:"cache_size_mb"`
 }
@@ -142,6 +151,8 @@ func Default() Config {
 			Levels:        8,
 			DynamicAccent: true,
 			CacheSizeMB:   200,
+			Mode:          "auto",
+			ImagePixels:   64,
 		},
 		Visualizer: VisualizerConfig{
 			Enabled:  true,

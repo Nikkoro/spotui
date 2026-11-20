@@ -165,6 +165,7 @@ var helpSections = []struct {
 	}},
 	{"Look", [][2]string{
 		{"[ ]", "cover pixel size"},
+		{"c", "cover: real image / pixel blocks"},
 		{"{ }", "cover colours"},
 		{"v", "visualizer on/off"},
 		{"V", "visualizer style: bars · mirror · wave"},

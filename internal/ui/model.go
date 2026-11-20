@@ -19,6 +19,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/notify"
 	"github.com/Nikkoro/spotui/internal/platform"
+	"github.com/Nikkoro/spotui/internal/termimg"
 	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/internal/webapi"
 )
@@ -71,6 +72,16 @@ type Model struct {
 	repeatTrack bool
 	username    string
 	liked       map[string]bool
+
+	// real cover images (Sixel / kitty)
+	img            *termimg.Writer
+	caps           termimg.Caps
+	imageMode      bool
+	savedImageMode *bool
+	imgPixels      int
+	imgLevels      int // colour levels for real images; 0 keeps every colour
+	imgCache       map[string]*image.RGBA
+	frame          *imgFrame
 
 	themeName     string
 	dynamicAccent bool
@@ -208,6 +219,9 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		dj:            newDjPanel(),
 		pal:           newPalette(),
 		hits:          &hitMap{},
+		frame:         &imgFrame{},
+		imgCache:      map[string]*image.RGBA{},
+		imgPixels:     cfg.Cover.ImagePixels,
 		themeName:     cfg.Theme,
 		dynamicAccent: cfg.Cover.DynamicAccent,
 		vizOn:         cfg.Visualizer.Enabled && tap != nil,
@@ -362,6 +376,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		if m.img != nil {
+			m.img.Invalidate() // the renderer repaints everything
+		}
 		return m, nil
 
 	case spinner.TickMsg:
@@ -829,19 +846,51 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.inputting = true
 		m.input.SetValue("")
 		return m, m.input.Focus()
+	case "c":
+		if m.img == nil || m.img.Protocol() == termimg.Blocks {
+			m.setFlash("This terminal shows no images; covers stay pixel blocks", false)
+			return m, nil
+		}
+		m.imageMode = !m.imageMode
+		if m.imageMode {
+			m.setFlash("Cover: image ("+m.img.Protocol().String()+")", false)
+		} else {
+			m.setFlash("Cover: pixel blocks", false)
+		}
+		return m, tea.ClearScreen
 	case "]":
+		if m.imagesOn() {
+			m.imgPixels = nextImagePixels(m.imgPixels, +1)
+			m.setFlash("Cover: "+imagePixelsLabel(m.imgPixels), false)
+			return m, nil
+		}
 		m.pixSize = clamp(m.pixSize+pixelStep, minPixelSize, maxPixelSize)
 		m.repixelate()
 		m.setFlash(fmt.Sprintf("Cover resolution %d×%d", m.pixSize, m.pixSize), false)
 	case "[":
+		if m.imagesOn() {
+			m.imgPixels = nextImagePixels(m.imgPixels, -1)
+			m.setFlash("Cover: "+imagePixelsLabel(m.imgPixels), false)
+			return m, nil
+		}
 		m.pixSize = clamp(m.pixSize-pixelStep, minPixelSize, maxPixelSize)
 		m.repixelate()
 		m.setFlash(fmt.Sprintf("Cover resolution %d×%d", m.pixSize, m.pixSize), false)
 	case "}":
+		if m.imagesOn() {
+			m.imgLevels = nextLevels(m.imgLevels, +1)
+			m.setFlash("Cover colours: "+levelsLabel(m.imgLevels), false)
+			return m, nil
+		}
 		m.levels = nextLevels(m.levels, +1)
 		m.repixelate()
 		m.setFlash("Cover colours: "+levelsLabel(m.levels), false)
 	case "{":
+		if m.imagesOn() {
+			m.imgLevels = nextLevels(m.imgLevels, -1)
+			m.setFlash("Cover colours: "+levelsLabel(m.imgLevels), false)
+			return m, nil
+		}
 		m.levels = nextLevels(m.levels, -1)
 		m.repixelate()
 		m.setFlash("Cover colours: "+levelsLabel(m.levels), false)
