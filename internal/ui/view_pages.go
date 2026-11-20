@@ -181,6 +181,21 @@ func (m Model) viewContext(w, h int) string {
 	if cp.cover != nil {
 		art = cp.cover.Render()
 	}
+	// A real image where the terminal shows them: as tall as the details
+	// beside it.
+	if m.imagesOn() && cp.img != nil {
+		const rows = 6
+		cols := max(rows*max(m.caps.CellH, 1)/max(m.caps.CellW, 1), 4)
+		if img := m.imageOf(cp.imgURL, cp.img, cols, rows); img != nil {
+			lines := make([]string, rows)
+			blank := strings.Repeat(" ", cols)
+			for i := range lines {
+				lines[i] = blank
+			}
+			lines[0] = m.placeImage(img) + blank
+			art = strings.Join(lines, "\n")
+		}
+	}
 	textW := w - lipgloss.Width(art) - 3
 	title := m.theme.title.Render(ansi.Truncate(cp.title, max(textW-12, 10), "…"))
 

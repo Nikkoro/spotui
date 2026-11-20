@@ -10,7 +10,6 @@ import (
 	"github.com/devgianlu/go-librespot/daemon"
 
 	"github.com/Nikkoro/spotui/internal/cover"
-	"github.com/Nikkoro/spotui/internal/termimg"
 )
 
 // View renders the whole screen.
@@ -20,7 +19,7 @@ func (m Model) View() string {
 	}
 	w := m.width - 4 // app padding
 	if m.frame != nil {
-		m.frame.tmpl = nil
+		m.frame.imgs = m.frame.imgs[:0]
 	}
 
 	header := m.viewHeader(w)
@@ -68,7 +67,7 @@ func (m Model) View() string {
 
 	out := m.theme.app.Render(lipgloss.JoinVertical(lipgloss.Left, header, "", body, footer))
 	if m.img != nil && m.frame != nil {
-		out = m.img.Update(out, m.frame.tmpl)
+		out = m.img.Update(out, m.frame.imgs)
 	}
 	return out
 }
@@ -262,11 +261,8 @@ func (m Model) viewPlayerBarImage(w int) (string, bool) {
 	for i := range lines {
 		lines[i] = blank
 	}
-	lines[0] = termimg.Marker + blank
+	lines[0] = m.placeImage(img) + blank
 	art := strings.Join(lines, "\n")
-	if m.frame != nil {
-		m.frame.tmpl = img
-	}
 
 	infoW := max(w-cols-2, 20)
 	info := lipgloss.JoinVertical(lipgloss.Left,

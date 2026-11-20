@@ -42,9 +42,9 @@ func imageModel(t *testing.T) (Model, *os.File) {
 
 func TestNowPlayingDrawsSixelOnce(t *testing.T) {
 	m, f := imageModel(t)
-	frame := m.View()
-	if !strings.Contains(frame, termimg.Marker) {
-		t.Fatal("no image placeholder in Now Playing")
+	_ = m.View()
+	if len(m.frame.imgs) == 0 {
+		t.Fatal("no image placed on Now Playing")
 	}
 	_, _ = m.img.Write([]byte("F1"))
 	b, _ := os.ReadFile(f.Name())
@@ -76,7 +76,21 @@ func TestNowPlayingDrawsSixelOnce(t *testing.T) {
 func TestImageModeOffUsesBlocks(t *testing.T) {
 	m, _ := imageModel(t)
 	m.imageMode = false
-	if strings.Contains(m.View(), termimg.Marker) {
+	_ = m.View()
+	if len(m.frame.imgs) != 0 {
 		t.Fatal("blocks mode must not place an image")
+	}
+}
+
+func TestContextPageCoverIsAnImage(t *testing.T) {
+	m, _ := imageModel(t)
+	cover := image.NewRGBA(image.Rect(0, 0, 32, 32))
+	m.ctxPage = &contextPage{uri: "spotify:playlist:x", title: "A playlist", subtitle: "by someone", kind: "playlist",
+		img: cover, imgURL: "p"}
+	m.page = pageContext
+	_ = m.View()
+	// The page's cover and the playing track's in the bar below.
+	if len(m.frame.imgs) != 2 {
+		t.Fatalf("placed %d images, want 2", len(m.frame.imgs))
 	}
 }

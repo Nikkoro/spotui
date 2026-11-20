@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"strings"
 	"time"
 
@@ -91,6 +92,8 @@ const ctxCoverPx = 12
 type ctxCoverMsg struct {
 	uri string
 	pix *cover.Pixels
+	img image.Image
+	url string
 }
 
 type contextPage struct {
@@ -98,6 +101,8 @@ type contextPage struct {
 	title    string
 	subtitle string
 	cover    *cover.Pixels
+	img      image.Image // the cover itself, for terminals that show images
+	imgURL   string
 	// likedLoaded: the hearts for this page have been asked for.
 	likedLoaded bool
 	kind        string
@@ -387,7 +392,7 @@ func (m *Model) openContext(it listItem) tea.Cmd {
 			if err != nil {
 				return nil
 			}
-			return ctxCoverMsg{uri: uri, pix: cover.Pixelate(img, ctxCoverPx, 0)}
+			return ctxCoverMsg{uri: uri, pix: cover.Pixelate(img, ctxCoverPx, 0), img: img, url: url}
 		})
 	}
 	return tea.Batch(cmds...)
@@ -580,6 +585,7 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ctxCoverMsg:
 		if m.ctxPage != nil && m.ctxPage.uri == msg.uri {
 			m.ctxPage.cover = msg.pix
+			m.ctxPage.img, m.ctxPage.imgURL = msg.img, msg.url
 		}
 		return m, nil
 

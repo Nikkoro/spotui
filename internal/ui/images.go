@@ -14,7 +14,17 @@ import (
 // imgFrame carries the image a View wants shown; View fills it, then hands
 // it to the terminal writer with the finished frame.
 type imgFrame struct {
-	tmpl *termimg.Image
+	imgs []*termimg.Image
+}
+
+// placeImage registers img for this frame and returns the marker to put at
+// its top left cell.
+func (m Model) placeImage(img *termimg.Image) string {
+	if m.frame == nil {
+		return ""
+	}
+	m.frame.imgs = append(m.frame.imgs, img)
+	return termimg.MarkerFor(len(m.frame.imgs) - 1)
 }
 
 // WithImages lets the interface draw real cover images through w.
@@ -56,11 +66,16 @@ func imagePixelsLabel(n int) string {
 // coverImage renders the cover for cols×rows cells, pixelated to the chosen
 // grid and scaled up with hard edges so every pixel stays a crisp square.
 func (m Model) coverImage(cols, rows int) *termimg.Image {
-	if m.coverImg == nil {
+	return m.imageOf(m.coverURL, m.coverImg, cols, rows)
+}
+
+// imageOf is any cover (src, known as id) drawn like coverImage.
+func (m Model) imageOf(id string, src image.Image, cols, rows int) *termimg.Image {
+	if src == nil {
 		return nil
 	}
 	side := min(cols*m.caps.CellW, rows*m.caps.CellH)
-	key := fmt.Sprintf("%s|%d|%d|%d|%d", m.coverURL, m.imgPixels, m.imgLevels, cols, rows)
+	key := fmt.Sprintf("%s|%d|%d|%d|%d", id, m.imgPixels, m.imgLevels, cols, rows)
 	if pix, ok := m.imgCache[key]; ok {
 		return &termimg.Image{Key: key, Pix: pix, Cols: cols, Rows: rows}
 	}
@@ -69,7 +84,7 @@ func (m Model) coverImage(cols, rows int) *termimg.Image {
 	if grid <= 0 || grid > side {
 		grid = side
 	}
-	px := cover.Pixelate(m.coverImg, grid, m.imgLevels)
+	px := cover.Pixelate(src, grid, m.imgLevels)
 	out := image.NewRGBA(image.Rect(0, 0, side, side))
 	for y := 0; y < side; y++ {
 		sy := y * px.Size / side
@@ -129,11 +144,8 @@ func (m Model) viewNowPlayingImage(w int) (string, bool) {
 		for i := range lines {
 			lines[i] = blank
 		}
-		lines[0] = termimg.Marker + blank
+		lines[0] = m.placeImage(img) + blank
 		coverBlock = strings.Join(lines, "\n")
-		if m.frame != nil {
-			m.frame.tmpl = img
-		}
 	}
 
 	static := lipgloss.Place(staticW, rows, lipgloss.Left, lipgloss.Center, m.viewTrackStatic(staticW, false))

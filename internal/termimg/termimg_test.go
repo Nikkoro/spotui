@@ -56,8 +56,8 @@ func TestWriterRedrawsOnlyWhenNeeded(t *testing.T) {
 	img := &Image{Key: "a", Pix: gradient(20, 20), Cols: 2, Rows: 1}
 
 	frame := "header\n  " + Marker + "  info\nfooter"
-	w.Update(frame, img)
-	if w.want == nil || w.want.row != 1 || w.want.col != 2 {
+	w.Update(frame, []*Image{img})
+	if len(w.want) != 1 || w.want[0].row != 1 || w.want[0].col != 2 {
 		t.Fatalf("placement %+v, want row 1 col 2", w.want)
 	}
 
@@ -69,7 +69,7 @@ func TestWriterRedrawsOnlyWhenNeeded(t *testing.T) {
 	}
 
 	// Same rows again: nothing extra.
-	w.Update(frame, img)
+	w.Update(frame, []*Image{img})
 	_, _ = w.Write([]byte("frame2"))
 	if got := size() - afterFirst; got != int64(len("frame2")) {
 		t.Fatalf("redrew without a reason (%d extra bytes)", got-int64(len("frame2")))
@@ -78,7 +78,7 @@ func TestWriterRedrawsOnlyWhenNeeded(t *testing.T) {
 	// Text beside the image changes: the image's cells are skipped over,
 	// so it is not erased and needs no redraw.
 	before := size()
-	out := w.Update("header\n  "+Marker+"  INFO\nfooter", img)
+	out := w.Update("header\n  "+Marker+"  INFO\nfooter", []*Image{img})
 	_, _ = w.Write([]byte("frame3"))
 	if size()-before != int64(len("frame3")) {
 		t.Fatal("redrew although only text beside it changed")
@@ -89,18 +89,51 @@ func TestWriterRedrawsOnlyWhenNeeded(t *testing.T) {
 
 	// A change elsewhere does not touch it.
 	before = size()
-	w.Update("HEADER\n  "+Marker+"  INFO\nfooter", img)
+	w.Update("HEADER\n  "+Marker+"  INFO\nfooter", []*Image{img})
 	_, _ = w.Write([]byte("frame4"))
 	if size()-before != int64(len("frame4")) {
 		t.Fatal("redrew for a change on another row")
 	}
 
 	// Gone from the frame: nothing to draw.
-	w.Update("other page", img)
+	w.Update("other page", []*Image{img})
 	before = size()
 	_, _ = w.Write([]byte("frame5"))
 	if size()-before != int64(len("frame5")) {
 		t.Fatal("drew an image that is not on screen")
+	}
+}
+
+func TestWriterTwoImages(t *testing.T) {
+	f, _ := os.CreateTemp(t.TempDir(), "out")
+	w := NewWriter(f, Sixel)
+	a := &Image{Key: "a", Pix: gradient(20, 20), Cols: 2, Rows: 1}
+	b := &Image{Key: "b", Pix: gradient(20, 20), Cols: 3, Rows: 1}
+	frame := "  " + MarkerFor(0) + "  top\nmid\n " + MarkerFor(1) + "   bottom"
+	out := w.Update(frame, []*Image{a, b})
+	if len(w.want) != 2 {
+		t.Fatalf("placed %d images, want 2", len(w.want))
+	}
+	got := map[string][2]int{}
+	for _, p := range w.want {
+		got[p.Key] = [2]int{p.row, p.col}
+	}
+	if got["a"] != [2]int{0, 2} || got["b"] != [2]int{2, 1} {
+		t.Fatalf("placements %v", got)
+	}
+	if strings.Contains(out, Marker) {
+		t.Fatalf("markers left in the frame: %q", out)
+	}
+	size := func() int64 { st, _ := f.Stat(); return st.Size() }
+	_, _ = w.Write([]byte("f1"))
+	before := size()
+	// Only b moves: a is not sent again.
+	w.Update("  "+MarkerFor(0)+"  top\n "+MarkerFor(1)+"   bottom", []*Image{a, b})
+	_, _ = w.Write([]byte("f2"))
+	sent := size() - before - 2
+	one := int64(len(EncodeSixel(b.Pix)))
+	if sent < one || sent >= 2*one {
+		t.Fatalf("sent %d bytes, want b alone (~%d)", sent, one)
 	}
 }
 
@@ -115,7 +148,7 @@ func TestKittyTransmitsOnce(t *testing.T) {
 	f, _ := os.CreateTemp(t.TempDir(), "out")
 	w := NewWriter(f, Kitty)
 	img := &Image{Key: "a", Pix: gradient(8, 8), Cols: 2, Rows: 1}
-	w.Update(Marker, img)
+	w.Update(Marker, []*Image{img})
 	_, _ = w.Write(nil)
 	w.Invalidate()
 	_, _ = w.Write(nil)

@@ -32,7 +32,7 @@ func TestPreviewBarImage(t *testing.T) {
 	m.page = pageLyrics
 	out := m.View()
 	t.Logf("\n%s", out)
-	if m.frame.tmpl == nil {
+	if len(m.frame.imgs) == 0 {
 		t.Fatal("no image placed in the bar")
 	}
 }
