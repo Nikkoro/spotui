@@ -256,3 +256,10 @@ func (e *Engine) Pause(ctx context.Context) error {
 	_, err := e.request(ctx, daemon.ApiRequestTypePause, nil)
 	return err
 }
+
+// Debugf writes a debug line to the session log.
+func (e *Engine) Debugf(format string, args ...any) {
+	if e != nil && e.log != nil {
+		e.log.Debugf(format, args...)
+	}
+}

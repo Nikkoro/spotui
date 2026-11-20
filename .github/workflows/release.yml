@@ -2,10 +2,16 @@ name: release
 
 on:
   push:
+    # A v* tag, or a release/v* branch (the version is the part after
+    # "release/"; the tag is created by the release itself).
     tags: ["v*"]
+    branches: ["release/v*"]
 
 permissions:
   contents: write
+
+env:
+  VERSION: ${{ startsWith(github.ref, 'refs/heads/release/') && format('{0}', github.ref_name) || github.ref_name }}
 
 jobs:
   linux:
@@ -17,7 +23,7 @@ jobs:
         with:
           go-version-file: go.mod
       - run: sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update && sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y libasound2-dev libvorbis-dev libogg-dev libflac-dev libmpg123-dev
-      - run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o spotui ./cmd/spotui
+      - run: go build -trimpath -ldflags "-s -w -X main.version=${VERSION#release/}" -o spotui ./cmd/spotui
       - run: tar czf spotui-linux-amd64.tar.gz spotui README.md LICENSE
       - uses: actions/upload-artifact@v4
         with:
@@ -57,7 +63,7 @@ jobs:
           CGO_LDFLAGS: -static
           PKG_CONFIG_LIBDIR: ${{ github.workspace }}/vcpkg_installed/x64-mingw-static/lib/pkgconfig
           PKG_CONFIG_PATH: ${{ github.workspace }}/vcpkg_installed/x64-mingw-static/lib/pkgconfig
-        run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o spotui.exe ./cmd/spotui
+        run: go build -trimpath -ldflags "-s -w -X main.version=${VERSION#release/}" -o spotui.exe ./cmd/spotui
       - run: zip spotui-windows-amd64.zip spotui.exe README.md LICENSE
       - uses: actions/upload-artifact@v4
         with:
@@ -77,13 +83,15 @@ jobs:
         run: |
           # A release made by hand on GitHub (which creates the tag) gets
           # the binaries attached; otherwise one is created.
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber \
+          TAG="${VERSION#release/}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
               spotui-linux-amd64.tar.gz spotui-windows-amd64.zip
           else
-            gh release create "$GITHUB_REF_NAME" \
+            gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
-              --title "spotui $GITHUB_REF_NAME" \
+              --target "$GITHUB_SHA" \
+              --title "spotui $TAG" \
               --generate-notes \
               spotui-linux-amd64.tar.gz spotui-windows-amd64.zip
           fi

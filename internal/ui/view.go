@@ -7,8 +7,10 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/devgianlu/go-librespot/daemon"
 
 	"github.com/Nikkoro/spotui/internal/cover"
+	"github.com/Nikkoro/spotui/internal/termimg"
 )
 
 // View renders the whole screen.
@@ -55,7 +57,7 @@ func (m Model) View() string {
 			h := m.bodyHeight(header, footer, bar)
 			if m.hits != nil && m.hits.progressW > 0 {
 				// rule, title, album, then the progress line
-				m.hits.progressY = m.hits.bodyTop + h + 3
+				m.hits.progressY = m.hits.bodyTop + h + m.hits.barRow
 			}
 			body = lipgloss.NewStyle().Height(h).MaxHeight(h).Render(m.viewPage(w, h)) + "\n" + bar
 		}
@@ -192,6 +194,9 @@ func (m Model) viewFooter(w int) string {
 
 // viewPlayerBar is the compact player under list pages.
 func (m Model) viewPlayerBar(w int) string {
+	if bar, ok := m.viewPlayerBarImage(w); ok {
+		return bar
+	}
 	rule := lipgloss.NewStyle().Foreground(colTrack).Render(strings.Repeat("─", w))
 
 	art := ""
@@ -209,6 +214,67 @@ func (m Model) viewPlayerBar(w int) string {
 	}
 	t := m.track
 
+	line1 := ansi.Truncate(m.barTitle(t), infoW, "…")
+	album := ansi.Truncate(m.theme.album.Render(t.AlbumName), infoW, "…")
+	line2 := m.barProgress(infoW, lipgloss.Width(art))
+	line4 := m.modeBadges() + m.theme.dim.Render("   ") + m.volumeBar(min(infoW-24, 30))
+	if m.hits != nil {
+		m.hits.barRow = 3 // title, album, then the progress line
+	}
+
+	return rule + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, art,
+		lipgloss.JoinVertical(lipgloss.Left, line1, album, line2, line4)) + "\n"
+}
+
+// viewPlayerBarImage is the player bar with the real, pixelated cover. Only
+// lines that change with the track sit beside the image; the progress line,
+// which changes all the time, goes below it, so the image is drawn again
+// only when the track changes rather than on every tick.
+func (m Model) viewPlayerBarImage(w int) (string, bool) {
+	if !m.imagesOn() || m.track == nil {
+		return "", false
+	}
+	const rows = 4
+	cols := max((rows*max(m.caps.CellH, 1)+max(m.caps.CellW, 1)/2)/max(m.caps.CellW, 1), 4)
+	img := m.coverImage(cols, rows)
+	if img == nil {
+		return "", false
+	}
+	t := m.track
+	rule := lipgloss.NewStyle().Foreground(colTrack).Render(strings.Repeat("─", w))
+
+	lines := make([]string, rows)
+	blank := strings.Repeat(" ", cols)
+	for i := range lines {
+		lines[i] = blank
+	}
+	lines[0] = termimg.Marker + blank
+	art := strings.Join(lines, "\n")
+	if m.frame != nil {
+		m.frame.tmpl = img
+	}
+
+	infoW := max(w-cols-2, 20)
+	info := lipgloss.JoinVertical(lipgloss.Left,
+		ansi.Truncate(m.barTitleOnly(t), infoW, "…"),
+		ansi.Truncate(m.theme.artist.UnsetBold().Render(strings.Join(t.ArtistNames, ", ")), infoW, "…"),
+		ansi.Truncate(m.theme.album.Render(t.AlbumName), infoW, "…"),
+		m.modeBadges()+m.theme.dim.Render("   ")+m.volumeBar(min(infoW-24, 30)),
+	)
+	if m.hits != nil {
+		m.hits.barRow = rows + 1
+	}
+	return rule + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, art, "  ", info) + "\n" +
+		m.barProgress(w, 0), true
+}
+
+// barTitle is the track name, like and DJ marks, then the artists.
+func (m Model) barTitle(t *daemon.ApiTrack) string {
+	return m.barTitleOnly(t) + m.theme.dim.Render("  ") +
+		m.theme.artist.UnsetBold().Render(strings.Join(t.ArtistNames, ", "))
+}
+
+func (m Model) barTitleOnly(t *daemon.ApiTrack) string {
 	heart := ""
 	if m.liked[t.Uri] {
 		heart = m.theme.accentTxt.Render(" ♥")
@@ -217,24 +283,22 @@ func (m Model) viewPlayerBar(w int) string {
 	if m.playingDj() {
 		dj = m.theme.pill.Render("DJ") + " "
 	}
-	line1 := ansi.Truncate(dj+m.theme.title.Render(t.Name)+heart+m.theme.dim.Render("  ")+
-		m.theme.artist.UnsetBold().Render(strings.Join(t.ArtistNames, ", ")), infoW, "…")
+	return dj + m.theme.title.Render(t.Name) + heart
+}
 
+// barProgress is the state icon, progress bar and times, w wide, starting
+// left cells into the bar.
+func (m Model) barProgress(w, left int) string {
+	t := m.track
 	pos, dur := m.position(), int64(t.Duration)
 	times := fmtDuration(pos) + " / " + fmtDuration(dur)
 	icon := m.stateIcon()
-	barW := max(infoW-lipgloss.Width(icon)-len(times)-4, 5)
+	barW := max(w-lipgloss.Width(icon)-len(times)-4, 5)
 	if m.hits != nil {
-		m.hits.progressX = 2 + lipgloss.Width(art) + lipgloss.Width(icon) + 2
+		m.hits.progressX = 2 + left + lipgloss.Width(icon) + 2
 		m.hits.progressW = barW
 	}
-	line2 := icon + "  " + m.progressBar(barW, pos, dur) + "  " + m.theme.dim.Render(times)
-
-	album := ansi.Truncate(m.theme.album.Render(t.AlbumName), infoW, "…")
-	line4 := m.modeBadges() + m.theme.dim.Render("   ") + m.volumeBar(min(infoW-24, 30))
-
-	return rule + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, art,
-		lipgloss.JoinVertical(lipgloss.Left, line1, album, line2, line4)) + "\n"
+	return icon + "  " + m.progressBar(barW, pos, dur) + "  " + m.theme.dim.Render(times)
 }
 
 func (m Model) stateIcon() string {
