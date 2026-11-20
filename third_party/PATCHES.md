@@ -37,6 +37,11 @@ Local changes:
    DJ with 404), and its next page is taken as a fresh set, as Spotify's
    clients and librespot#1797 do. Only `hm://lexicon-session-provider/` urls
    are followed.
+7. PulseAudio buffer (`output/driver-pulseaudio.go`): the stream asks for
+   a latency (`PULSE_LATENCY_MSEC` if set, as libpulse reads it, else
+   200 ms). Without one the server chose its default, seconds long under
+   WSLg, so audio was read in huge chunks long before it was heard, which
+   made the visualizer lag and stutter.
 6. Client identity (`version.go`, one line in `spclient/spclient.go`):
    without a release version stamped in, go-librespot asked for its client
    token as version `0.0.0` and sent spclient requests with Go's default
