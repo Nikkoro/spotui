@@ -562,7 +562,8 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cp.likedLoaded = true
 			uris := make([]string, 0, len(items))
 			for _, it := range items {
-				if strings.HasPrefix(it.uri, "spotify:track:") {
+				// Only ask about tracks whose heart we do not know yet.
+				if _, known := m.liked[it.uri]; !known && strings.HasPrefix(it.uri, "spotify:track:") {
 					uris = append(uris, it.uri)
 				}
 			}
