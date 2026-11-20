@@ -399,6 +399,10 @@ func (m Model) npLyricLines(w int) string {
 		now = "♪"
 	}
 	curLine := m.theme.accentTxt.Render("› ") + m.theme.title.Bold(true).Render(ansi.Truncate(now, w-4, "…"))
+	if cur >= 0 {
+		// Fills in as it is sung, as on the lyrics page.
+		curLine = m.karaokeLine(ansi.Truncate(now, w-4, "…"), cur)
+	}
 	next := m.theme.text.Render(ansi.Truncate(get(cur+1), w-2, "…"))
 	return lipgloss.JoinVertical(lipgloss.Left, "  "+prev, curLine, "  "+next)
 }
