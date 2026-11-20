@@ -147,7 +147,7 @@ func TestShaderBassFollowsTheBass(t *testing.T) {
 	dt := 1.0 / 30
 	feed := func(hz, amp float64, frames int) {
 		for i := 0; i < frames; i++ {
-			s.feed(tone(hz, amp, 2048), tone(hz, amp, 1470), viz.Beat{}, dt)
+			s.feed(tone(hz, amp, 2048), tone(hz, amp, 1470), viz.Beat{}, viz.Beat{}, viz.Tempo{}, false, dt)
 		}
 	}
 	feed(60, 0.8, 30)
@@ -206,7 +206,7 @@ func TestShaderEnergyRisesInALouderPart(t *testing.T) {
 	dt := 1.0 / 30
 	feed := func(amp float64, seconds float64) {
 		for i := 0; i < int(seconds*30); i++ {
-			s.feed(tone(220, amp, 2048), tone(220, amp, 1470), viz.Beat{}, dt)
+			s.feed(tone(220, amp, 2048), tone(220, amp, 1470), viz.Beat{}, viz.Beat{}, viz.Tempo{}, false, dt)
 		}
 	}
 	feed(0.3, 20) // a verse

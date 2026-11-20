@@ -30,7 +30,9 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   call is a request on a channel.
 - `internal/ui`: the interface. `model.go` (state, keys, events), `view.go`,
   `view_pages.go`, `nowplaying.go` (layouts split/panels/compact/classic),
-  `lyrics.go`, `fx.go` (beat effects: subtle/party/nightcore), `fun.go`
+  `lyrics.go`, `fx.go` (beat effects: subtle/party/nightcore), `beats.go`
+  (the beats every effect follows: tempo grid, plain detector before it),
+  `fun.go`
   (progress bar styles, splash, heart, copy link), `settings.go` (the `,`
   page; each setting writes its own line of config.toml), `images.go`
   (Sixel/kitty covers), `palette.go` (ctrl+k).

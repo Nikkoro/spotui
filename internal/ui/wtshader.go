@@ -111,9 +111,7 @@ type shaderFx struct {
 	lp, bassRef, levelRef float64 // low-pass state and the recent peaks
 	slowPow, longPow      float64 // loudness over ~2 s and ~20 s, for energy
 
-	tempo    *viz.TempoTracker
-	tempoNow viz.Tempo // its last verdict
-	onGrid   bool      // its grid is in use
+	tempoNow viz.Tempo // the tempo tracker's last verdict
 	pos      time.Duration
 	dump     *os.File // SPOTUI_TEMPO_DUMP, for tuning the tempo tracker
 
@@ -154,21 +152,11 @@ func (s *shaderFx) step(dt float64) {
 	s.frames++
 }
 
-// The tempo tracker's grid of beats is used instead of the plain beat
-// detector's once it is this sure, and until it drops under the second:
-// a song whose sureness wavers around one threshold would flip between
-// the two, and the plain detector's tempo is often far off.
-const (
-	shaderGridOn  = 0.15
-	shaderGridOff = 0.08
-)
-
-// feed updates the levels from the analysed window, its newest samples
-// and the beat detector's verdict on them. Beats, tempo and snares come
-// from the tempo tracker, which keeps the beat under a busy mix; the
-// plain detector fills in until the tracker is sure, and still finds the
-// drops.
-func (s *shaderFx) feed(window, newest []float32, b viz.Beat, dt float64) {
+// feed updates the levels from the analysed window and its newest
+// samples. b is the plain beat detector's verdict, beat the beat the
+// effects follow and t the tempo tracker's (see beatSource): the grid's
+// tempo is used while onGrid, the snares are always the tracker's.
+func (s *shaderFx) feed(window, newest []float32, b, beat viz.Beat, t viz.Tempo, onGrid bool, dt float64) {
 	// Loudness, and the bass on its own through a one-pole low-pass.
 	alpha := 1 - math.Exp(-2*math.Pi*shaderBassHz/viz.SampleRate)
 	var e, eLow float64
@@ -200,34 +188,13 @@ func (s *shaderFx) feed(window, newest []float32, b viz.Beat, dt float64) {
 		s.energy = math.Max(0, math.Min(1, 0.5+db/6))
 	}
 
-	if s.tempo == nil {
-		s.tempo = viz.NewTempoTracker()
-	}
-	t := s.tempo.Feed(newest, dt)
 	s.tempoNow = t
 	s.dumpFrame(t, dt)
-	switch {
-	case t.BPM > 0 && t.Confidence >= shaderGridOn:
-		s.onGrid = true
-	case t.BPM == 0 || t.Confidence < shaderGridOff:
-		s.onGrid = false
-	}
-	beat := b
-	if s.onGrid {
-		// The grid's beat, its strength put on the detector's scale
-		// (1.45 just a beat … about 3 a hard one); drops still come from
-		// the detector.
-		beat = viz.Beat{Hit: t.Hit, Drop: b.Drop}
-		if t.Hit {
-			beat.Strength = 1.45 + 1.5*math.Max(0, math.Min(1, (t.Strength-2)/4))
-		}
-		if b.Drop && !t.Hit {
-			beat.Hit, beat.Strength = true, 3
-		}
+	if onGrid {
 		s.beatSec = 60 / t.BPM
 	}
 	if beat.Hit {
-		s.beat(beat, s.onGrid)
+		s.beat(beat, onGrid)
 	}
 	if t.Snare {
 		s.snare = 1

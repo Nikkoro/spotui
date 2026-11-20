@@ -59,9 +59,9 @@ type sparkle struct {
 }
 
 type lyricFx struct {
-	beats  *viz.BeatDetector
-	pulse  float64 // 1 on a beat, fading to 0
-	shake  int     // frames of shaking left
+	beats  beatSource // what every effect follows (beats.go)
+	pulse  float64    // 1 on a beat, fading to 0
+	shake  int        // frames of shaking left
 	sparks []sparkle
 
 	// nightcore
@@ -168,19 +168,19 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 	if samples == nil || !(m.fxActive() || shader) {
 		return
 	}
-	if f.beats == nil {
-		f.beats = viz.NewBeatDetector()
-	}
 	n := clamp(int(dt*viz.SampleRate), 1, len(samples))
-	b := f.beats.Feed(samples[len(samples)-n:], dt*1000)
+	raw, b, t := f.beats.feed(samples[len(samples)-n:], dt)
 	if shader {
-		f.shader.feed(samples, samples[len(samples)-n:], b, dt)
+		f.shader.feed(samples, samples[len(samples)-n:], raw, b, t, f.beats.onGrid, dt)
+	}
+	if f.beats.onGrid {
+		f.beatMs = 60000 / t.BPM
 	}
 	if !b.Hit || !m.fxActive() {
 		return
 	}
 	f.pulse = math.Max(f.pulse, math.Min(1, 0.55+(b.Strength-1)/3))
-	if since := f.sinceBeat; since > 250 && since < 1500 {
+	if since := f.sinceBeat; !f.beats.onGrid && since > 250 && since < 1500 {
 		if f.beatMs == 0 {
 			f.beatMs = since
 		} else {
