@@ -104,6 +104,11 @@ func (c *Spclient) innerRequestWith(ctx context.Context, client *http.Client, me
 		req.Header.Set("Client-Token", c.clientToken)
 	}
 
+	// spotui patch: name ourselves like the desktop client, as librespot does.
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", librespot.SpotifyUserAgent())
+	}
+
 	if body != nil {
 		// Most endpoints take plain protobuf, some (the collection service)
 		// a vendor type of their own, which the caller then sets.

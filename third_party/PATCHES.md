@@ -37,6 +37,12 @@ Local changes:
    DJ with 404), and its next page is taken as a fresh set, as Spotify's
    clients and librespot#1797 do. Only `hm://lexicon-session-provider/` urls
    are followed.
+6. Client identity (`version.go`, one line in `spclient/spclient.go`):
+   without a release version stamped in, go-librespot asked for its client
+   token as version `0.0.0` and sent spclient requests with Go's default
+   User-Agent. Spotify gates features on the client version (DJ's context
+   answered 404), so it now presents the desktop version librespot uses and a
+   `Spotify/<code> <platform>/0` User-Agent.
 
 The patches have small tests (`spclient/dj_test.go`, `spclient/dj_context_test.go`,
 `daemon/dj_spotui_test.go`). Our CI does not run this module's tests; to run

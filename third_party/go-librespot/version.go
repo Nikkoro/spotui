@@ -42,7 +42,26 @@ func SpotifyLikeClientVersion() string {
 		}
 	}
 
-	return "0.0.0"
+	// spotui patch: without a release version, introduce ourselves as the
+	// desktop client librespot does. Spotify gates features such as DJ on
+	// the client version, and answers "0.0.0" with 404 for them.
+	return SpotifySemanticVersion
+}
+
+// SpotifySemanticVersion is a desktop client version Spotify serves every
+// feature to (the one librespot uses).
+const SpotifySemanticVersion = "1.2.52.442"
+
+// SpotifyUserAgent is how Spotify's desktop client names itself to spclient.
+func SpotifyUserAgent() string {
+	platform := "Linux"
+	switch runtime.GOOS {
+	case "windows":
+		platform = "Win32"
+	case "darwin":
+		platform = "OSX"
+	}
+	return fmt.Sprintf("Spotify/%d %s/0 (%s)", SpotifyVersionCode, platform, VersionString())
 }
 
 func VersionString() string {
