@@ -3,7 +3,10 @@ package output
 import (
 	"fmt"
 	"io"
+	"os"
+	"strconv"
 	"sync"
+	"time"
 
 	librespot "github.com/devgianlu/go-librespot"
 	"github.com/jfreymuth/pulse"
@@ -79,6 +82,11 @@ func newPulseAudioOutput(opts *NewOutputOptions) (*pulseAudioOutput, error) {
 
 		lplaybackopts = append(lplaybackopts, pulse.PlaybackSink(lsink))
 	}
+
+	// spotui patch, see third_party/PATCHES.md: ask for a buffer of our own.
+	// Without one the server picks its default, seconds long under WSLg:
+	// audio was read in huge chunks long before it was heard.
+	lplaybackopts = append(lplaybackopts, pulse.PlaybackLatency(pulseLatency().Seconds()))
 
 	out.stream, err = out.client.NewPlayback(pulse.Float32Reader(out.float32Reader), lplaybackopts...)
 	if err != nil {
@@ -210,4 +218,14 @@ func (out *pulseAudioOutput) Close() error {
 	out.stream.Close()
 	out.client.Close()
 	return nil
+}
+
+// pulseLatency is PULSE_LATENCY_MSEC, as libpulse reads it, or 200 ms: low
+// enough for controls and the visualizer to follow, high enough that WSLg
+// does not crackle.
+func pulseLatency() time.Duration {
+	if v, err := strconv.Atoi(os.Getenv("PULSE_LATENCY_MSEC")); err == nil && v > 0 {
+		return time.Duration(min(max(v, 20), 2000)) * time.Millisecond
+	}
+	return 200 * time.Millisecond
 }
