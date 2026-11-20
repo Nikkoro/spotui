@@ -177,6 +177,9 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 	raw, b, t := f.beats.feed(samples[len(samples)-n:], dt)
 	if shader {
 		f.shader.feed(samples, samples[len(samples)-n:], raw, b, t, f.beats.onGrid, dt)
+		if m.shaderIsAuto() && m.track != nil {
+			f.shader.stepAuto(dt, b.Hit, raw.Drop, m.track.Uri, m.eng)
+		}
 	}
 	if f.beats.onGrid {
 		f.beatMs = 60000 / t.BPM

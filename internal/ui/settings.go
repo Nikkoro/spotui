@@ -319,9 +319,14 @@ func (m Model) settings() []setting {
 			}},
 		{group: "Lyrics", label: "Shader effect", kind: setChoice, section: "lyrics", key: "wt_shader_style",
 			options: shaderChoices,
-			help:    "What the Windows Terminal shader draws: plasma (soft waves in the cover's colours), tunnel (a flight down a tunnel, faster with the bass, its walls lit by the spectrum), warp (stars streaking past, hyperspace on drops) or aurora (curtains of light swaying across the sky, a glow sweeping along them each beat). Switches at once, no reload. wt_shader_style = \"debug\" in config.toml shows how evenly frames arrive.",
-			value:   func(m Model) string { return shaderStyles[m.shaderStyle()] },
-			set:     func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.WTShaderStyle = v; return v, nil }},
+			help:    "What the Windows Terminal shader draws: plasma (soft waves in the cover's colours), tunnel (a flight down a tunnel, faster with the bass, its walls lit by the spectrum), warp (stars streaking past, hyperspace on drops) or aurora (curtains of light swaying across the sky, a glow sweeping along them each beat), or auto, which moves between them with the music: calm parts lean to the aurora, loud and fast ones to the tunnel and warp, a change fading in at a drop, a louder part, a new track or every 32 bars. Switches at once, no reload. wt_shader_style = \"debug\" in config.toml shows how evenly frames arrive.",
+			value: func(m Model) string {
+				if m.shaderIsAuto() {
+					return shaderAuto
+				}
+				return shaderStyles[m.shaderStyle()]
+			},
+			set: func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.WTShaderStyle = v; return v, nil }},
 		{group: "Lyrics", label: "Shader motion", kind: setBool, section: "lyrics", key: "wt_shader_motion",
 			help:  "The shader's view moves with the music, the way MilkDrop does: it zooms in with the bass, turns with the treble and ripples with the vocals and melody, each effect as suits it (the tunnel turns without zooming, the aurora only ripples).",
 			value: func(m Model) string { return boolStr(m.cfg.Lyrics.WTShaderMotion) },

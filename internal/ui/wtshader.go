@@ -48,7 +48,9 @@ import (
 //	cell 13   R how much the camera moves with them (wt_shader_motion),
 //	          G B its turn (16 bits, 0…1 a whole turn), added up here: a
 //	          slow spin that the treble speeds up
-//	cell 14   signature again, so the shader knows where the strip ends
+//	cell 14   R the style faded from (auto), G how far the fade has got,
+//	          0 showing that one … 255 showing the style in cell 4
+//	cell 15   signature again, so the shader knows where the strip ends
 //
 // The shader keeps no state between frames, so anything that should move
 // at a speed the music sets (travel) is added up here and sent as a
@@ -56,21 +58,26 @@ import (
 // shader, smooth at the terminal's frame rate rather than spotui's 30.
 const (
 	shaderBands = 12
-	shaderCells = 11 + shaderBands/3
+	shaderCells = 12 + shaderBands/3
 )
 
 var shaderSig = [3]int{13, 37, 241}
 
 // shaderStyles are the effects in shaders/spotui.hlsl, by index. The last,
 // "debug", is for checking how evenly frames arrive and is left out of
-// the Settings page (shaderChoices).
+// the Settings page.
 var shaderStyles = []string{"plasma", "tunnel", "warp", "aurora", "debug"}
 
-var shaderChoices = shaderStyles[:len(shaderStyles)-1]
+// shaderChoices are what Settings offers: the effects, and auto, which
+// moves between them by itself (shaderauto.go).
+var shaderChoices = append(append([]string{}, shaderStyles[:len(shaderStyles)-1]...), shaderAuto)
 
 const shaderDebug = "debug"
 
 func validShaderStyle(s string) bool {
+	if s == shaderAuto {
+		return true
+	}
 	for _, x := range shaderStyles {
 		if x == s {
 			return true
@@ -79,8 +86,12 @@ func validShaderStyle(s string) bool {
 	return false
 }
 
-// shaderStyle is the index of the style in use.
+// shaderStyle is the index of the style showing: the one set, or with
+// auto, the one auto shows.
 func (m Model) shaderStyle() int {
+	if m.shaderIsAuto() {
+		return m.fx.shader.auto.cur
+	}
 	if m.cfg != nil {
 		for i, x := range shaderStyles {
 			if x == m.cfg.Lyrics.WTShaderStyle {
@@ -89,6 +100,11 @@ func (m Model) shaderStyle() int {
 		}
 	}
 	return 0
+}
+
+// shaderIsAuto reports whether auto picks the effect.
+func (m Model) shaderIsAuto() bool {
+	return m.cfg != nil && m.cfg.Lyrics.WTShaderStyle == shaderAuto
 }
 
 // shaderActive reports whether the shader cells are drawn: wherever the
@@ -131,6 +147,8 @@ type shaderFx struct {
 	band3, att [3]float64
 	avg3       [3]float64
 	spin       float64 // the camera's turn, 0…1 wrapping
+
+	auto shaderAutoState // when the effect is "auto" (shaderauto.go)
 
 	// the first plasma's values (cell 10)
 	ck, cb, cl float64
@@ -358,6 +376,10 @@ func (m Model) shaderStrip() string {
 	}
 	spin := clamp(int(s.spin*65536), 0, 65535)
 	cells[13] = [3]int{motion, spin >> 8, spin & 0xff}
+	cells[14] = [3]int{m.shaderStyle(), 255, 0}
+	if m.shaderIsAuto() {
+		cells[14] = [3]int{s.auto.prev, byte8(s.auto.blend), 0}
+	}
 	for i := 0; i < shaderBands; i++ {
 		if i < len(s.bands) {
 			cells[5+i/3][i%3] = byte8(s.bands[i])

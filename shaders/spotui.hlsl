@@ -2,7 +2,7 @@
 // lyrics, moving to the music. Write it out with `spotui shader`.
 //
 // A pixel shader only sees the rendered window, so spotui sends the music
-// as colour: with `wt_shader = true` under [lyrics] it paints fifteen cells
+// as colour: with `wt_shader = true` under [lyrics] it paints sixteen cells
 // at the start of its top row (see internal/ui/wtshader.go):
 //
 //   cell 0     signature (13, 37, 241)
@@ -27,7 +27,9 @@
 //   cell 13    R how much the camera moves with them (wt_shader_motion),
 //              G B its turn (16 bits, 0…1 a whole turn): a slow spin
 //              that the treble speeds up
-//   cell 14    signature again
+//   cell 14    R the style faded from (auto), G how far the fade has got
+//              (0 showing that one … 255 showing the style in cell 4)
+//   cell 15    signature again
 //
 // This shader finds them, reads them, hides them, and adds the effect
 // wherever the window shows its background, kept dim so the text on top
@@ -52,7 +54,7 @@ cbuffer PixelShaderSettings
 };
 
 static const float3 SIG = float3(13.0, 37.0, 241.0) / 255.0;
-static const int STRIP_CELLS = 15;
+static const int STRIP_CELLS = 16;
 static const int BANDS = 12;
 static const int SEARCH = 64; // pixels searched for the strip from the corner
 
@@ -123,6 +125,8 @@ struct Music
     float bass3, mid3, treb3, bassAtt, midAtt, trebAtt;
     float motion; // how much the camera moves with them, 0…1
     float spin;   // its turn, 0…1 a whole circle
+    int prevStyle; // the style faded from (auto)…
+    float blend;   // …and how far: 0 that one, 1 style
     float3 accent;
     int style;
     float bands[BANDS];
@@ -158,6 +162,9 @@ Music readMusic(int2 origin, int2 cell)
     float3 d13 = round(cellColour(origin, cell, 13) * 255.0);
     m.motion = d13.r / 255.0;
     m.spin = (d13.g * 256.0 + d13.b) / 65536.0;
+    float3 d14 = round(cellColour(origin, cell, 14) * 255.0);
+    m.prevStyle = int(d14.r);
+    m.blend = d14.g / 255.0;
     float3 d10 = cellColour(origin, cell, 10);
     m.ck = d10.r;
     m.cb = d10.g;
@@ -430,6 +437,20 @@ float3 debugView(float2 tex, Music m)
     return c * 0.6;
 }
 
+// effect draws the given style.
+float3 effect(int style, float2 tex, Music m)
+{
+    if (style == 4)
+        return debugView(tex, m);
+    if (style == 3)
+        return aurora(tex, m);
+    if (style == 2)
+        return warp(tex, m);
+    if (style == 1)
+        return tunnel(tex, m);
+    return plasma(tex, m);
+}
+
 // Windows Terminal hands the shader a premultiplied texture: where only
 // the background shows, pixels are transparent black, and the background
 // colour (and acrylic) goes underneath afterwards. Some setups draw the
@@ -462,17 +483,10 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
         return colour;
 
     Music m = readMusic(origin, cell);
-    float3 fx;
-    if (m.style == 4)
-        fx = debugView(tex, m);
-    else if (m.style == 3)
-        fx = aurora(tex, m);
-    else if (m.style == 2)
-        fx = warp(tex, m);
-    else if (m.style == 1)
-        fx = tunnel(tex, m);
-    else
-        fx = plasma(tex, m);
+    float3 fx = effect(m.style, tex, m);
+    // auto fading from one effect to the next: both, mixed.
+    if (m.blend < 1.0 && m.prevStyle != m.style)
+        fx = lerp(effect(m.prevStyle, tex, m), fx, smoothstep(0.0, 1.0, m.blend));
 
     // Premultiplied: adding colour with the alpha left alone lays the
     // effect over whatever is drawn underneath, background or acrylic.
