@@ -51,6 +51,7 @@ func (m *Model) stepVisualizer(now time.Time) tea.Cmd {
 		next = shaderFrameInterval
 		m.frames.tick(now, m.eng)
 		m.fx.shader.step(dt)
+		m.fx.shader.logValues(dt, m.lyricsPos(), m.eng)
 		m.vizAcc += dt
 		if m.vizAcc < vizFrameInterval.Seconds()*0.9 {
 			return vizTick(next)

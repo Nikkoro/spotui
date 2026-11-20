@@ -51,7 +51,10 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   how that followed the music, so keep it. New effects follow the same
   rule: their core reacts at once to those jumpy values (ck, cb, cl), and
   tempo, the first of four beats, snares and energy are extras on top;
-  effects built only on the smooth, "smarter" values felt bland. Give
+  effects built only on the smooth, "smarter" values felt bland. Slow
+  effects (aurora) are the exception for shape: there the jumpy values
+  only set brightness and the shape follows smooth ones (bass, level,
+  bands), or it looks nervous. Give
   every effect a soft ceiling on brightness (warp: fx / (1 + 1.5 fx)). The `debug` style (config only)
   and the "shader frames" debug log line show where judder comes from.
   WT hands the shader a premultiplied texture where the
@@ -61,7 +64,18 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   branch in `main`, a name in `shaderStyles`, the style list in the HLSL
   header.
 - `internal/viz`: audio tap, FFT analyzer, renderers, `beat.go` (beat and
-  drop detection).
+  drop detection: a bass threshold, which misses kicks under a steady bass
+  line), `tempo.go` (tempo tracking: onset envelope, autocorrelation, a
+  beat grid locked to it, snares from the highs; the shader uses it).
+  Tune against a real track: `spotui --debug`, then
+  `grep "shader values" spotui.log` (one line a second with the position).
+  To tune the tracker offline, record a track's frames with
+  `SPOTUI_TEMPO_DUMP=track.csv spotui` (log energies only, no audio) and
+  replay them: `SPOTUI_TEMPO_RECORDING=track.csv SPOTUI_TEMPO_EXPECT=148
+  go test -run OnRecording -v ./internal/viz`.
+  The audio tap must hand out a playhead that moves on smoothly: under
+  WSLg the output reads 70-100 ms at a time, and a playhead that jumped by
+  reads put every kick on a read's edge (see `playheadLocked`).
 - `internal/termimg`: Sixel/kitty encoding and the writer that places
   images; image cells are skipped with cursor moves so text beside them
   never erases them.

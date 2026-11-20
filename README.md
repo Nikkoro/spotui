@@ -167,7 +167,7 @@ now_playing_line = true   # show the current line on Now Playing (classic layout
 effects = "subtle"        # off | subtle (flash on the beat) | party (sparkles, shake on drops)
                           # | nightcore (party, plus letter waves and flowing colours)
 wt_shader = false         # feed the beat to the Windows Terminal shader (spotui shader)
-wt_shader_style = "plasma" # its effect: plasma | tunnel | warp
+wt_shader_style = "plasma" # its effect: plasma | tunnel | warp | aurora
 
 [now_playing]
 layout = "auto"           # auto | split | panels | compact | classic  (L switches)
@@ -200,6 +200,10 @@ several effects, switched in Settings (`,` → Shader effect) with no reload:
 - **warp**: stars flying at you that stretch into streaks on the kick and
   the bass, a nebula in the middle that flashes on the beat, and
   hyperspace on drops
+- **aurora**: curtains of light swaying across the upper sky; the kick
+  lights them up, the bass swings them wider, a soft glow sweeps along
+  them once a beat in the track's tempo and they swell before the next,
+  the highs make their edges ripple
 
 A shader only sees the window, so spotui sends it the music through a row
 of coloured cells in the top-left corner, which the shader reads and

@@ -168,11 +168,11 @@ func TestShaderBassFollowsTheBass(t *testing.T) {
 	}
 }
 
-func TestShaderTempoAccentsAndSnare(t *testing.T) {
+func TestShaderTempoAndAccents(t *testing.T) {
 	var s shaderFx
 	dt := 1.0 / 60
 	beat := func(strength float64) {
-		s.beat(viz.Beat{Hit: true, Strength: strength})
+		s.beat(viz.Beat{Hit: true, Strength: strength}, false)
 	}
 	// Four beats half a second apart: the tempo is learnt, the first of
 	// four is the hardest, and the phase runs 0 to 1 over a beat.
@@ -199,23 +199,20 @@ func TestShaderTempoAccentsAndSnare(t *testing.T) {
 	if s.phase() != 0 || s.hit < 0.95 {
 		t.Fatalf("hard first beat: phase %.2f hit %.2f", s.phase(), s.hit)
 	}
+}
 
-	// A sudden rise in the high bands is a snare; a steady level is not.
-	s.bands = make([]float64, shaderBands)
-	s.snareOnset(1.0 / 30)
-	for i := shaderBands / 2; i < shaderBands; i++ {
-		s.bands[i] = 0.8
+func TestShaderEnergyRisesInALouderPart(t *testing.T) {
+	var s shaderFx
+	dt := 1.0 / 30
+	feed := func(amp float64, seconds float64) {
+		for i := 0; i < int(seconds*30); i++ {
+			s.feed(tone(220, amp, 2048), tone(220, amp, 1470), viz.Beat{}, dt)
+		}
 	}
-	s.snareOnset(1.0 / 30)
-	if s.snare != 1 {
-		t.Fatal("no snare on a jump in the highs")
-	}
-	s.snare = 0
-	for j := 0; j < 10; j++ {
-		s.step(1.0 / 30)
-		s.snareOnset(1.0 / 30)
-	}
-	if s.snare != 0 {
-		t.Fatal("snare on steady highs")
+	feed(0.3, 20) // a verse
+	verse := s.energy
+	feed(0.42, 3) // a chorus, 3 dB louder: mastered music is not more
+	if s.energy-verse < 0.3 {
+		t.Fatalf("energy %.2f in the verse, %.2f in the chorus", verse, s.energy)
 	}
 }

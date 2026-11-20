@@ -69,14 +69,24 @@ func (t *Tap) write(interleaved []float32) {
 	t.lastAt = t.now()
 }
 
-// playheadLocked estimates the newest sample being played: the end of what
-// was read, or for a big read, how far into it real time has got.
+// playheadLocked estimates the newest sample being played. For a big read,
+// how far into it real time has got. Smaller reads come about as fast as
+// they are played, the device's buffer staying about as full, so what is
+// heard moves on in real time between them: the playhead carries on from
+// the end of the read for up to one more read's worth, instead of
+// standing still and jumping at each read. (It did, under WSLg's
+// PulseAudio, reading 70-100 ms at a time: every kick landed on a read's
+// edge, and the tempo tracker found rhythms that were not in the music.)
+// Snapshot keeps the window inside what has been read.
 func (t *Tap) playheadLocked() int64 {
-	if t.lastChunk < bigChunk || t.lastAt.IsZero() {
+	if t.lastAt.IsZero() {
 		return t.total
 	}
 	elapsed := int64(t.now().Sub(t.lastAt).Seconds() * SampleRate)
-	return min(t.total, t.total-t.lastChunk+elapsed)
+	if t.lastChunk >= bigChunk {
+		return min(t.total, t.total-t.lastChunk+elapsed)
+	}
+	return t.total + min(elapsed, t.lastChunk)
 }
 
 // Active reports whether the output is still pulling audio: a read within
@@ -99,7 +109,7 @@ func (t *Tap) Snapshot(dst []float32, delay int) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	n := int64(len(dst))
-	end := t.playheadLocked() - int64(delay)
+	end := min(t.playheadLocked()-int64(delay), t.total)
 	start := end - n
 	if start < 0 || t.total-start > int64(len(t.ring)) {
 		return false

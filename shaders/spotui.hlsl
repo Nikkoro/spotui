@@ -12,7 +12,7 @@
 //   cell 3     R colour phase in the track's tempo, G drop (1 for half a
 //              second; debug style: the frame count), B energy (this part
 //              of the track against the last half minute)
-//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 debug), G B travel (16 bits, 0…1):
+//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 aurora, 4 debug), G B travel (16 bits, 0…1):
 //              the distance the music has pushed the effect, on top of
 //              its own steady pace (debug style: spotui's clock)
 //   cell 5…8   the spectrum, 12 bands low to high, three a cell
@@ -186,12 +186,15 @@ float3 plasma(float2 tex, Music m)
     return c * (strength * (0.6 + 0.4 * v) + ring * 0.18);
 }
 
-// tunnel: a flight down a tunnel of tiles at a steady pace, timed here so
-// it is smooth at the terminal's frame rate, plus the push of the music,
-// which spotui adds up (travel, from the bass and drops); the floor is lit by
+// tunnel: a flight down a tunnel of tiles: a slow steady drift timed here,
+// smooth at the terminal's frame rate, plus what spotui adds up (travel):
+// a pace in the track's tempo and the push of the bass, beats and drops;
+// the floor is lit by
 // the low bands and the ceiling by the high ones; each beat lights up the
-// rings flying past, punches the view forward and sends a bright ring
-// away that reaches the far end by the next beat. Snares twist it and
+// rings flying past, lunges the flight forward and sends a bright ring
+// from the far end that reaches you by the next beat. Everything moves
+// the way you fly, never back: a ring sent away, or the view pulled back
+// on the beat, read as the tunnel jumping backwards. Snares twist it and
 // make the tiles sparkle.
 float3 tunnel(float2 tex, Music m)
 {
@@ -200,10 +203,10 @@ float3 tunnel(float2 tex, Music m)
     // The far end drifts a little, so the flight curves.
     q -= 0.06 * float2(sin(Time * 0.37), cos(Time * 0.29));
     float r = max(length(q), 1e-3);
-    float depth = 0.3 / r * (1.0 - 0.15 * m.pulse - 0.08 * m.bass + 0.04 * m.swell); // further down towards the middle
+    float depth = 0.3 / r; // further down the tunnel towards the middle
     // Rings repeat a whole number of times per unit of travel, so the
     // wrap of travel from 1 to 0 is seamless.
-    float v = depth + m.travel + Time * 0.25;
+    float v = depth + m.travel + Time * 0.1;
     float rings = 0.5 + 0.5 * cos(6.2832 * v * 3.0);
 
     // Around the tunnel: 0 at the floor, 1 at the ceiling, mirrored.
@@ -218,8 +221,8 @@ float3 tunnel(float2 tex, Music m)
     // Every unit of travel one ring is a light; the beat turns them up,
     // the near ones most.
     float flash = m.pulse * pow(0.5 + 0.5 * cos(6.2832 * v), 8.0) * saturate(1.5 - depth * 0.3);
-    // and one ring sent from near to far over the beat.
-    float shot = m.hit * (1.0 - m.phase) * exp(-pow((depth - lerp(0.45, 4.0, m.phase)) * 2.0, 2.0));
+    // and one ring coming at you from the far end over the beat.
+    float shot = m.hit * (0.4 + 0.6 * m.phase) * exp(-pow((depth - lerp(4.0, 0.45, m.phase)) * 2.0, 2.0));
 
     // Dark far away in the middle, so it reads as depth.
     float fog = saturate((r - 0.02) * 4.0);
@@ -284,6 +287,52 @@ float3 warp(float2 tex, Music m)
 
     float amount = 0.6 + 0.8 * m.energy; // the verse calmer, the chorus wilder
     float3 fx = (star * light * 0.35 + nebula * glow * 0.25) * amount;
+    return fx / (1.0 + 1.5 * fx); // a soft ceiling, so nothing glares
+}
+
+// aurora: three curtains of light across the upper sky, swaying slowly
+// (timed here) with rays running up them. A slow effect, so its shape
+// follows only smooth values (the bass as it is now swings the curtains
+// wider, the highs make their edges ripple gently) and the jumpy ones
+// only light it: the kick brightens the curtains at once and fades. The
+// tempo: a soft glow sweeps along them from left to right once a beat,
+// and they swell just before the next one. Snares make the rays stand
+// out a little, the first beat of four is brighter, and a verse is
+// calmer than a chorus.
+float3 aurora(float2 tex, Music m)
+{
+    float aspect = Resolution.x / Resolution.y;
+    float x = tex.x * aspect;
+    float y = tex.y;
+    float t = Time;
+    float high = (m.bands[8] + m.bands[9] + m.bands[10] + m.bands[11]) * 0.25;
+    float sway = 1.0 + 0.6 * m.bass;
+
+    float3 sum = float3(0.0, 0.0, 0.0);
+    [unroll] for (int i = 0; i < 3; i++)
+    {
+        float fi = i;
+        // The curtain's lower edge, waving across the screen.
+        float edge = 0.20 + 0.13 * fi +
+                     sway * (0.06 * sin(x * (1.3 + 0.4 * fi) + t * (0.25 + 0.07 * fi) + fi * 2.1) +
+                             0.03 * sin(x * (3.1 + fi) - t * (0.4 + 0.1 * fi)));
+        edge += high * 0.006 * sin(x * 28.0 + t * 1.2 + fi * 5.0); // the highs' ripple
+        float d = y - edge;
+        // Fading slowly upwards from the edge, cut off sharply below it.
+        float shape = d < 0.0 ? exp(d * (7.0 - fi)) : exp(-d * 45.0);
+        float rays = 0.55 + 0.45 * sin(x * (60.0 + 15.0 * fi) + 2.0 * sin(x * 7.0 + t * 0.6 + fi) + t * 0.3);
+        rays = pow(rays, 1.0 + 1.2 * m.snare);
+        float3 c = i == 0 ? m.accent : (i == 1 ? m.accent.gbr : m.accent.brg);
+        c = lerp(c, float3(0.9, 0.95, 1.0), 0.25 * exp(-abs(d) * 60.0)); // a pale bright edge
+        sum += c * shape * rays * (1.0 - 0.2 * fi);
+    }
+
+    // The beat's glow, sweeping across over the beat, as hard as it was.
+    float sweep = m.hit * (1.0 - 0.5 * m.phase) * exp(-pow((tex.x - m.phase) * 3.0, 2.0));
+    float punch = m.ck * (m.first ? 1.25 : 1.0);
+    float strength = 0.11 + 0.05 * m.bass + 0.03 * m.level + 0.08 * punch + 0.06 * m.swell + 0.10 * sweep + 0.08 * m.drop;
+    float amount = 0.6 + 0.8 * m.energy; // the verse calmer, the chorus wilder
+    float3 fx = sum * strength * amount;
     return fx / (1.0 + 1.5 * fx); // a soft ceiling, so nothing glares
 }
 
@@ -363,8 +412,10 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
 
     Music m = readMusic(origin, cell);
     float3 fx;
-    if (m.style == 3)
+    if (m.style == 4)
         fx = debugView(tex, m);
+    else if (m.style == 3)
+        fx = aurora(tex, m);
     else if (m.style == 2)
         fx = warp(tex, m);
     else if (m.style == 1)

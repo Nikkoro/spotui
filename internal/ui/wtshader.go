@@ -3,10 +3,13 @@ package ui
 import (
 	"fmt"
 	"math"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/Nikkoro/spotui/internal/engine"
 	"github.com/Nikkoro/spotui/internal/viz"
 )
 
@@ -53,7 +56,7 @@ var shaderSig = [3]int{13, 37, 241}
 // shaderStyles are the effects in shaders/spotui.hlsl, by index. The last,
 // "debug", is for checking how evenly frames arrive and is left out of
 // the Settings page (shaderChoices).
-var shaderStyles = []string{"plasma", "tunnel", "warp", "debug"}
+var shaderStyles = []string{"plasma", "tunnel", "warp", "aurora", "debug"}
 
 var shaderChoices = shaderStyles[:len(shaderStyles)-1]
 
@@ -100,15 +103,19 @@ type shaderFx struct {
 	beatSec  float64 // the beat interval, smoothed (0: unknown yet)
 	count    int     // beats so far
 
-	prevHigh  float64 // the high bands' sum last frame
-	fluxAvg   float64 // their usual rise, frame to frame
-	sinceSnap float64 // seconds since the last snare
-	travel    float64 // 0…1, wrapping
-	speed     float64 // travel a second, eased towards what the music asks
-	spec      *viz.Analyzer
-	bands     []float64
+	travel float64 // 0…1, wrapping
+	speed  float64 // travel a second, eased towards what the music asks
+	spec   *viz.Analyzer
+	bands  []float64
 
-	lp, bassRef, levelRef, energyRef float64 // low-pass state and the recent peaks
+	lp, bassRef, levelRef float64 // low-pass state and the recent peaks
+	slowPow, longPow      float64 // loudness over ~2 s and ~20 s, for energy
+
+	tempo    *viz.TempoTracker
+	tempoNow viz.Tempo // its last verdict
+	onGrid   bool      // its grid is in use
+	pos      time.Duration
+	dump     *os.File // SPOTUI_TEMPO_DUMP, for tuning the tempo tracker
 
 	// the first plasma's values (cell 10)
 	ck, cb, cl float64
@@ -117,6 +124,10 @@ type shaderFx struct {
 	// for the debug style
 	clock  float64 // 0…1 every 2 s of spotui's own time
 	frames int     // effect frames so far
+
+	// for the debug log (logValues): sums over the current second
+	logT, logEnergy, logLevel, logBass, logCk float64
+	logN, logBeats, logSnares                 int
 }
 
 // stepShader ages the shader's levels and moves it along by dt seconds.
@@ -127,19 +138,36 @@ func (s *shaderFx) step(dt float64) {
 	s.drop *= math.Exp(-dt * 2.5)
 	s.snare *= math.Exp(-dt * 10)
 	s.sinceHit += dt
-	s.sinceSnap += dt
 	s.dropLeft = math.Max(0, s.dropLeft-dt)
 	// Eased just enough that a beat is a lunge over a few frames rather
 	// than a jump between two.
-	target := 1.0*s.bass + 0.9*s.kick + 2.0*s.drop
+	// A pace in the track's tempo (0.3 a second at 120 bpm), so a fast
+	// song flies faster, plus the push of the bass, the beats and drops.
+	pace := 0.0
+	if s.beatSec > 0 {
+		pace = 0.3 * 0.5 / s.beatSec
+	}
+	target := pace + 1.0*s.bass + 1.3*s.kick + 2.0*s.drop
 	s.speed += (target - s.speed) * math.Min(1, dt*12)
 	s.travel = math.Mod(s.travel+dt*s.speed, 1)
 	s.clock = math.Mod(s.clock+dt/2, 1)
 	s.frames++
 }
 
+// The tempo tracker's grid of beats is used instead of the plain beat
+// detector's once it is this sure, and until it drops under the second:
+// a song whose sureness wavers around one threshold would flip between
+// the two, and the plain detector's tempo is often far off.
+const (
+	shaderGridOn  = 0.15
+	shaderGridOff = 0.08
+)
+
 // feed updates the levels from the analysed window, its newest samples
-// and the beat detector's verdict on them.
+// and the beat detector's verdict on them. Beats, tempo and snares come
+// from the tempo tracker, which keeps the beat under a busy mix; the
+// plain detector fills in until the tracker is sure, and still finds the
+// drops.
 func (s *shaderFx) feed(window, newest []float32, b viz.Beat, dt float64) {
 	// Loudness, and the bass on its own through a one-pole low-pass.
 	alpha := 1 - math.Exp(-2*math.Pi*shaderBassHz/viz.SampleRate)
@@ -157,25 +185,66 @@ func (s *shaderFx) feed(window, newest []float32, b viz.Beat, dt float64) {
 	// so a steady bass line sits in the middle and the hits stand out.
 	r := peakRatio(&s.bassRef, math.Sqrt(eLow/n), 0.2*s.levelRef, dt)
 	s.bass = follow(s.bass, r*r, dt)
-	// Energy: the same loudness against a peak that relaxes over half a
-	// minute, eased, so a chorus stands out from the verse before it.
-	er := peakRatio(&s.energyRef, math.Sqrt(e/n), 0, dt*0.12)
-	s.energy += (er - s.energy) * math.Min(1, dt*1.5)
-
-	if b.Hit {
-		s.beat(b)
+	// Energy: the last couple of seconds against the last twenty, in dB,
+	// ±3 dB filling the range. Mastered music is loud throughout, so a
+	// chorus is only a few dB over its verse; a ratio to the peak barely
+	// moved.
+	p := e / n
+	if s.longPow == 0 {
+		s.slowPow, s.longPow = p, p
 	}
-	s.feedClassic(newest, b, dt)
+	s.slowPow += (p - s.slowPow) * math.Min(1, dt/2)
+	s.longPow += (p - s.longPow) * math.Min(1, dt/20)
+	if s.longPow > 1e-9 && s.slowPow > 1e-9 {
+		db := 10 * math.Log10(s.slowPow/s.longPow)
+		s.energy = math.Max(0, math.Min(1, 0.5+db/6))
+	}
+
+	if s.tempo == nil {
+		s.tempo = viz.NewTempoTracker()
+	}
+	t := s.tempo.Feed(newest, dt)
+	s.tempoNow = t
+	s.dumpFrame(t, dt)
+	switch {
+	case t.BPM > 0 && t.Confidence >= shaderGridOn:
+		s.onGrid = true
+	case t.BPM == 0 || t.Confidence < shaderGridOff:
+		s.onGrid = false
+	}
+	beat := b
+	if s.onGrid {
+		// The grid's beat, its strength put on the detector's scale
+		// (1.45 just a beat … about 3 a hard one); drops still come from
+		// the detector.
+		beat = viz.Beat{Hit: t.Hit, Drop: b.Drop}
+		if t.Hit {
+			beat.Strength = 1.45 + 1.5*math.Max(0, math.Min(1, (t.Strength-2)/4))
+		}
+		if b.Drop && !t.Hit {
+			beat.Hit, beat.Strength = true, 3
+		}
+		s.beatSec = 60 / t.BPM
+	}
+	if beat.Hit {
+		s.beat(beat, s.onGrid)
+	}
+	if t.Snare {
+		s.snare = 1
+		s.logSnares++
+	}
+	s.feedClassic(newest, b, beat, dt)
 	if s.spec == nil {
 		s.spec = viz.NewAnalyzer(shaderBands)
 	}
 	s.bands, _ = s.spec.Update(window, dt)
-	s.snareOnset(dt)
 }
 
 // feedClassic works out cell 10 as the first plasma had it: each value
-// jumps up with the music and fades, all at the analysis rate.
-func (s *shaderFx) feedClassic(newest []float32, b viz.Beat, dt float64) {
+// jumps up with the music and fades, all at the analysis rate. The bass
+// is the detector's (b), against its last second, as it was; the kick
+// comes on the beats in use (beat), which now keep time.
+func (s *shaderFx) feedClassic(newest []float32, b, beat viz.Beat, dt float64) {
 	s.ck *= math.Exp(-dt * 6)
 	s.cb *= math.Exp(-dt * 3)
 	s.cl *= math.Exp(-dt * 2)
@@ -187,17 +256,18 @@ func (s *shaderFx) feedClassic(newest []float32, b viz.Beat, dt float64) {
 	if b.Strength > 0 {
 		s.cb = math.Max(s.cb, math.Min(1, (b.Strength-0.6)/2))
 	}
-	if b.Hit {
-		s.ck = math.Max(s.ck, math.Min(1, 0.5+(b.Strength-1)/3))
-		if b.Drop {
+	if beat.Hit {
+		s.ck = math.Max(s.ck, math.Min(1, 0.5+(beat.Strength-1)/3))
+		if beat.Drop {
 			s.ck, s.dropLeft = 1, 0.47
 		}
 	}
 }
 
-// beat takes a beat: the tempo, how hard it is, which of four.
-func (s *shaderFx) beat(b viz.Beat) {
-	if since := s.sinceHit; since > 0.25 && since < 1.5 {
+// beat takes a beat: the tempo (unless the grid sets it), how hard it is,
+// which of four.
+func (s *shaderFx) beat(b viz.Beat, grid bool) {
+	if since := s.sinceHit; !grid && since > 0.25 && since < 1.5 {
 		if s.beatSec == 0 {
 			s.beatSec = since
 		} else {
@@ -206,6 +276,7 @@ func (s *shaderFx) beat(b viz.Beat) {
 	}
 	s.sinceHit = 0
 	s.count++
+	s.logBeats++
 	// From a soft beat (just over the detector's threshold) to a hard one.
 	hard := math.Max(0, math.Min(1, (b.Strength-1.45)/1.5))
 	s.hit = 0.35 + 0.45*hard
@@ -215,22 +286,6 @@ func (s *shaderFx) beat(b viz.Beat) {
 	s.kick = math.Max(s.kick, s.hit)
 	if b.Drop {
 		s.hit, s.kick, s.drop = 1, 1, 1
-	}
-}
-
-// snareOnset looks for a sudden rise in the upper half of the spectrum
-// (snares, claps, hats), against how much it usually rises.
-func (s *shaderFx) snareOnset(dt float64) {
-	var high float64
-	for _, v := range s.bands[shaderBands/2:] {
-		high += v
-	}
-	flux := math.Max(0, high-s.prevHigh)
-	s.prevHigh = high
-	hit := flux > 0.25 && flux > 2.5*s.fluxAvg && s.sinceSnap > 0.1
-	s.fluxAvg += (flux - s.fluxAvg) * math.Min(1, dt*3)
-	if hit {
-		s.snare, s.sinceSnap = 1, 0
 	}
 }
 
@@ -327,4 +382,51 @@ func follow(v, target, dt float64) float64 {
 		k = dt * 30
 	}
 	return v + (target-v)*math.Min(1, k)
+}
+
+// logValues writes what the shader is sent to the debug log once a second
+// (averages over it), with the playback position, so the effects can be
+// tuned against a known track: spotui --debug, then
+// grep "shader values" spotui.log.
+func (s *shaderFx) logValues(dt float64, pos time.Duration, eng *engine.Engine) {
+	s.pos = pos
+	s.logT += dt
+	s.logN++
+	s.logEnergy += s.energy
+	s.logLevel += s.level
+	s.logBass += s.bass
+	s.logCk += s.ck
+	if s.logT < 1 {
+		return
+	}
+	n := float64(s.logN)
+	bpm := 0.0
+	if s.beatSec > 0 {
+		bpm = 60 / s.beatSec
+	}
+	eng.Debugf("ui: shader values at %d:%02d: energy %.2f level %.2f bass %.2f kick %.2f, %d beats %d snares, tempo %.0f bpm (grid %.0f bpm, sure %.2f)",
+		int(pos.Minutes()), int(pos.Seconds())%60, s.logEnergy/n, s.logLevel/n, s.logBass/n, s.logCk/n,
+		s.logBeats, s.logSnares, bpm, s.tempoNow.BPM, s.tempoNow.Confidence)
+	s.logT, s.logN, s.logBeats, s.logSnares = 0, 0, 0, 0
+	s.logEnergy, s.logLevel, s.logBass, s.logCk = 0, 0, 0, 0
+}
+
+// dumpFrame appends this analysis frame to the file named by
+// SPOTUI_TEMPO_DUMP, if set: dt, the playback position and the tracker's
+// log energies, one CSV line a frame. That is enough to rerun the tempo
+// tracker on a real track while tuning it; no audio is written.
+func (s *shaderFx) dumpFrame(t viz.Tempo, dt float64) {
+	if s.dump == nil {
+		path := os.Getenv("SPOTUI_TEMPO_DUMP")
+		if path == "" {
+			return
+		}
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		if err != nil {
+			return
+		}
+		s.dump = f
+		fmt.Fprintln(f, "dt,pos,log_low,log_high,log_all")
+	}
+	fmt.Fprintf(s.dump, "%.5f,%.3f,%.5f,%.5f,%.5f\n", dt, s.pos.Seconds(), t.LogLow, t.LogHigh, t.LogAll)
 }
