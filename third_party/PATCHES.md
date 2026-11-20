@@ -30,8 +30,15 @@ Local changes:
    (`idj_request_id`) is in the list or arrives in an `update_context`;
    playback then jumps to it and the `narration.welcome.*` line is spoken
    before the track's own intro.
+5. Starting DJ (`spclient/dj_context.go` (new), a few lines in
+   `spclient.go`): DJ's context resolves to an empty shell whose
+   `lexicon_context_url` names the session that holds its tracks. The
+   session is resolved instead (skipping the playlist service, which answers
+   DJ with 404), and its next page is taken as a fresh set, as Spotify's
+   clients and librespot#1797 do. Only `hm://lexicon-session-provider/` urls
+   are followed.
 
-The patches have small tests (`spclient/dj_test.go`,
+The patches have small tests (`spclient/dj_test.go`, `spclient/dj_context_test.go`,
 `daemon/dj_spotui_test.go`). Our CI does not run this module's tests; to run
 them together with upstream's, copy upstream's `*_test.go` files for the same
 tag next to them and run `go test -tags test_unit ./daemon/ ./spclient/`.
