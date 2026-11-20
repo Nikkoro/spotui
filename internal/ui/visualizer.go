@@ -12,7 +12,10 @@ import (
 
 const (
 	vizFrameInterval = time.Second / 30
-	vizIdleInterval  = 250 * time.Millisecond
+	// shaderFrameInterval is how often the Windows Terminal shader is sent
+	// new values while it is on.
+	shaderFrameInterval = time.Second / 60
+	vizIdleInterval     = 250 * time.Millisecond
 )
 
 type vizTickMsg time.Time
@@ -28,7 +31,7 @@ func (m Model) vizVisible() bool {
 // stepVisualizer advances the analyzer one frame and schedules the next.
 // It runs at full rate only while the visualizer is on screen.
 func (m *Model) stepVisualizer(now time.Time) tea.Cmd {
-	if !m.vizVisible() && !m.fxActive() {
+	if !m.vizVisible() && !m.fxActive() && !m.shaderActive() {
 		m.vizAt = time.Time{}
 		m.stepFx(nil, vizIdleInterval.Seconds())
 		return vizTick(vizIdleInterval)
@@ -39,6 +42,21 @@ func (m *Model) stepVisualizer(now time.Time) tea.Cmd {
 		dt = min(now.Sub(m.vizAt).Seconds(), 0.25)
 	}
 	m.vizAt = now
+
+	// The shader is fed at twice the rate, so what it is sent changes in
+	// smaller steps; the analysis below keeps 30 frames a second, which
+	// the beat detector is tuned for.
+	next := vizFrameInterval
+	if m.shaderActive() {
+		next = shaderFrameInterval
+		m.frames.tick(now, m.eng)
+		m.fx.shader.step(dt)
+		m.vizAcc += dt
+		if m.vizAcc < vizFrameInterval.Seconds()*0.9 {
+			return vizTick(next)
+		}
+		dt, m.vizAcc = min(m.vizAcc, 0.25), 0
+	}
 
 	// Only analyse while the device is actually pulling audio; otherwise
 	// the last buffer would freeze on screen when paused.
@@ -52,7 +70,7 @@ func (m *Model) stepVisualizer(now time.Time) tea.Cmd {
 
 	m.stepFx(samples, dt)
 	if !m.vizVisible() {
-		return vizTick(vizFrameInterval) // effects only
+		return vizTick(next) // effects only
 	}
 	m.vizLevels, m.vizPeaks = m.vizAn.Update(samples, dt)
 
@@ -67,7 +85,7 @@ func (m *Model) stepVisualizer(now time.Time) tea.Cmd {
 			m.vizWave = nil
 		}
 	}
-	return vizTick(vizFrameInterval)
+	return vizTick(next)
 }
 
 // viewVisualizer renders the spectrum width columns wide.

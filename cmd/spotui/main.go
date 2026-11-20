@@ -4,12 +4,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -24,6 +27,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/ui"
 	"github.com/Nikkoro/spotui/internal/update"
 	"github.com/Nikkoro/spotui/internal/viz"
+	"github.com/Nikkoro/spotui/shaders"
 )
 
 var version = "dev"
@@ -47,6 +51,7 @@ func run() error {
 		fmt.Fprintf(out, "  logout       forget the Spotify login; the next start pairs again\n")
 		fmt.Fprintf(out, "  paths        print where config, cache and logs live\n")
 		fmt.Fprintf(out, "  clear-cache  delete cached covers, lyrics, library and audio\n")
+		fmt.Fprintf(out, "  shader       write the Windows Terminal shader (to a path, or next to config.toml)\n")
 		fmt.Fprintf(out, "  update       install the newest release (--pre: pre-releases too, --check: only look)\n\nflags:\n")
 		flag.PrintDefaults()
 	}
@@ -78,6 +83,8 @@ func run() error {
 		return nil
 	case "update":
 		return runUpdate(cfg, flag.Args()[1:])
+	case "shader":
+		return runShader(cfg, flag.Arg(1))
 	case "clear-cache":
 		if err := os.RemoveAll(cfg.CacheDir); err != nil {
 			return err
@@ -110,6 +117,13 @@ func run() error {
 		logger.SetLevel(logrus.DebugLevel)
 	}
 	logger.Infof("spotui %s, audio backend %s", version, cfg.AudioBackend)
+
+	// A shader written by an older spotui may read the cells differently.
+	if wrote, err := shaders.Refresh(defaultShaderPath(cfg)); err != nil {
+		logger.Warnf("updating the shader: %v", err)
+	} else if wrote {
+		logger.Info("shader brought up to date; open a new Windows Terminal tab to load it")
+	}
 
 	// Tap the PCM going to the audio device for the visualizer. This must be
 	// set before the first output is opened.
@@ -290,5 +304,38 @@ func runUpdate(cfg *config.Config, args []string) error {
 		return err
 	}
 	fmt.Printf("Updated to %s. Restart spotui to use it.\n", r.Tag)
+	return nil
+}
+
+func defaultShaderPath(cfg *config.Config) string {
+	return filepath.Join(cfg.ConfigDir, shaders.FileName)
+}
+
+// runShader writes the Windows Terminal shader and says where to point
+// the profile at it.
+func runShader(cfg *config.Config, path string) error {
+	if path == "" {
+		path = defaultShaderPath(cfg)
+	}
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	if _, err := shaders.Install(path); err != nil {
+		return err
+	}
+	fmt.Println("Wrote", path)
+	winPath := path
+	if os.Getenv("WSL_DISTRO_NAME") != "" {
+		// Windows Terminal runs on the Windows side.
+		if out, err := exec.Command("wslpath", "-w", path).Output(); err == nil {
+			winPath = strings.TrimSpace(string(out))
+		}
+	}
+	js, _ := json.Marshal(winPath)
+	fmt.Printf("\nIn your Windows Terminal profile for spotui (Settings → Open JSON file):\n\n")
+	fmt.Printf("    \"experimental.pixelShaderPath\": %s,\n    \"padding\": \"0\"\n\n", js)
+	fmt.Println("Then turn on \"Windows Terminal shader\" in spotui's settings (,).")
+	fmt.Println("spotui keeps this file up to date when it starts.")
 	return nil
 }

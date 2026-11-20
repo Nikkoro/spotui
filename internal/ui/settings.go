@@ -317,6 +317,11 @@ func (m Model) settings() []setting {
 				m.cfg.Lyrics.WTShader = v == "true"
 				return m.cfg.Lyrics.WTShader, nil
 			}},
+		{group: "Lyrics", label: "Shader effect", kind: setChoice, section: "lyrics", key: "wt_shader_style",
+			options: shaderChoices,
+			help:    "What the Windows Terminal shader draws: plasma (soft waves in the cover's colours) or tunnel (a flight down a tunnel, faster with the bass, its walls lit by the spectrum). Switches at once, no reload. wt_shader_style = \"debug\" in config.toml shows how evenly frames arrive.",
+			value:   func(m Model) string { return shaderStyles[m.shaderStyle()] },
+			set:     func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.WTShaderStyle = v; return v, nil }},
 		{group: "Lyrics", label: "Line on classic Now Playing", kind: setBool, section: "lyrics", key: "now_playing_line",
 			help:  "The current line under the progress bar in the classic layout.",
 			value: func(m Model) string { return boolStr(m.cfg.Lyrics.NowPlayingLine) },

@@ -25,7 +25,7 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
 ## Where things are
 
 - `cmd/spotui`: flags, subcommands (`update`, `logout`, `paths`,
-  `clear-cache`), session loop that restarts the player.
+  `clear-cache`, `shader`), session loop that restarts the player.
 - `internal/engine`: wraps go-librespot's daemon in-process; every player
   call is a request on a channel.
 - `internal/ui`: the interface. `model.go` (state, keys, events), `view.go`,
@@ -35,12 +35,27 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   page; each setting writes its own line of config.toml), `images.go`
   (Sixel/kitty covers), `palette.go` (ctrl+k).
 - `shaders/spotui.hlsl` with `internal/ui/wtshader.go`: the Windows
-  Terminal pixel shader behind the lyrics. spotui paints five data cells
-  at the start of the top row (signature, beat/bass/loudness, accent,
-  hue/drop/zoom, signature); the shader finds and hides them. WT hands
-  the shader a premultiplied texture where the background is transparent
-  black, so the effect is added with alpha untouched. Signature and cell
-  count must match in both files (a test checks).
+  Terminal pixel shader behind the lyrics, embedded by `shaders/` for
+  `spotui shader`. spotui paints twelve data cells at the start of the
+  top row (layout at the top of both files: beat, bass, accent, style,
+  travel, 12 spectrum bands, tempo phase, snare, energy); the shader finds
+  and hides them. They are sent 60 times a second; the analysis behind
+  them runs at 30 (the beat detector is tuned for it). One file holds every
+  effect, picked by the style cell, so switching needs no reload. The
+  shader keeps no state between frames: anything that moves at a speed
+  the music sets is integrated in Go (`shaderFx.step`) and sent as a
+  position. Values reach WT a little unevenly, which shows on slow steady
+  motion, so the steady flow is timed by the shader's `Time` and the
+  music drives brightness and fast beat moves. The plasma reads its own
+  cell 10, the jumpy values it was first tuned with: the user preferred
+  how that followed the music, so keep it. The `debug` style (config only)
+  and the "shader frames" debug log line show where judder comes from.
+  WT hands the shader a premultiplied texture where the
+  background is transparent black, so the effect is added with alpha
+  untouched. Signature, cell and band counts and style numbers must match
+  in both files (a test checks). A new effect: a function in the HLSL, a
+  branch in `main`, a name in `shaderStyles`, the style list in the HLSL
+  header.
 - `internal/viz`: audio tap, FFT analyzer, renderers, `beat.go` (beat and
   drop detection).
 - `internal/termimg`: Sixel/kitty encoding and the writer that places

@@ -1,20 +1,32 @@
-// spotui.hlsl: a Windows Terminal pixel shader that draws a plasma behind
-// spotui's lyrics, moving to the music.
+// spotui.hlsl: a Windows Terminal pixel shader that draws behind spotui's
+// lyrics, moving to the music. Write it out with `spotui shader`.
 //
 // A pixel shader only sees the rendered window, so spotui sends the music
-// as colour: with `wt_shader = true` under [lyrics] it paints five cells at
-// the start of its top row (see internal/ui/wtshader.go):
+// as colour: with `wt_shader = true` under [lyrics] it paints twelve cells
+// at the start of its top row (see internal/ui/wtshader.go):
 //
-//   cell 0  signature (13, 37, 241)
-//   cell 1  R kick (1 on a beat, fading), G bass, B loudness
-//   cell 2  the accent colour
-//   cell 3  R colour phase in the track's tempo, G drop, B zoom
-//   cell 4  signature again
+//   cell 0     signature (13, 37, 241)
+//   cell 1     R hit (how hard the last beat was, the first of four the
+//              hardest), G bass, B loudness
+//   cell 2     the accent colour
+//   cell 3     R colour phase in the track's tempo, G drop (1 for half a
+//              second; debug style: the frame count), B energy (this part
+//              of the track against the last half minute)
+//   cell 4     R style (0 plasma, 1 tunnel, 2 debug), G B travel (16 bits, 0…1):
+//              the distance the music has pushed the effect, on top of
+//              its own steady pace (debug style: spotui's clock)
+//   cell 5…8   the spectrum, 12 bands low to high, three a cell
+//   cell 9     R beat phase (0 on a beat, 1 at the next by the tempo),
+//              G which beat of four (0, 85, 170, 255), B snare (a hit in
+//              the high bands, fading fast)
+//   cell 10    the first plasma's values, as they were: R kick, G bass
+//              against its last second, B loudness
+//   cell 11    signature again
 //
 // This shader finds them, reads them, hides them, and adds the effect
 // wherever the window shows its background, kept dim so the text on top
-// stays readable.
-// Without the cells (another page, another program) it changes nothing.
+// stays readable. Without the cells (another page, another program) it
+// changes nothing. The style is switched from spotui, with no reload.
 //
 // Set it in your Windows Terminal profile, with no padding (the shader
 // does not reach the padding, which would show as a plain frame):
@@ -34,7 +46,8 @@ cbuffer PixelShaderSettings
 };
 
 static const float3 SIG = float3(13.0, 37.0, 241.0) / 255.0;
-static const int STRIP_CELLS = 5;
+static const int STRIP_CELLS = 12;
+static const int BANDS = 12;
 static const int SEARCH = 64; // pixels searched for the strip from the corner
 
 float3 px(int2 p)
@@ -90,6 +103,176 @@ float3 cellColour(int2 origin, int2 cell, int k)
     return px(origin + int2(cell.x * k + cell.x / 2, cell.y / 2));
 }
 
+// Music is what the strip carries.
+struct Music
+{
+    float hit, bass, level, hue, drop, energy, travel;
+    float phase, snare;
+    bool first; // the first beat of four
+    // pulse: the last beat fading over the beat, as hard as it was;
+    // swell: rising just before the next one.
+    float pulse, swell;
+    float ck, cb, cl; // the first plasma's kick, bass, loudness
+    float3 accent;
+    int style;
+    float bands[BANDS];
+};
+
+Music readMusic(int2 origin, int2 cell)
+{
+    Music m;
+    float3 d1 = cellColour(origin, cell, 1);
+    float3 d3 = cellColour(origin, cell, 3);
+    float3 d4 = round(cellColour(origin, cell, 4) * 255.0);
+    m.hit = d1.r;
+    m.bass = d1.g;
+    m.level = d1.b;
+    m.accent = cellColour(origin, cell, 2);
+    m.hue = d3.r;
+    m.drop = d3.g;
+    m.energy = d3.b;
+    m.style = int(d4.r);
+    m.travel = (d4.g * 256.0 + d4.b) / 65536.0;
+    float3 d9 = cellColour(origin, cell, 9);
+    m.phase = d9.r;
+    m.first = d9.g < 0.1;
+    m.snare = d9.b;
+    float3 d10 = cellColour(origin, cell, 10);
+    m.ck = d10.r;
+    m.cb = d10.g;
+    m.cl = d10.b;
+    m.pulse = m.hit * (1.0 - m.phase) * (1.0 - m.phase);
+    m.swell = pow(m.phase, 6.0) * (m.hit > 0.0 ? 1.0 : 0.0);
+    [unroll] for (int i = 0; i < BANDS / 3; i++)
+    {
+        float3 b = cellColour(origin, cell, 5 + i);
+        m.bands[i * 3] = b.r;
+        m.bands[i * 3 + 1] = b.g;
+        m.bands[i * 3 + 2] = b.b;
+    }
+    return m;
+}
+
+// --- effects: each returns the colour to add over the background.
+//
+// spotui's values arrive 60 times a second, not quite evenly. A slow,
+// steady motion shows that as judder, because the eye follows it, so the
+// steady flow of each effect is timed here by Time. Fast moves set off by
+// the beat (a ring shot away, a zoom punch, the bass bending the waves)
+// come from spotui's values: they are over before judder can show.
+
+// plasma: the first effect, kept as it was because it followed the music
+// best: sums of waves in the cover's colours, the bass pushing the rings
+// out, a ring running from the middle on each beat. It reads its own
+// values (cell 10), which jump with the music and fade.
+float3 plasma(float2 tex, Music m)
+{
+    float aspect = Resolution.x / Resolution.y;
+    float2 q = (tex - 0.5) * float2(aspect, 1.0) * 3.0;
+    float t = Time * 0.5;
+    float r = length(q);
+    float v = sin(q.x * 1.7 + t) + sin(q.y * 2.3 - t * 1.3) +
+              sin((q.x + q.y) * 1.3 + t * 0.7) + sin(r * 3.0 - t * 2.0 - m.ck * 2.0 - m.cb);
+    v *= 0.25;
+
+    float3 c = lerp(m.accent, m.accent.gbr, 0.5 + 0.5 * sin(v * 3.1416 + m.hue * 6.2832));
+    c = lerp(c, m.accent.brg, 0.25 + 0.25 * sin(v * 6.2832 - t));
+
+    // A ring running out from the middle on each beat.
+    float ring = m.ck * exp(-pow((r - (1.0 - m.ck) * 2.5) * 3.0, 2.0));
+
+    // Kept dim so the lyrics stay readable; louder music and beats lift it.
+    float strength = 0.06 + 0.07 * m.cb + 0.04 * m.cl + 0.10 * m.ck + 0.12 * m.drop;
+    return c * (strength * (0.6 + 0.4 * v) + ring * 0.18);
+}
+
+// tunnel: a flight down a tunnel of tiles at a steady pace, timed here so
+// it is smooth at the terminal's frame rate, plus the push of the music,
+// which spotui adds up (travel, from the bass and drops); the floor is lit by
+// the low bands and the ceiling by the high ones; each beat lights up the
+// rings flying past, punches the view forward and sends a bright ring
+// away that reaches the far end by the next beat. Snares twist it and
+// make the tiles sparkle.
+float3 tunnel(float2 tex, Music m)
+{
+    float aspect = Resolution.x / Resolution.y;
+    float2 q = (tex - 0.5) * float2(aspect, 1.0);
+    // The far end drifts a little, so the flight curves.
+    q -= 0.06 * float2(sin(Time * 0.37), cos(Time * 0.29));
+    float r = max(length(q), 1e-3);
+    float depth = 0.3 / r * (1.0 - 0.15 * m.pulse - 0.08 * m.bass + 0.04 * m.swell); // further down towards the middle
+    // Rings repeat a whole number of times per unit of travel, so the
+    // wrap of travel from 1 to 0 is seamless.
+    float v = depth + m.travel + Time * 0.25;
+    float rings = 0.5 + 0.5 * cos(6.2832 * v * 3.0);
+
+    // Around the tunnel: 0 at the floor, 1 at the ceiling, mirrored.
+    float around = abs(atan2(q.x, q.y)) / 3.1416;
+    float spin = Time * 0.03 + 0.06 * m.snare;
+    float segs = 0.5 + 0.5 * cos(6.2832 * (atan2(q.y, q.x) / 6.2832 * 8.0 + spin));
+    float tile = smoothstep(0.3, 0.9, rings * 0.6 + segs * 0.4) * (1.0 + 0.6 * m.snare * segs);
+
+    int band = clamp(int(around * BANDS), 0, BANDS - 1);
+    float lit = 0.3 + 0.7 * m.bands[band];
+
+    // Every unit of travel one ring is a light; the beat turns them up,
+    // the near ones most.
+    float flash = m.pulse * pow(0.5 + 0.5 * cos(6.2832 * v), 8.0) * saturate(1.5 - depth * 0.3);
+    // and one ring sent from near to far over the beat.
+    float shot = m.hit * (1.0 - m.phase) * exp(-pow((depth - lerp(0.45, 4.0, m.phase)) * 2.0, 2.0));
+
+    // Dark far away in the middle, so it reads as depth.
+    float fog = saturate((r - 0.02) * 4.0);
+    float3 c = lerp(m.accent, m.accent.gbr, 0.5 + 0.5 * cos(6.2832 * (v + m.hue)));
+
+    float strength = 0.07 + 0.06 * m.bass + 0.03 * m.level + 0.10 * m.pulse + 0.04 * m.swell + 0.12 * m.drop;
+    float amount = 0.55 + 0.9 * m.energy; // the verse calmer, the chorus wilder
+    return c * fog * amount * (strength * (0.2 + 0.8 * tile * lit) + flash * 0.18 + shot * 0.28);
+}
+
+// debugView shows how evenly things move, top to bottom:
+//   1. a white bar timed by this shader: how smooth the terminal draws
+//   2. a yellow bar timed by spotui (its clock, sent each frame) at the
+//      same speed: if it judders where the white one does not, frames from
+//      spotui arrive unevenly
+//   3. the spectrum and, on the right: bass (blue), pulse (red), snare
+//      (green), energy (white)
+// and a square in the top right corner that flips on every frame spotui
+// sends: an even flicker means an even frame rate.
+float3 debugView(float2 tex, Music m)
+{
+    const float bar = 0.004;
+    float3 c = float3(0.0, 0.0, 0.0);
+    if (tex.y < 0.33)
+    {
+        c = abs(tex.x - frac(Time / 2.0)) < bar ? float3(1.0, 1.0, 1.0) : float3(0.04, 0.04, 0.04);
+    }
+    else if (tex.y < 0.66)
+    {
+        c = abs(tex.x - m.travel) < bar ? float3(1.0, 0.8, 0.2) : float3(0.05, 0.04, 0.0);
+    }
+    else
+    {
+        float h = (1.0 - tex.y) / 0.34;
+        if (tex.x < 0.92)
+            c = h < m.bands[clamp(int(tex.x / 0.92 * BANDS), 0, BANDS - 1)] ? m.accent * 0.6 : float3(0.0, 0.0, 0.0);
+        else if (tex.x < 0.94)
+            c = h < m.bass ? float3(0.2, 0.4, 1.0) : float3(0.0, 0.0, 0.0);
+        else if (tex.x < 0.96)
+            c = h < m.pulse ? float3(0.9, 0.15, 0.15) : float3(0.0, 0.0, 0.0);
+        else if (tex.x < 0.98)
+            c = h < m.snare ? float3(0.2, 0.9, 0.3) : float3(0.0, 0.0, 0.0);
+        else
+            c = h < m.energy ? float3(0.9, 0.9, 0.9) : float3(0.0, 0.0, 0.0);
+    }
+    if (tex.x > 0.96 && tex.y < 0.06)
+    {
+        float frame = round(m.drop * 255.0);
+        c = fmod(frame, 2.0) < 0.5 ? float3(0.0, 0.0, 0.0) : float3(1.0, 1.0, 1.0);
+    }
+    return c * 0.6;
+}
+
 // Windows Terminal hands the shader a premultiplied texture: where only
 // the background shows, pixels are transparent black, and the background
 // colour (and acrylic) goes underneath afterwards. Some setups draw the
@@ -102,12 +285,6 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
     int2 origin, cell;
     if (!findStrip(origin, cell))
         return colour;
-
-    float3 d1 = cellColour(origin, cell, 1);
-    float3 accent = cellColour(origin, cell, 2);
-    float3 d3 = cellColour(origin, cell, 3);
-    float kick = d1.r, bass = d1.g, level = d1.b;
-    float hue = d3.r, drop = d3.g;
 
     // Is the background left transparent in the texture? The blank cell
     // right after the strip tells.
@@ -127,26 +304,16 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
     if (mask <= 0.0)
         return colour;
 
-    // Plasma: sums of waves, centred, the bass pushing the rings out.
-    float aspect = Resolution.x / Resolution.y;
-    float2 q = (tex - 0.5) * float2(aspect, 1.0) * 3.0;
-    float t = Time * 0.5;
-    float r = length(q);
-    float v = sin(q.x * 1.7 + t) + sin(q.y * 2.3 - t * 1.3) +
-              sin((q.x + q.y) * 1.3 + t * 0.7) + sin(r * 3.0 - t * 2.0 - kick * 2.0 - bass);
-    v *= 0.25;
-
-    float3 c = lerp(accent, accent.gbr, 0.5 + 0.5 * sin(v * 3.1416 + hue * 6.2832));
-    c = lerp(c, accent.brg, 0.25 + 0.25 * sin(v * 6.2832 - t));
-
-    // A ring running out from the middle on each beat.
-    float ring = kick * exp(-pow((r - (1.0 - kick) * 2.5) * 3.0, 2.0));
-
-    // Kept dim so the lyrics stay readable; louder music and beats lift it.
-    float strength = 0.06 + 0.07 * bass + 0.04 * level + 0.10 * kick + 0.12 * drop;
-    float3 fx = c * (strength * (0.6 + 0.4 * v) + ring * 0.18) * mask;
+    Music m = readMusic(origin, cell);
+    float3 fx;
+    if (m.style == 2)
+        fx = debugView(tex, m);
+    else if (m.style == 1)
+        fx = tunnel(tex, m);
+    else
+        fx = plasma(tex, m);
 
     // Premultiplied: adding colour with the alpha left alone lays the
     // effect over whatever is drawn underneath, background or acrylic.
-    return float4(saturate(base.rgb + fx), base.a);
+    return float4(saturate(base.rgb + fx * mask), base.a);
 }

@@ -145,6 +145,8 @@ type LyricsConfig struct {
 	// (shaders/spotui.hlsl), which draws behind the lyrics. Off by
 	// default: without the shader the cells show as coloured squares.
 	WTShader bool `toml:"wt_shader"`
+	// WTShaderStyle is the shader's effect: "plasma" or "tunnel".
+	WTShaderStyle string `toml:"wt_shader_style"`
 }
 
 type NowPlayingConfig struct {
@@ -209,6 +211,7 @@ func Default() Config {
 			Enabled:        true,
 			NowPlayingLine: true,
 			Effects:        "subtle",
+			WTShaderStyle:  "plasma",
 		},
 		NowPlaying:      NowPlayingConfig{Layout: "auto"},
 		Update:          UpdateConfig{Check: true},
