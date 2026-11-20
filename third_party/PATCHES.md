@@ -37,6 +37,9 @@ Local changes:
    DJ with 404), and its next page is taken as a fresh set, as Spotify's
    clients and librespot#1797 do. Only `hm://lexicon-session-provider/` urls
    are followed.
+8. Release dates (`daemon/api_server.go`): `releaseDate` returned the
+   protobuf's text form (`year:2011 month:10 day:18`) instead of
+   `2011-10-18`, so "year" showed after every album name.
 7. PulseAudio buffer (`output/driver-pulseaudio.go`): the stream asks for
    a latency (`PULSE_LATENCY_MSEC` if set, as libpulse reads it, else
    200 ms). Without one the server chose its default, seconds long under

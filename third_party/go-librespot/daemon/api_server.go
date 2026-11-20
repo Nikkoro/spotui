@@ -373,11 +373,20 @@ func (p *AppPlayer) newApiResponseStatusMedia(media *librespot.Media, position i
 
 // releaseDate describes an album's date, or "" when the metadata has none
 // (the message's String would say "<nil>").
+// releaseDate formats an album date as YYYY, YYYY-MM or YYYY-MM-DD, as the
+// Web API does. spotui patch: it used the protobuf's text form
+// ("year:2011 month:10 day:18"), so clients showed "year".
 func releaseDate(date *metadatapb.Date) string {
-	if date == nil {
+	if date == nil || date.GetYear() == 0 {
 		return ""
 	}
-	return date.String()
+	switch {
+	case date.GetMonth() == 0:
+		return fmt.Sprintf("%04d", date.GetYear())
+	case date.GetDay() == 0:
+		return fmt.Sprintf("%04d-%02d", date.GetYear(), date.GetMonth())
+	}
+	return fmt.Sprintf("%04d-%02d-%02d", date.GetYear(), date.GetMonth(), date.GetDay())
 }
 
 // gidUri turns a metadata gid into a URI of the given type, or "" when the
