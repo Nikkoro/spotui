@@ -32,6 +32,7 @@ var defaultKeys = map[string]string{
 	"visualizer_style": "V",
 	"layout":           "L",
 	"settings":         ",",
+	"copy_link":        "y",
 	"play_link":        "u",
 	"filter":           "/",
 	"help":             "?",

@@ -285,10 +285,7 @@ func (m Model) barTitle(t *daemon.ApiTrack) string {
 }
 
 func (m Model) barTitleOnly(t *daemon.ApiTrack) string {
-	heart := ""
-	if m.liked[t.Uri] {
-		heart = m.theme.accentTxt.Render(" ♥")
-	}
+	heart := m.heart(t.Uri, " ")
 	dj := ""
 	if m.playingDj() {
 		dj = m.theme.pill.Render("DJ") + " "
@@ -326,7 +323,7 @@ func (m Model) stateIcon() string {
 // --- connecting / auth / errors ---
 
 func (m Model) viewConnecting() string {
-	return m.theme.card.Render(m.spinner.View() + m.theme.text.Render(" Connecting to Spotify…"))
+	return m.splash("Connecting to Spotify…")
 }
 
 func (m Model) viewFatal() string {
@@ -471,10 +468,7 @@ func (m Model) viewTrackStatic(w int, scroll bool) string {
 	t := m.track
 	trunc := lipgloss.NewStyle().MaxWidth(w)
 
-	heart := ""
-	if m.liked[t.Uri] {
-		heart = m.theme.accentTxt.Render("  ♥")
-	}
+	heart := m.heart(t.Uri, "  ")
 	name := t.Name
 	if scroll {
 		name = marquee(t.Name, w-lipgloss.Width(heart), time.Now())
@@ -568,6 +562,11 @@ func (m Model) progressBar(w int, pos, dur int64) string {
 		ratio = float64(pos) / float64(dur)
 	}
 	filled := clamp(int(ratio*float64(w-1)), 0, w-1)
+	if m.progressStyle() != "plain" {
+		if played, ok := m.fancyProgress(filled); ok {
+			return played + lipgloss.NewStyle().Foreground(colTrack).Render(strings.Repeat("━", w-1-filled))
+		}
+	}
 	return m.theme.accentTxt.Render(strings.Repeat("━", filled)+"●") +
 		lipgloss.NewStyle().Foreground(colTrack).Render(strings.Repeat("━", w-1-filled))
 }

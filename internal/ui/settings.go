@@ -187,6 +187,22 @@ func (m Model) settings() []setting {
 			help:    "auto picks by the window: panels, split or compact.",
 			value:   func(m Model) string { return m.npChoice },
 			set:     func(m *Model, v string) (any, tea.Cmd) { m.setNpLayout(v); return v, nil }},
+		{group: "Look", label: "Progress bar", kind: setChoice, section: "ui", key: "progress_style",
+			options: progressStyles,
+			help:    "plain, a gradient of the cover's colour, or the gradient with a shimmer running along it.",
+			value:   func(m Model) string { return m.progressStyle() },
+			set:     func(m *Model, v string) (any, tea.Cmd) { m.cfg.UI.ProgressStyle = v; return v, nil }},
+		{group: "Look", label: "Start-up animation", kind: setBool, section: "ui", key: "splash",
+			help:  "An equalizer dancing while spotui connects.",
+			value: func(m Model) string { return boolStr(m.cfg.UI.Splash) },
+			set:   func(m *Model, v string) (any, tea.Cmd) { m.cfg.UI.Splash = v == "true"; return m.cfg.UI.Splash, nil }},
+		{group: "Look", label: "Heart sparkle on like", kind: setBool, section: "ui", key: "like_animation",
+			help:  "The heart sparkles for a moment when you like a track.",
+			value: func(m Model) string { return boolStr(m.cfg.UI.LikeAnimation) },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				m.cfg.UI.LikeAnimation = v == "true"
+				return m.cfg.UI.LikeAnimation, nil
+			}},
 		{group: "Look", label: "Covers", kind: setBool, section: "cover", key: "enabled",
 			help:  "Show album covers at all.",
 			value: func(m Model) string { return boolStr(m.cfg.Cover.Enabled) },
@@ -303,6 +319,16 @@ func (m Model) settings() []setting {
 			}},
 
 		// --- system
+		{group: "System", label: "y copies", kind: setChoice, section: "ui", key: "copy_as",
+			options: []string{"url", "uri"},
+			help:    "url: an open.spotify.com link anyone can open; uri: spotify:track:… for apps.",
+			value: func(m Model) string {
+				if m.cfg.UI.CopyAs == "uri" {
+					return "uri"
+				}
+				return "url"
+			},
+			set: func(m *Model, v string) (any, tea.Cmd) { m.cfg.UI.CopyAs = v; return v, nil }},
 		{group: "System", label: "Notifications", kind: setBool, key: "notifications",
 			help:  "A desktop notification when the track changes.",
 			value: func(m Model) string { return boolStr(m.notifier != nil && !m.notifyOff) },

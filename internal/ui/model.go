@@ -50,6 +50,8 @@ type Model struct {
 	updateTag       string // a newer release, once the daily check found one
 	set             settingsState
 	fx              lyricFx
+	likedNowURI     string // the track just liked, for the heart's sparkle
+	likedNowAt      time.Time
 	npFocus         int // Now Playing section tab moved to, npFocus*
 	npNextCursor    int // selected entry in Up next
 
@@ -896,6 +898,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		on := !m.liked[uri]
 		m.liked[uri] = on
 		if on {
+			m.likedNowURI, m.likedNowAt = uri, time.Now()
 			m.setFlash("Added to Liked Songs", false)
 		} else {
 			m.setFlash("Removed from Liked Songs", false)
@@ -914,6 +917,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case ",":
 		return m, m.openSettings()
+	case "y":
+		return m, m.copyLink()
 	case "L":
 		m.cycleNpLayout()
 		return m, m.loadQueueForNp()

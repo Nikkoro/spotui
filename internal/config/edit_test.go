@@ -57,3 +57,10 @@ func TestSetKeyWritesFile(t *testing.T) {
 		t.Fatalf("%v %q", err, cfg.Visualizer.Style)
 	}
 }
+
+func TestDefaultsTurnOnChecksAndTouches(t *testing.T) {
+	d := Default()
+	if !d.Update.Check || !d.UI.Splash || !d.UI.LikeAnimation || d.UI.ProgressStyle == "" || d.UI.CopyAs == "" {
+		t.Fatalf("defaults missing: %+v %+v", d.Update, d.UI)
+	}
+}
