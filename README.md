@@ -10,8 +10,8 @@ Runs on Linux, WSL and Windows. Needs Spotify Premium.
 - **Pixel-art covers**: real images in terminals that show them (Sixel,
   kitty), pixelated as much as you like, or pixel blocks everywhere else.
 - **Synced lyrics** from Spotify (LRCLIB when Spotify has none) that fill in
-  as they are sung, on their own page or beside the cover; click a line to
-  jump there.
+  as they are sung and move to the beat, on their own page or beside the
+  cover; click a line to jump there.
 - **Audio visualizer** drawn from the music itself: bars, mirror or wave.
 - **Spotify's DJ**, talking between tracks; ask it for something.
 - **Your library**: playlists, Liked Songs, albums, artists, recently played,
@@ -161,6 +161,7 @@ style = "bars"            # bars | mirror | wave
 [lyrics]
 enabled = true
 now_playing_line = true   # show the current line on Now Playing (classic layout)
+effects = "subtle"        # off | subtle (flash on the beat) | party (sparkles, shake on drops)
 
 [now_playing]
 layout = "auto"           # auto | split | panels | compact | classic  (L switches)

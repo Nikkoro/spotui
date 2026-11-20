@@ -107,6 +107,18 @@ func (m Model) paletteCommands() []paletteCmd {
 			}
 			return m, nil
 		}},
+		paletteCmd{title: "Lyrics beat effects: off → subtle → party", group: "look", run: func(m Model) (tea.Model, tea.Cmd) {
+			next := fxLevels[0]
+			for i, l := range fxLevels {
+				if l == m.fxLevel() {
+					next = fxLevels[(i+1)%len(fxLevels)]
+				}
+			}
+			m.cfg.Lyrics.Effects = next
+			_ = m.cfg.Set("lyrics", "effects", next)
+			m.setFlash("Lyrics beat effects: "+next, false)
+			return m, nil
+		}},
 		paletteCmd{title: "Lyrics line on Now Playing on / off", group: "look", run: func(m Model) (tea.Model, tea.Cmd) {
 			m.cfg.Lyrics.NowPlayingLine = !m.cfg.Lyrics.NowPlayingLine
 			return m, nil
