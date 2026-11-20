@@ -79,6 +79,7 @@ func (m Model) paletteCommands() []paletteCmd {
 			return m, nil
 		}},
 
+		{title: "Settings", group: "app", key: ","},
 		{title: "Reload this list", group: "app", key: "R"},
 		{title: "Help: all keys", group: "app", key: "?"},
 		{title: "Quit", group: "app", key: "q"},

@@ -18,6 +18,7 @@ const (
 	overlayDj
 	overlayPlaylists
 	overlayPalette
+	overlaySettings
 )
 
 type devicesMsg struct {
@@ -125,6 +126,8 @@ func (m Model) viewOverlay(w, h int) string {
 		card = m.viewPlaylistPicker(w, h)
 	case overlayPalette:
 		card = m.viewPalette(w, h)
+	case overlaySettings:
+		card = m.viewSettings(w, h)
 	}
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
@@ -170,6 +173,7 @@ var helpSections = []struct {
 		{"v", "visualizer on/off"},
 		{"V", "visualizer style: bars · mirror · wave"},
 		{"L", "Now Playing layout: auto · split · panels · compact · classic"},
+		{",", "settings: everything in config.toml, saved as you change it"},
 		{"tab", "Now Playing: move to lyrics (< > offset) or up next (enter plays)"},
 		{"< > 0", "lyrics offset (lyrics page)"},
 	}},

@@ -48,8 +48,9 @@ type Model struct {
 	statusCheckedAt time.Time
 	npChoice        string // Now Playing layout picked: config, then L
 	updateTag       string // a newer release, once the daily check found one
-	npFocus         int    // Now Playing section tab moved to, npFocus*
-	npNextCursor    int    // selected entry in Up next
+	set             settingsState
+	npFocus         int // Now Playing section tab moved to, npFocus*
+	npNextCursor    int // selected entry in Up next
 
 	eng  *engine.Engine
 	cfg  *config.Config
@@ -418,6 +419,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.handleUpdateMsg(msg)
 		return m, nil
 
+	case updateCheckedMsg, updateInstalledMsg:
+		m.handleUpdateResult(msg)
+		return m, nil
+
 	case statusMsg:
 		if msg.s != nil && msg.s.Track != nil && m.trackStale(msg.s.Track.Uri) {
 			m.eng.Debugf("ui: status brought %s, was showing %s", msg.s.Track.Uri, m.currentURI())
@@ -502,6 +507,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updatePickerKey(msg)
 		case m.overlay == overlayPalette:
 			return m.updatePaletteKey(msg)
+		case m.overlay == overlaySettings:
+			return m.updateSettingsKey(msg)
 		case msg.String() == "ctrl+k" && m.phase == phaseReady && !m.inputting:
 			return m, m.openPalette()
 		case m.overlay != overlayNone:
@@ -900,6 +907,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.setFlash("Visualizer off", false)
 		}
 		return m, nil
+	case ",":
+		return m, m.openSettings()
 	case "L":
 		m.cycleNpLayout()
 		return m, m.loadQueueForNp()
