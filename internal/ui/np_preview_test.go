@@ -60,7 +60,7 @@ func TestPreviewNpLayouts(t *testing.T) {
 				if w := lipgloss.Width(out); w > sz[0] {
 					t.Errorf("%s at %v: %d columns, wider than the terminal", l, sz, w)
 				}
-				if v.images && m.frame.tmpl == nil {
+				if v.images && len(m.frame.imgs) == 0 {
 					t.Errorf("%s at %v: no image placed", l, sz)
 				}
 			}

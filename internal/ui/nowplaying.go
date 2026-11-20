@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Nikkoro/spotui/internal/lyrics"
-	"github.com/Nikkoro/spotui/internal/termimg"
 )
 
 // Now Playing layouts. All of them are built from the same pieces (cover,
@@ -155,10 +154,7 @@ func (m Model) npCover(maxCols, maxRows int) (string, int, int) {
 		for i := range lines {
 			lines[i] = blank
 		}
-		lines[0] = termimg.Marker + blank
-		if m.frame != nil {
-			m.frame.tmpl = img
-		}
+		lines[0] = m.placeImage(img) + blank
 		return strings.Join(lines, "\n"), cols, rows
 	}
 	// Pixel blocks: one column and two pixels per cell, at most the chosen
