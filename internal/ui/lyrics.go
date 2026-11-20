@@ -235,11 +235,16 @@ func (m Model) viewSyncedLyrics(w, h int, karaoke bool) string {
 		case d == 0:
 			// Karaoke: the line fills in as it is sung, up to the next one.
 			line := m.theme.accentTxt.Render("› ") + m.theme.title.Bold(true).Render(text) + m.theme.accentTxt.Render(" ‹")
-			if karaoke {
+			switch {
+			case karaoke && m.fxAtLeast(fxNightcore):
+				line = m.nightcoreLine(text, i, w)
+			case karaoke:
 				line = m.karaokeLine(text, i)
 			}
 			rows[r] = m.fxRow(line, w)
 			continue
+		case (d == -1 || d == 1) && m.fxAtLeast(fxNightcore) && m.fx.pulse > 0.5:
+			st = m.theme.text.Bold(true) // the lines around it pulse too
 		case d < 0 && d >= -2:
 			st = past
 		case d < 0:

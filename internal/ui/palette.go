@@ -108,7 +108,7 @@ func (m Model) paletteCommands() []paletteCmd {
 			}
 			return m, nil
 		}},
-		paletteCmd{title: "Lyrics beat effects: off → subtle → party", group: "look", run: func(m Model) (tea.Model, tea.Cmd) {
+		paletteCmd{title: "Lyrics beat effects: off → subtle → party → nightcore", group: "look", run: func(m Model) (tea.Model, tea.Cmd) {
 			next := fxLevels[0]
 			for i, l := range fxLevels {
 				if l == m.fxLevel() {
