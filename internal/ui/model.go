@@ -49,6 +49,7 @@ type Model struct {
 	npChoice        string // Now Playing layout picked: config, then L
 	updateTag       string // a newer release, once the daily check found one
 	set             settingsState
+	fx              lyricFx
 	npFocus         int // Now Playing section tab moved to, npFocus*
 	npNextCursor    int // selected entry in Up next
 
@@ -245,6 +246,10 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 	m.picker.filter = textinput.New()
 	m.picker.filter.Prompt = "/ "
 	m.picker.filter.Placeholder = "playlist name"
+	if !validFxLevel(cfg.Lyrics.Effects) {
+		m.warnings = append(m.warnings, "lyrics.effects \""+cfg.Lyrics.Effects+"\" is not one of "+strings.Join(fxLevels, ", "))
+		cfg.Lyrics.Effects = fxSubtle
+	}
 	if !validNpLayout(m.npChoice) {
 		m.warnings = append(m.warnings, "now_playing.layout \""+m.npChoice+"\" is not one of "+strings.Join(npLayouts, ", "))
 		m.npChoice = npAuto

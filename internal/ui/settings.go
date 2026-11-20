@@ -289,6 +289,11 @@ func (m Model) settings() []setting {
 				}
 				return on, cmd
 			}},
+		{group: "Lyrics", label: "Beat effects", kind: setChoice, section: "lyrics", key: "effects",
+			options: fxLevels,
+			help:    "The line being sung moves to the music: subtle flashes on the beat, party adds sparkles and a shake on drops.",
+			value:   func(m Model) string { return m.fxLevel() },
+			set:     func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.Effects = v; return v, nil }},
 		{group: "Lyrics", label: "Line on classic Now Playing", kind: setBool, section: "lyrics", key: "now_playing_line",
 			help:  "The current line under the progress bar in the classic layout.",
 			value: func(m Model) string { return boolStr(m.cfg.Lyrics.NowPlayingLine) },

@@ -238,7 +238,7 @@ func (m Model) viewSyncedLyrics(w, h int, karaoke bool) string {
 			if karaoke {
 				line = m.karaokeLine(text, i)
 			}
-			rows[r] = lipgloss.PlaceHorizontal(w, lipgloss.Center, line)
+			rows[r] = m.fxRow(line, w)
 			continue
 		case d < 0 && d >= -2:
 			st = past
@@ -270,9 +270,10 @@ func (m Model) karaokeLine(text string, i int) string {
 
 	runes := []rune(text)
 	n := int(math.Round(progress * float64(len(runes))))
-	sung := m.theme.title.Bold(true).Render(string(runes[:n]))
+	sung := m.fxSungStyle().Render(string(runes[:n]))
 	rest := m.theme.text.Bold(true).Render(string(runes[n:]))
-	return m.theme.accentTxt.Render("› ") + sung + rest + m.theme.accentTxt.Render(" ‹")
+	before, after := m.fxMarkers()
+	return before + sung + rest + after
 }
 
 func (m Model) viewPlainLyrics(w, h int) string {

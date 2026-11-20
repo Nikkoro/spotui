@@ -28,8 +28,9 @@ func (m Model) vizVisible() bool {
 // stepVisualizer advances the analyzer one frame and schedules the next.
 // It runs at full rate only while the visualizer is on screen.
 func (m *Model) stepVisualizer(now time.Time) tea.Cmd {
-	if !m.vizVisible() {
+	if !m.vizVisible() && !m.fxActive() {
 		m.vizAt = time.Time{}
+		m.stepFx(nil, vizIdleInterval.Seconds())
 		return vizTick(vizIdleInterval)
 	}
 
@@ -49,6 +50,10 @@ func (m *Model) stepVisualizer(now time.Time) tea.Cmd {
 		}
 	}
 
+	m.stepFx(samples, dt)
+	if !m.vizVisible() {
+		return vizTick(vizFrameInterval) // effects only
+	}
 	m.vizLevels, m.vizPeaks = m.vizAn.Update(samples, dt)
 
 	// The oscilloscope shows ~20 ms of the same window, gain eased.

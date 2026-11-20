@@ -133,6 +133,9 @@ type LyricsConfig struct {
 	Enabled bool `toml:"enabled"`
 	// NowPlayingLine shows the current lyric line on Now Playing.
 	NowPlayingLine bool `toml:"now_playing_line"`
+	// Effects animates the line being sung to the beat: "off", "subtle"
+	// (it flashes) or "party" (sparkles, and a shake when the track drops).
+	Effects string `toml:"effects"`
 }
 
 type NowPlayingConfig struct {
@@ -184,6 +187,7 @@ func Default() Config {
 		Lyrics: LyricsConfig{
 			Enabled:        true,
 			NowPlayingLine: true,
+			Effects:        "subtle",
 		},
 		NowPlaying:      NowPlayingConfig{Layout: "auto"},
 		SeekStepSeconds: 5,
