@@ -207,8 +207,9 @@ several effects, switched in Settings (`,` → Shader effect) with no reload:
 
 A shader only sees the window, so spotui sends it the music through a row
 of coloured cells in the top-left corner, which the shader reads and
-hides. It works on the lyrics page and the Now Playing layouts that show
-synced lyrics; everywhere else the shader changes nothing.
+hides. It works on the lyrics page and the Now Playing layouts with a
+lyrics panel, lyrics or not (instrumentals too); everywhere else the
+shader changes nothing.
 
 1. Run `spotui shader`. It writes `spotui.hlsl` next to `config.toml` (or
    to a path you give it) and prints the line for your profile, as a

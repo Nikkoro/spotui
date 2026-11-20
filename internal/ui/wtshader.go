@@ -83,9 +83,11 @@ func (m Model) shaderStyle() int {
 	return 0
 }
 
-// shaderActive reports whether the shader cells are drawn.
+// shaderActive reports whether the shader cells are drawn: wherever the
+// lyrics page or panel is, with lyrics or without (an instrumental, a
+// track with none found, plain lyrics).
 func (m Model) shaderActive() bool {
-	return m.cfg != nil && m.cfg.Lyrics.WTShader && m.syncedOnScreen()
+	return m.cfg != nil && m.cfg.Lyrics.WTShader && m.lyricsPanelOnScreen()
 }
 
 // shaderFx is what the shader is sent, kept with the lyric effects.

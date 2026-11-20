@@ -122,8 +122,13 @@ func (m Model) fxActive() bool {
 
 // syncedOnScreen reports whether synced lyrics are on screen.
 func (m Model) syncedOnScreen() bool {
-	if m.phase != phaseReady || m.track == nil || m.overlay != overlayNone ||
-		m.lyrics == nil || len(m.lyrics.Synced) == 0 {
+	return m.lyricsPanelOnScreen() && m.lyrics != nil && len(m.lyrics.Synced) > 0
+}
+
+// lyricsPanelOnScreen reports whether the lyrics page or panel is on
+// screen, whatever it shows: lyrics, "Instrumental", none found.
+func (m Model) lyricsPanelOnScreen() bool {
+	if m.phase != phaseReady || m.track == nil || m.overlay != overlayNone {
 		return false
 	}
 	return m.page == pageLyrics || (m.page == pageNowPlaying && m.npLayout() != npClassic)
