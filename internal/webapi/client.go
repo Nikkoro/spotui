@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -17,11 +19,33 @@ const baseURL = "https://api.spotify.com/v1"
 type Client struct {
 	tokens TokenSource
 	http   *http.Client
+	base   string
+
+	mu           sync.Mutex
+	blockedUntil time.Time
+	cache        map[string]cached
 }
+
+type cached struct {
+	body []byte
+	at   time.Time
+}
+
+// How long answers are reused. Spotify rate-limits per app over a rolling
+// window, so the same question is not asked again within these.
+const (
+	ttlSearch = 10 * time.Minute
+	ttlRecent = 2 * time.Minute
+	ttlTop    = time.Hour
+
+	maxCached = 64
+	// Used when a 429 comes without Retry-After.
+	defaultBackoff = 30 * time.Second
+)
 
 // NewClient builds a client that authenticates with tokens.
 func NewClient(tokens TokenSource) *Client {
-	return &Client{tokens: tokens, http: &http.Client{Timeout: 20 * time.Second}}
+	return &Client{tokens: tokens, http: &http.Client{Timeout: 20 * time.Second}, base: baseURL, cache: map[string]cached{}}
 }
 
 // APIError is a non-2xx answer.
@@ -41,16 +65,30 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("web API %d", e.Status)
 }
 
-func (c *Client) get(ctx context.Context, path string, query url.Values, out any) error {
+// get fetches path, reusing an answer younger than ttl, and sends nothing
+// while Spotify has asked us to back off.
+func (c *Client) get(ctx context.Context, path string, query url.Values, ttl time.Duration, out any) error {
+	u := c.base + path
+	if len(query) > 0 {
+		u += "?" + query.Encode()
+	}
+
+	c.mu.Lock()
+	if e, ok := c.cache[u]; ok && time.Since(e.at) < ttl {
+		c.mu.Unlock()
+		return json.Unmarshal(e.body, out)
+	}
+	if wait := time.Until(c.blockedUntil); wait > 0 {
+		c.mu.Unlock()
+		return &APIError{Status: http.StatusTooManyRequests, RetryAfter: wait}
+	}
+	c.mu.Unlock()
+
 	tok, err := c.tokens.Token(ctx)
 	if err != nil {
 		return err
 	}
 
-	u := baseURL + path
-	if len(query) > 0 {
-		u += "?" + query.Encode()
-	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return err
@@ -68,6 +106,21 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 		if s, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil {
 			apiErr.RetryAfter = time.Duration(s) * time.Second
 		}
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
+			// Back off for everything, not just this call, plus a little
+			// jitter so retries do not land all at once.
+			wait := apiErr.RetryAfter
+			if wait <= 0 {
+				wait = defaultBackoff
+			}
+			wait += time.Duration(rand.Float64() * 0.1 * float64(wait))
+			apiErr.RetryAfter = wait
+			c.mu.Lock()
+			if until := time.Now().Add(wait); until.After(c.blockedUntil) {
+				c.blockedUntil = until
+			}
+			c.mu.Unlock()
+		}
 		var body struct {
 			Error struct {
 				Message string `json:"message"`
@@ -78,7 +131,32 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 		}
 		return apiErr
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(body, out); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	if len(c.cache) >= maxCached {
+		c.evictOldestLocked()
+	}
+	c.cache[u] = cached{body: body, at: time.Now()}
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *Client) evictOldestLocked() {
+	var oldest string
+	var at time.Time
+	for k, e := range c.cache {
+		if oldest == "" || e.at.Before(at) {
+			oldest, at = k, e.at
+		}
+	}
+	delete(c.cache, oldest)
 }
 
 // Image is a cover or avatar.
@@ -160,7 +238,7 @@ func (c *Client) Search(ctx context.Context, query string) (*SearchResult, error
 		"type":  {"track,album,artist,playlist"},
 		"limit": {"10"},
 	}
-	if err := c.get(ctx, "/search", q, &raw); err != nil {
+	if err := c.get(ctx, "/search", q, ttlSearch, &raw); err != nil {
 		return nil, err
 	}
 
@@ -196,7 +274,7 @@ func (c *Client) RecentlyPlayed(ctx context.Context) ([]PlayHistory, error) {
 	var raw struct {
 		Items []PlayHistory `json:"items"`
 	}
-	if err := c.get(ctx, "/me/player/recently-played", url.Values{"limit": {"50"}}, &raw); err != nil {
+	if err := c.get(ctx, "/me/player/recently-played", url.Values{"limit": {"50"}}, ttlRecent, &raw); err != nil {
 		return nil, err
 	}
 	return raw.Items, nil
@@ -205,7 +283,7 @@ func (c *Client) RecentlyPlayed(ctx context.Context) ([]PlayHistory, error) {
 // TopTracks returns the account's most played tracks of the last weeks.
 func (c *Client) TopTracks(ctx context.Context) ([]Track, error) {
 	var raw page[Track]
-	if err := c.get(ctx, "/me/top/tracks", url.Values{"limit": {"50"}, "time_range": {"short_term"}}, &raw); err != nil {
+	if err := c.get(ctx, "/me/top/tracks", url.Values{"limit": {"50"}, "time_range": {"short_term"}}, ttlTop, &raw); err != nil {
 		return nil, err
 	}
 	return compact(raw.Items), nil
@@ -214,7 +292,7 @@ func (c *Client) TopTracks(ctx context.Context) ([]Track, error) {
 // TopArtists returns the account's most played artists of the last weeks.
 func (c *Client) TopArtists(ctx context.Context) ([]Artist, error) {
 	var raw page[Artist]
-	if err := c.get(ctx, "/me/top/artists", url.Values{"limit": {"50"}, "time_range": {"short_term"}}, &raw); err != nil {
+	if err := c.get(ctx, "/me/top/artists", url.Values{"limit": {"50"}, "time_range": {"short_term"}}, ttlTop, &raw); err != nil {
 		return nil, err
 	}
 	return compact(raw.Items), nil
