@@ -22,8 +22,34 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update && sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y libasound2-dev libvorbis-dev libogg-dev libflac-dev libmpg123-dev
-      - run: go build -trimpath -ldflags "-s -w -X main.version=${VERSION#release/}" -o spotui ./cmd/spotui
+      - run: sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update && sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y libasound2-dev ninja-build pkg-config
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /tmp/vcpkg
+            vcpkg_installed
+          key: vcpkg-linux-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+
+      - name: Static codecs (vcpkg)
+        # libFLAC and libmpg123 go inside the binary, so it runs whatever
+        # versions the system has (Ubuntu 26.04 ships a newer libFLAC).
+        run: |
+          if [ ! -x /tmp/vcpkg/vcpkg ]; then
+            git clone --depth 1 --branch 2025.09.17 https://github.com/microsoft/vcpkg.git /tmp/vcpkg
+            /tmp/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+          fi
+          /tmp/vcpkg/vcpkg install --triplet x64-linux
+        env:
+          VCPKG_ROOT: /tmp/vcpkg
+      - name: Build
+        env:
+          PKG_CONFIG: pkg-config --static
+          PKG_CONFIG_PATH: ${{ github.workspace }}/vcpkg_installed/x64-linux/lib/pkgconfig
+        run: go build -trimpath -ldflags "-s -w -X main.version=${VERSION#release/}" -o spotui ./cmd/spotui
+      - name: Check the binary needs no codec libraries
+        run: |
+          ldd spotui
+          if ldd spotui | grep -E 'libFLAC|libmpg123|libogg|libvorbis'; then exit 1; fi
       - run: tar czf spotui-linux-amd64.tar.gz spotui README.md LICENSE
       - uses: actions/upload-artifact@v4
         with:
