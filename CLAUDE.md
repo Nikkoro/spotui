@@ -1,0 +1,67 @@
+# spotui: notes for Claude Code
+
+A Spotify client for the terminal in Go (Bubble Tea, Lip Gloss) that is
+itself a Spotify Connect device through an embedded, patched go-librespot.
+
+## Build and run
+
+```sh
+sudo apt install build-essential pkg-config libasound2-dev libflac-dev libmpg123-dev libogg-dev libvorbis-dev
+go run ./cmd/spotui            # or: go build -o ~/.local/bin/spotui ./cmd/spotui
+go run ./cmd/spotui --debug    # logs to spotui.log next to config.toml (spotui paths)
+go test -race ./...
+gofmt -l . && go vet ./...
+```
+
+Local builds link the system FLAC and mpg123; release builds carry them
+statically (vcpkg in CI). Go 1.25+.
+
+Render screens without Spotify (sample track, invented lyrics):
+
+```sh
+PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
+```
+
+## Where things are
+
+- `cmd/spotui`: flags, subcommands (`update`, `logout`, `paths`,
+  `clear-cache`), session loop that restarts the player.
+- `internal/engine`: wraps go-librespot's daemon in-process; every player
+  call is a request on a channel.
+- `internal/ui`: the interface. `model.go` (state, keys, events), `view.go`,
+  `view_pages.go`, `nowplaying.go` (layouts split/panels/compact/classic),
+  `lyrics.go`, `fx.go` (beat effects: subtle/party/nightcore), `fun.go`
+  (progress bar styles, splash, heart, copy link), `settings.go` (the `,`
+  page; each setting writes its own line of config.toml), `images.go`
+  (Sixel/kitty covers), `palette.go` (ctrl+k).
+- `internal/viz`: audio tap, FFT analyzer, renderers, `beat.go` (beat and
+  drop detection).
+- `internal/termimg`: Sixel/kitty encoding and the writer that places
+  images; image cells are skipped with cursor moves so text beside them
+  never erases them.
+- `internal/lyrics`: Spotify first, LRCLIB behind it, disk cache.
+- `internal/webapi`: Spotify Web API with PKCE, cache and 429 back-off.
+- `internal/update`: GitHub releases, self-update.
+- `internal/config`: config.toml, defaults, line-preserving edits.
+- `third_party/go-librespot`, `third_party/pulse`: vendored with patches,
+  each listed in `third_party/PATCHES.md`; add an entry for any new one.
+
+## Rules
+
+- Any call to an outside API caches its answers and honours rate limits
+  (Retry-After, back-off) from the start. Never hammer Spotify, LRCLIB or
+  GitHub.
+- Code identifiers, keys and file names in English.
+- New behaviour gets a setting where it makes sense: a field in
+  `internal/config`, a default in `Default()`, an entry in `settings.go`,
+  a line in the README's config block.
+- Tests and previews use invented lyrics only, never real song text.
+- Keep `gofmt`, `go vet` and `go test -race ./...` clean.
+
+## Tuning the beat effects
+
+`internal/viz/beat.go`: `beatRatio` (how far above the recent bass energy a
+beat must be), `beatMinGapMs`, `dropRatio`. `internal/ui/fx.go`: decay
+rates in `stepFx` (`pulse`, `zoom`, `wave`), the zoom spread in
+`nightcoreLine`, sparkle count and life (`sparkLife`, `sparkWidth`), shake
+offsets. The current line is drawn by `viewSyncedLyrics` in `lyrics.go`.
