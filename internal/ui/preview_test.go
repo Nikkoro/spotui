@@ -73,10 +73,10 @@ func sampleModel(t *testing.T) Model {
 	m.repeatCtx = true
 	m.liked["spotify:track:1"] = true
 	m.lyrics = &lyrics.Lyrics{Source: "LRCLIB", Synced: lyrics.ParseLRC(
-		"[01:20.00]Waiting in a car\n[01:24.00]Waiting for a ride in the dark\n[01:30.00]The night city grows\n" +
-			"[01:34.00]Look and see her eyes, they glow\n[01:40.00]Waiting in a car\n[01:44.00]Waiting for the right time\n" +
-			"[01:50.00]Waiting in a car\n[01:54.00]Waiting for the right time\n[02:00.00]\n[02:10.00]Drinking in the lounge\n" +
-			"[02:14.00]Following the neon signs\n[02:20.00]Waiting for a roar\n[02:24.00]Looking at the mutating skyline")}
+		"[01:20.00]I left the lights on by the water\n[01:24.00]to find my way back after dark\n" +
+			"[01:30.00]the radio hums an old address\n[01:34.00]Neon harbour, hold me steady\n" +
+			"[01:40.00]every wave is calling twice\n[01:44.00]I keep the night inside my pocket\n" +
+			"[01:50.00]and spend it slowly, line by line\n[02:00.00]\n[02:10.00]Neon harbour, hold me steady")}
 
 	// Fake a spectrum: a rough pink-noise slope with some bumps.
 	_ = m.View() // lets the visualizer size its bands

@@ -43,6 +43,9 @@ func (m Model) View() string {
 	default:
 		if m.overlay != overlayNone {
 			body = m.viewOverlay(w, m.bodyHeight(header, footer, ""))
+		} else if m.page == pageNowPlaying && m.track != nil && m.npLayout() != npClassic {
+			h := m.bodyHeight(header, footer, "")
+			body = lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(m.viewNowPlayingLayout(w, h))
 		} else if m.page == pageNowPlaying {
 			card, ok := "", false
 			if m.imagesOn() {
@@ -485,6 +488,11 @@ func (m Model) viewTrackStatic(w int, scroll bool) string {
 
 // viewTrackDynamic is everything that moves while a track plays.
 func (m Model) viewTrackDynamic(w int) string {
+	return m.trackDynamic(w, m.cfg.Lyrics.NowPlayingLine)
+}
+
+// trackDynamic is viewTrackDynamic, with the current lyric line or not.
+func (m Model) trackDynamic(w int, lyricLine bool) string {
 	t := m.track
 	pos := m.position()
 	dur := int64(t.Duration)
@@ -515,7 +523,7 @@ func (m Model) viewTrackDynamic(w int) string {
 		"",
 		m.volumeBar(w),
 	}
-	if m.cfg.Lyrics.NowPlayingLine && m.lyrics != nil && len(m.lyrics.Synced) > 0 {
+	if lyricLine && m.lyrics != nil && len(m.lyrics.Synced) > 0 {
 		line := m.currentLyric()
 		if line == "" {
 			line = "♪"

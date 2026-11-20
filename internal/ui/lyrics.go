@@ -138,11 +138,8 @@ func fmtOffset(d time.Duration) string {
 	return s
 }
 
-func (m Model) viewLyrics(w, h int) string {
-	if m.track == nil {
-		return m.theme.dim.Render("Nothing playing.")
-	}
-
+// lyricsInfo is "synced · LRCLIB · +0.5s" and the like.
+func (m Model) lyricsInfo() string {
 	right := ""
 	switch {
 	case m.lyrics != nil && len(m.lyrics.Synced) > 0:
@@ -156,27 +153,38 @@ func (m Model) viewLyrics(w, h int) string {
 	if m.lyricsOffset != 0 {
 		right += " · " + fmtOffset(m.lyricsOffset)
 	}
-	head := m.pageTitle(m.track.Name+m.theme.dim.Render("  "+strings.Join(m.track.ArtistNames, ", ")), right, w)
+	return strings.TrimPrefix(right, " · ")
+}
 
-	bodyH := h - 2
-	var body string
+func (m Model) viewLyrics(w, h int) string {
+	if m.track == nil {
+		return m.theme.dim.Render("Nothing playing.")
+	}
+
+	head := m.pageTitle(m.track.Name+m.theme.dim.Render("  "+strings.Join(m.track.ArtistNames, ", ")), m.lyricsInfo(), w)
+
+	return lipgloss.JoinVertical(lipgloss.Left, head, "", m.lyricsBody(w, h-2, true))
+}
+
+// lyricsBody is the lyrics, or why there are none, w×h. karaoke fills the
+// current line as it is sung; off where every change costs a redraw of an
+// image beside it.
+func (m Model) lyricsBody(w, h int, karaoke bool) string {
 	switch {
 	case m.lyr == nil:
-		body = m.centreText(w, bodyH, m.theme.dim.Render("Lyrics are disabled in config.toml."))
+		return m.centreText(w, h, m.theme.dim.Render("Lyrics are disabled in config.toml."))
 	case m.lyricsLoading:
-		body = m.centreText(w, bodyH, m.loadingLine("Looking for lyrics…"))
+		return m.centreText(w, h, m.loadingLine("Looking for lyrics…"))
 	case errors.Is(m.lyricsErr, lyrics.ErrNotFound) || (m.lyricsErr == nil && m.lyrics.Empty()):
-		body = m.centreText(w, bodyH, m.theme.dim.Render("No lyrics found for this track."))
+		return m.centreText(w, h, m.theme.dim.Render("No lyrics found for this track."))
 	case m.lyricsErr != nil:
-		body = m.centreText(w, bodyH, m.errorLine(m.lyricsErr))
+		return m.centreText(w, h, m.errorLine(m.lyricsErr))
 	case m.lyrics.Instrumental && len(m.lyrics.Synced) == 0:
-		body = m.centreText(w, bodyH, m.theme.accentTxt.Render("♪  Instrumental  ♪"))
+		return m.centreText(w, h, m.theme.accentTxt.Render("♪  Instrumental  ♪"))
 	case len(m.lyrics.Synced) > 0:
-		body = m.viewSyncedLyrics(w, bodyH)
-	default:
-		body = m.viewPlainLyrics(w, bodyH)
+		return m.viewSyncedLyrics(w, h, karaoke)
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, head, "", body)
+	return m.viewPlainLyrics(w, h)
 }
 
 func (m Model) centreText(w, h int, s string) string {
@@ -185,7 +193,7 @@ func (m Model) centreText(w, h int, s string) string {
 
 // viewSyncedLyrics keeps the current line about 40% down the page, with
 // sung lines fading out above and upcoming ones below.
-func (m Model) viewSyncedLyrics(w, h int) string {
+func (m Model) viewSyncedLyrics(w, h int, karaoke bool) string {
 	lines := m.lyrics.Synced
 	cur := lyrics.Index(lines, m.lyricsPos())
 	anchor := h * 2 / 5
@@ -213,7 +221,11 @@ func (m Model) viewSyncedLyrics(w, h int) string {
 		switch d := i - cur; {
 		case d == 0:
 			// Karaoke: the line fills in as it is sung, up to the next one.
-			rows[r] = lipgloss.PlaceHorizontal(w, lipgloss.Center, m.karaokeLine(text, i))
+			line := m.theme.accentTxt.Render("› ") + m.theme.title.Bold(true).Render(text) + m.theme.accentTxt.Render(" ‹")
+			if karaoke {
+				line = m.karaokeLine(text, i)
+			}
+			rows[r] = lipgloss.PlaceHorizontal(w, lipgloss.Center, line)
 			continue
 		case d < 0 && d >= -2:
 			st = past

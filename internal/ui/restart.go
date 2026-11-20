@@ -18,7 +18,7 @@ func (m Model) WithRestartAttempt(n int) Model {
 
 // WithWarnings queues configuration problems to show once logged in.
 func (m Model) WithWarnings(w []string) Model {
-	m.warnings = w
+	m.warnings = append(m.warnings, w...)
 	return m
 }
 

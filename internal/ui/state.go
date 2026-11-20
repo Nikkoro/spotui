@@ -20,6 +20,7 @@ type uiState struct {
 	ImagePixels   *int     `json:"image_pixels,omitempty"`
 	ImageLevels   *int     `json:"image_levels,omitempty"`
 	DynamicAccent *bool    `json:"dynamic_accent,omitempty"`
+	NowPlaying    string   `json:"now_playing_layout,omitempty"`
 }
 
 const maxSearchHistory = 30
@@ -75,6 +76,9 @@ func (m *Model) restoreState() {
 		m.imgLevels = *s.ImageLevels
 	}
 	m.savedImageMode = s.ImageMode
+	if validNpLayout(s.NowPlaying) {
+		m.npChoice = s.NowPlaying
+	}
 	if s.DynamicAccent != nil {
 		m.dynamicAccent = *s.DynamicAccent
 	}
@@ -105,6 +109,7 @@ func (m Model) SaveState() error {
 		ImagePixels:   &imgPx,
 		ImageLevels:   &imgLv,
 		DynamicAccent: &dyn,
+		NowPlaying:    m.npChoice,
 	}, "", "  ")
 	if err != nil {
 		return err

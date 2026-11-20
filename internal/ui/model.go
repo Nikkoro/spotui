@@ -46,6 +46,7 @@ const (
 // Model is the root Bubble Tea model.
 type Model struct {
 	statusCheckedAt time.Time
+	npChoice        string // Now Playing layout picked: config, then L
 
 	eng  *engine.Engine
 	cfg  *config.Config
@@ -229,6 +230,7 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		vizOn:         cfg.Visualizer.Enabled && tap != nil,
 		vizTap:        tap,
 		vizStyle:      cfg.Visualizer.Style,
+		npChoice:      cfg.NowPlaying.Layout,
 		vizAn:         viz.NewAnalyzer(32),
 		vizBuf:        make([]float32, 2048),
 	}
@@ -241,6 +243,10 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 	m.picker.filter = textinput.New()
 	m.picker.filter.Prompt = "/ "
 	m.picker.filter.Placeholder = "playlist name"
+	if !validNpLayout(m.npChoice) {
+		m.warnings = append(m.warnings, "now_playing.layout \""+m.npChoice+"\" is not one of "+strings.Join(npLayouts, ", "))
+		m.npChoice = npAuto
+	}
 	m.restoreState()
 
 	if cfg.Notifications {
@@ -380,6 +386,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		if m.img != nil {
 			m.img.Invalidate() // the renderer repaints everything
+		}
+		if m.phase == phaseReady && len(m.queue.list.items) == 0 && !m.queue.loading {
+			return m, m.loadQueueForNp() // grown into the layout that shows it
 		}
 		return m, nil
 
@@ -633,13 +642,11 @@ func (m *Model) applyPlayerEvent(ev engine.PlayerEvent) tea.Cmd {
 		m.setFlash("Playback moved to another device", false)
 	case daemon.ApiEventTypeActive:
 		m.setFlash("Playing on this terminal", false)
-	case daemon.ApiEventTypeQueue:
+	case daemon.ApiEventTypeQueue, daemon.ApiEventTypeMetadata:
 		if m.page == pageQueue {
 			cmds = append(cmds, m.loadQueue())
-		}
-	case daemon.ApiEventTypeMetadata:
-		if m.page == pageQueue {
-			cmds = append(cmds, m.loadQueue())
+		} else {
+			cmds = append(cmds, m.loadQueueForNp())
 		}
 	}
 	return tea.Batch(cmds...)
@@ -888,6 +895,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.setFlash("Visualizer off", false)
 		}
 		return m, nil
+	case "L":
+		m.cycleNpLayout()
+		return m, m.loadQueueForNp()
 	case "V":
 		switch m.vizStyle {
 		case "mirror":

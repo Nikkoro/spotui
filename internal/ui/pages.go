@@ -422,6 +422,8 @@ func (m *Model) switchPage(p page) tea.Cmd {
 	case pageQueue:
 		m.queue.loading = true
 		return m.loadQueue()
+	case pageNowPlaying:
+		return m.loadQueueForNp()
 	}
 	return nil
 }
