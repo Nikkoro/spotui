@@ -165,7 +165,7 @@ style = "bars"            # bars | mirror | wave
 enabled = true
 now_playing_line = true   # show the current line on Now Playing (classic layout)
 effects = "subtle"        # off | subtle (flash on the beat) | party (sparkles, shake on drops)
-                          # | nightcore (party, plus zoom, capitals and flowing colours)
+                          # | nightcore (party, plus letter waves and flowing colours)
 
 [now_playing]
 layout = "auto"           # auto | split | panels | compact | classic  (L switches)

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -80,14 +81,15 @@ func TestNightcoreZoomsAndStaysInside(t *testing.T) {
 	if m.fx.zoom < 0.5 {
 		t.Fatalf("no zoom on a kick: %.2f", m.fx.zoom)
 	}
-
-	plain := ansi.Strip(m.nightcoreLine("an invented line", 0, 80))
-	if low := strings.ToLower(plain); !strings.Contains(low, "i n v") && !strings.Contains(low, "i  n  v") {
-		t.Fatalf("letters not spread on the beat: %q", plain)
+	if len(m.fx.waves) == 0 {
+		t.Fatal("no wave on a kick")
 	}
-	m.fx.caps = 0.1
-	if plain := ansi.Strip(m.nightcoreLine("an invented line", 0, 80)); !strings.Contains(plain, "A") {
-		t.Fatalf("no capitals on a hard beat: %q", plain)
+
+	// The spread is one column at most.
+	m.fx.waves = nil
+	plain := ansi.Strip(m.nightcoreLine("an invented line", 0, 80))
+	if !strings.Contains(plain, "i n v") || strings.Contains(plain, "i  n") {
+		t.Fatalf("letters not spread by one column on the beat: %q", plain)
 	}
 
 	// However long the line and narrow the panel, the row stays w wide.
@@ -105,5 +107,72 @@ func TestNightcoreZoomsAndStaysInside(t *testing.T) {
 	}
 	if m.fx.zoom > 0.15 {
 		t.Fatalf("zoom did not settle: %.2f", m.fx.zoom)
+	}
+	if plain := ansi.Strip(m.nightcoreLine("an invented line", 0, 80)); plain != "› an invented line ‹" {
+		t.Fatalf("line not back to normal: %q", plain)
+	}
+}
+
+// capitals returns the upper-case letters in s.
+func capitals(s string) string {
+	var out []rune
+	for _, r := range s {
+		if unicode.IsUpper(r) {
+			out = append(out, r)
+		}
+	}
+	return string(out)
+}
+
+func TestNightcoreWaveHopsLetterByLetter(t *testing.T) {
+	m := fxModel(t, fxNightcore)
+	const text = "an invented line"
+	m.fx.waves = []hop{{dur: 0.35, bright: 1, dir: 1}}
+
+	// One letter at a time is a capital, and the crest moves left to right
+	// across the whole line within the wave's time.
+	last, seen := -1, 0
+	for step := 0; step < 40; step++ {
+		plain := ansi.Strip(m.nightcoreLine(text, 0, 80))
+		if caps := capitals(plain); len(caps) > 1 {
+			t.Fatalf("more than one capital at once: %q", plain)
+		} else if len(caps) == 1 {
+			at := strings.IndexFunc(plain, unicode.IsUpper)
+			if at < last {
+				t.Fatalf("crest went backwards: %d after %d in %q", at, last, plain)
+			}
+			if at > last {
+				seen++
+			}
+			last = at
+		}
+		if strings.ToLower(plain) != "› "+text+" ‹" {
+			t.Fatalf("the text itself changed: %q", plain)
+		}
+		m.stepFx(nil, 0.35/40)
+	}
+	if seen < 10 {
+		t.Fatalf("crest touched only %d letters", seen)
+	}
+	m.stepFx(nil, 0.01)
+	if len(m.fx.waves) != 0 {
+		t.Fatal("wave did not end")
+	}
+}
+
+func TestNightcoreDropRunsFromTheMiddle(t *testing.T) {
+	m := fxModel(t, fxNightcore)
+	m.fx.waves = []hop{{dur: 0.25, bright: 1, dir: 1, middle: true}, {dur: 0.25, bright: 1, dir: -1, middle: true}}
+	m.stepFx(nil, 0.06) // both crests on letters, not the space
+	plain := ansi.Strip(m.nightcoreLine("an invented line", 0, 80))
+	caps := capitals(plain)
+	if len(caps) != 2 {
+		t.Fatalf("want two crests on a drop, got %q in %q", caps, plain)
+	}
+	l := strings.IndexFunc(plain, unicode.IsUpper)
+	r := strings.LastIndexFunc(plain, unicode.IsUpper)
+	mid := strings.Index(strings.ToLower(plain), "invented") + 4
+	if !(l < mid && r > mid) {
+		t.Fatalf("crests not either side of the middle: %q", plain)
 	}
 }

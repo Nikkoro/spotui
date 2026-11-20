@@ -62,6 +62,7 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
 
 `internal/viz/beat.go`: `beatRatio` (how far above the recent bass energy a
 beat must be), `beatMinGapMs`, `dropRatio`. `internal/ui/fx.go`: decay
-rates in `stepFx` (`pulse`, `zoom`, `wave`), the zoom spread in
+rates in `stepFx` (`pulse`, `zoom`), wave speed and brightness per beat
+in `stepFx` (`hop`, `hopTail`, glow in `hopAt`), the zoom threshold in
 `nightcoreLine`, sparkle count and life (`sparkLife`, `sparkWidth`), shake
 offsets. The current line is drawn by `viewSyncedLyrics` in `lyrics.go`.
