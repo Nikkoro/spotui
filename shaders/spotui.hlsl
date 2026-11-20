@@ -2,7 +2,7 @@
 // lyrics, moving to the music. Write it out with `spotui shader`.
 //
 // A pixel shader only sees the rendered window, so spotui sends the music
-// as colour: with `wt_shader = true` under [lyrics] it paints twelve cells
+// as colour: with `wt_shader = true` under [lyrics] it paints fifteen cells
 // at the start of its top row (see internal/ui/wtshader.go):
 //
 //   cell 0     signature (13, 37, 241)
@@ -21,7 +21,13 @@
 //              the high bands, fading fast)
 //   cell 10    the first plasma's values, as they were: R kick, G bass
 //              against its last second, B loudness
-//   cell 11    signature again
+//   cell 11    bass, mid, treble as MilkDrop hears them: each against its
+//              own recent average, 1 = as usual, divided by 3
+//   cell 12    the same, smoothed (MilkDrop's bass_att and so on)
+//   cell 13    R how much the camera moves with them (wt_shader_motion),
+//              G B its turn (16 bits, 0…1 a whole turn): a slow spin
+//              that the treble speeds up
+//   cell 14    signature again
 //
 // This shader finds them, reads them, hides them, and adds the effect
 // wherever the window shows its background, kept dim so the text on top
@@ -46,7 +52,7 @@ cbuffer PixelShaderSettings
 };
 
 static const float3 SIG = float3(13.0, 37.0, 241.0) / 255.0;
-static const int STRIP_CELLS = 12;
+static const int STRIP_CELLS = 15;
 static const int BANDS = 12;
 static const int SEARCH = 64; // pixels searched for the strip from the corner
 
@@ -113,6 +119,10 @@ struct Music
     // swell: rising just before the next one.
     float pulse, swell;
     float ck, cb, cl; // the first plasma's kick, bass, loudness
+    // MilkDrop's bass, mid, treb (1 = as usual) and their smoothed _att
+    float bass3, mid3, treb3, bassAtt, midAtt, trebAtt;
+    float motion; // how much the camera moves with them, 0…1
+    float spin;   // its turn, 0…1 a whole circle
     float3 accent;
     int style;
     float bands[BANDS];
@@ -137,6 +147,17 @@ Music readMusic(int2 origin, int2 cell)
     m.phase = d9.r;
     m.first = d9.g < 0.1;
     m.snare = d9.b;
+    float3 d11 = cellColour(origin, cell, 11) * 3.0;
+    float3 d12 = cellColour(origin, cell, 12) * 3.0;
+    m.bass3 = d11.r;
+    m.mid3 = d11.g;
+    m.treb3 = d11.b;
+    m.bassAtt = d12.r;
+    m.midAtt = d12.g;
+    m.trebAtt = d12.b;
+    float3 d13 = round(cellColour(origin, cell, 13) * 255.0);
+    m.motion = d13.r / 255.0;
+    m.spin = (d13.g * 256.0 + d13.b) / 65536.0;
     float3 d10 = cellColour(origin, cell, 10);
     m.ck = d10.r;
     m.cb = d10.g;
@@ -161,14 +182,35 @@ Music readMusic(int2 origin, int2 cell)
 // the beat (a ring shot away, a zoom punch, the bass bending the waves)
 // come from spotui's values: they are over before judder can show.
 
+// camera moves the view the way MilkDrop presets do, p being centred,
+// aspect-corrected coordinates: it zooms in with the bass, keeps turning
+// (faster with the treble, added up by spotui), and ripples with the mid
+// (vocals, melody). MilkDrop's small per-frame moves pile up through its
+// feedback; there is none here, so the moves are bigger. Zoom follows
+// the smoothed bass, so it glides; the ripple's size follows the mid.
+float2 camera(float2 p, Music m)
+{
+    if (m.motion <= 0.0)
+        return p;
+    float zoom = 1.0 + 0.25 * clamp(m.bassAtt - 1.0, -0.4, 1.0);
+    p /= zoom;
+    float turn = 6.2832 * m.spin;
+    float c = cos(turn), s = sin(turn);
+    p = float2(c * p.x - s * p.y, s * p.x + c * p.y);
+    float ripple = 0.04 * clamp(0.5 * (m.mid3 + m.midAtt) - 0.7, 0.0, 1.5);
+    p += ripple * float2(sin(p.y * 9.0 + Time * 1.7), cos(p.x * 8.0 + Time * 1.3));
+    return p;
+}
+
 // plasma: the first effect, kept as it was because it followed the music
 // best: sums of waves in the cover's colours, the bass pushing the rings
 // out, a ring running from the middle on each beat. It reads its own
-// values (cell 10), which jump with the music and fade.
+// values (cell 10), which jump with the music and fade. With
+// wt_shader_motion its view moves with the music too (camera).
 float3 plasma(float2 tex, Music m)
 {
     float aspect = Resolution.x / Resolution.y;
-    float2 q = (tex - 0.5) * float2(aspect, 1.0) * 3.0;
+    float2 q = camera((tex - 0.5) * float2(aspect, 1.0), m) * 3.0;
     float t = Time * 0.5;
     float r = length(q);
     float v = sin(q.x * 1.7 + t) + sin(q.y * 2.3 - t * 1.3) +

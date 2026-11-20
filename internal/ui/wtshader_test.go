@@ -226,3 +226,35 @@ func TestShaderEnergyRisesInALouderPart(t *testing.T) {
 		t.Fatalf("energy %.2f in the verse, %.2f in the chorus", verse, s.energy)
 	}
 }
+
+func TestShaderBandsAgainstTheirAverage(t *testing.T) {
+	var s shaderFx
+	dt := 1.0 / 30
+	feed := func(hz, amp float64, frames int) {
+		for i := 0; i < frames; i++ {
+			s.feedBands3(tone(hz, amp, 1470), dt)
+		}
+	}
+	// A steady bass note: as usual, 1.
+	feed(80, 0.3, 90)
+	if math.Abs(s.band3[0]-1) > 0.1 {
+		t.Fatalf("steady bass reads %.2f, want about 1", s.band3[0])
+	}
+	// Twice as loud all of a sudden: well over 1, then settling back.
+	feed(80, 0.6, 1)
+	if s.band3[0] < 1.6 {
+		t.Fatalf("a louder bass reads %.2f", s.band3[0])
+	}
+	feed(80, 0.6, 150)
+	if math.Abs(s.band3[0]-1) > 0.1 || math.Abs(s.att[0]-1) > 0.1 {
+		t.Fatalf("bass %.2f att %.2f after five seconds, want about 1", s.band3[0], s.att[0])
+	}
+	// Each band hears its own range: a hat-like 6 kHz tone after silence
+	// lifts the treble, not the bass.
+	s = shaderFx{}
+	feed(80, 0.3, 60)
+	feed(6000, 0.3, 1)
+	if s.band3[2] < 1.5 || s.band3[0] > 1.2 {
+		t.Fatalf("a 6 kHz hit: bass %.2f treble %.2f", s.band3[0], s.band3[2])
+	}
+}

@@ -322,6 +322,13 @@ func (m Model) settings() []setting {
 			help:    "What the Windows Terminal shader draws: plasma (soft waves in the cover's colours), tunnel (a flight down a tunnel, faster with the bass, its walls lit by the spectrum), warp (stars streaking past, hyperspace on drops) or aurora (curtains of light swaying across the sky, a glow sweeping along them each beat). Switches at once, no reload. wt_shader_style = \"debug\" in config.toml shows how evenly frames arrive.",
 			value:   func(m Model) string { return shaderStyles[m.shaderStyle()] },
 			set:     func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.WTShaderStyle = v; return v, nil }},
+		{group: "Lyrics", label: "Shader motion", kind: setBool, section: "lyrics", key: "wt_shader_motion",
+			help:  "The shader's view moves with the music, the way MilkDrop does: it zooms in with the bass, turns with the treble and ripples with the vocals and melody.",
+			value: func(m Model) string { return boolStr(m.cfg.Lyrics.WTShaderMotion) },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				m.cfg.Lyrics.WTShaderMotion = v == "true"
+				return m.cfg.Lyrics.WTShaderMotion, nil
+			}},
 		{group: "Lyrics", label: "Line on classic Now Playing", kind: setBool, section: "lyrics", key: "now_playing_line",
 			help:  "The current line under the progress bar in the classic layout.",
 			value: func(m Model) string { return boolStr(m.cfg.Lyrics.NowPlayingLine) },

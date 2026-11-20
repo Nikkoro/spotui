@@ -149,6 +149,10 @@ type LyricsConfig struct {
 	// "aurora"
 	// ("debug" shows how evenly frames arrive).
 	WTShaderStyle string `toml:"wt_shader_style"`
+	// WTShaderMotion moves the shader's camera with the music, the way
+	// MilkDrop does: zooming with the bass, turning with the treble,
+	// rippling with the mid.
+	WTShaderMotion bool `toml:"wt_shader_motion"`
 }
 
 type NowPlayingConfig struct {
@@ -214,6 +218,7 @@ func Default() Config {
 			NowPlayingLine: true,
 			Effects:        "subtle",
 			WTShaderStyle:  "plasma",
+			WTShaderMotion: true,
 		},
 		NowPlaying:      NowPlayingConfig{Layout: "auto"},
 		Update:          UpdateConfig{Check: true},
