@@ -75,6 +75,9 @@ type Config struct {
 	// NowPlaying controls the Now Playing page.
 	NowPlaying NowPlayingConfig `toml:"now_playing"`
 
+	// Update controls checking for and installing new releases.
+	Update UpdateConfig `toml:"update"`
+
 	// Notifications shows a desktop notification when the track changes.
 	Notifications bool `toml:"notifications"`
 	// MediaControls exposes the player to the OS: MPRIS on Linux (media
@@ -135,6 +138,14 @@ type NowPlayingConfig struct {
 	// Layout is "auto", "split", "panels", "compact" or "classic". L
 	// switches it while running, and that choice is remembered.
 	Layout string `toml:"layout"`
+}
+
+type UpdateConfig struct {
+	// Check looks for a newer release once a day and says so in the UI.
+	Check bool `toml:"check"`
+	// Prerelease includes releases marked pre-release on GitHub, for both
+	// the check and `spotui update` (which also takes --pre).
+	Prerelease bool `toml:"prerelease"`
 }
 
 // Default returns the configuration used when no file exists yet.

@@ -111,6 +111,9 @@ func (m Model) viewHeader(w int) string {
 	switch m.phase {
 	case phaseReady:
 		state = m.theme.accentTxt.Render("●") + m.theme.dim.Render(" "+m.cfg.DeviceName)
+		if m.updateTag != "" {
+			state = m.theme.accentTxt.Render("↑ "+m.updateTag) + "   " + state
+		}
 		if s := m.sleepLabel(); s != "" {
 			state = m.theme.accentTxt.Render(s) + "   " + state
 		}
