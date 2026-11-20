@@ -140,6 +140,11 @@ type LyricsConfig struct {
 	// (it flashes), "party" (sparkles, and a shake when the track drops) or
 	// "nightcore" (it also runs letter waves and flows with colour).
 	Effects string `toml:"effects"`
+	// WTShader paints a few cells in the top-left corner that carry the
+	// music's beat and level to a Windows Terminal pixel shader
+	// (shaders/spotui.hlsl), which draws behind the lyrics. Off by
+	// default: without the shader the cells show as coloured squares.
+	WTShader bool `toml:"wt_shader"`
 }
 
 type NowPlayingConfig struct {

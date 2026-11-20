@@ -113,3 +113,7 @@ Later:
 - [x] Now Playing sections: `tab` moves to the lyrics and to Up next
 - [x] Self-update: `spotui update`, with a pre-release channel
 - [x] Settings page (`,`) that writes `config.toml` line by line
+- [x] Nightcore lyrics: a wave runs through the line letter by letter on
+      each beat, two from the middle on a drop
+- [x] Plasma behind the lyrics through a Windows Terminal pixel shader
+      (`shaders/spotui.hlsl`), fed the beat through coloured cells

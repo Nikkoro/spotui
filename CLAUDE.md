@@ -34,6 +34,13 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   (progress bar styles, splash, heart, copy link), `settings.go` (the `,`
   page; each setting writes its own line of config.toml), `images.go`
   (Sixel/kitty covers), `palette.go` (ctrl+k).
+- `shaders/spotui.hlsl` with `internal/ui/wtshader.go`: the Windows
+  Terminal pixel shader behind the lyrics. spotui paints five data cells
+  at the start of the top row (signature, beat/bass/loudness, accent,
+  hue/drop/zoom, signature); the shader finds and hides them. WT hands
+  the shader a premultiplied texture where the background is transparent
+  black, so the effect is added with alpha untouched. Signature and cell
+  count must match in both files (a test checks).
 - `internal/viz`: audio tap, FFT analyzer, renderers, `beat.go` (beat and
   drop detection).
 - `internal/termimg`: Sixel/kitty encoding and the writer that places

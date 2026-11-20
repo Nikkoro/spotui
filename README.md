@@ -166,6 +166,7 @@ enabled = true
 now_playing_line = true   # show the current line on Now Playing (classic layout)
 effects = "subtle"        # off | subtle (flash on the beat) | party (sparkles, shake on drops)
                           # | nightcore (party, plus letter waves and flowing colours)
+wt_shader = false         # feed the beat to shaders/spotui.hlsl (Windows Terminal pixel shader)
 
 [now_playing]
 layout = "auto"           # auto | split | panels | compact | classic  (L switches)
@@ -181,6 +182,44 @@ check = true              # look for a new release once a day, shown in the head
 prerelease = false        # include releases marked pre-release on GitHub
 ```
 
+## Shader background in Windows Terminal
+
+Windows Terminal can run a pixel shader over its window, and spotui ships
+one, [`shaders/spotui.hlsl`](shaders/spotui.hlsl), that draws a plasma
+behind the lyrics in the cover's colours, with rings on the beat and a
+flash on drops. A shader only sees the window, so spotui sends it the beat
+through a few coloured cells in the top-left corner, which the shader reads
+and hides. It works on the lyrics page and the Now Playing layouts that
+show synced lyrics; everywhere else the shader changes nothing.
+
+1. Save `spotui.hlsl` somewhere Windows can read it. From WSL the repo path
+   works as is (`\\wsl.localhost\<distro>\...`); otherwise copy it to
+   `C:\Users\<you>\`.
+2. In Windows Terminal open Settings → Open JSON file and add a profile
+   for spotui to `profiles.list`. The shader applies to every tab of its
+   profile, so keep it separate from your everyday shell. `padding` must
+   be `0`, or the window's padding shows as a plain frame the shader
+   cannot reach:
+
+   ```json
+   {
+       "guid": "{5b0f3c9e-7a41-4d2b-9c6e-2f8a1d3b7e55}",
+       "name": "spotui",
+       "commandline": "wsl.exe -d Ubuntu",
+       "padding": "0",
+       "experimental.pixelShaderPath": "C:\\Users\\you\\spotui.hlsl"
+   }
+   ```
+
+   Opacity and acrylic work with it.
+3. Open a tab with that profile, start spotui and turn on **Windows
+   Terminal shader** in Settings (`,`), or set `wt_shader = true` under
+   `[lyrics]`.
+
+Without the shader set up you only see the coloured cells in the corner,
+which is why it is off by default. After changing the `.hlsl` file, save
+`settings.json` or open a new tab to reload it.
+
 ## Troubleshooting
 
 - **Logs**: `spotui.log` next to `config.toml`; the previous run is kept as
@@ -189,6 +228,9 @@ prerelease = false        # include releases marked pre-release on GitHub
   PowerShell. spotui uses a 200 ms audio buffer; set `PULSE_LATENCY_MSEC`
   to change it.
 - **Visualizer ahead of the music**: raise its delay in Settings.
+- **Coloured squares in the top-left corner**: `wt_shader` is on but the
+  Windows Terminal profile has no shader; see
+  [Shader background](#shader-background-in-windows-terminal).
 - **No real cover images**: they need Sixel (Windows Terminal 1.22+, foot,
   WezTerm, Konsole, …) or the kitty protocol (kitty, Ghostty, WezTerm).
 - **Start over**: `spotui logout` forgets the login, `spotui clear-cache`

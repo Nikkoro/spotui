@@ -70,6 +70,11 @@ type lyricFx struct {
 	hue       float64 // colour phase, turning in the track's tempo
 	sinceBeat float64 // ms since the last beat
 	beatMs    float64 // the beat interval, smoothed (0: unknown yet)
+
+	// for the Windows Terminal shader (wtshader.go), whatever the level
+	kick  float64 // 1 on a beat, fading to 0
+	bass  float64 // bass against its recent average, smoothed, 0…1
+	level float64 // loudness, smoothed, 0…1
 }
 
 // hop is a wave running through the line being sung: the letter at its
@@ -114,7 +119,12 @@ func (m Model) fxLevel() string {
 
 // fxActive reports whether synced lyrics with effects are on screen.
 func (m Model) fxActive() bool {
-	if m.fxLevel() == fxOff || m.phase != phaseReady || m.track == nil || m.overlay != overlayNone ||
+	return m.fxLevel() != fxOff && m.syncedOnScreen()
+}
+
+// syncedOnScreen reports whether synced lyrics are on screen.
+func (m Model) syncedOnScreen() bool {
+	if m.phase != phaseReady || m.track == nil || m.overlay != overlayNone ||
 		m.lyrics == nil || len(m.lyrics.Synced) == 0 {
 		return false
 	}
@@ -130,6 +140,9 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 		f.shake--
 	}
 	f.zoom *= math.Exp(-dt * 9)
+	f.kick *= math.Exp(-dt * 6)
+	f.bass *= math.Exp(-dt * 3)
+	f.level *= math.Exp(-dt * 2)
 	waves := f.waves[:0]
 	for _, h := range f.waves {
 		h.age += dt
@@ -153,7 +166,8 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 	}
 	f.sparks = kept
 
-	if samples == nil || !m.fxActive() {
+	shader := m.shaderActive()
+	if samples == nil || !(m.fxActive() || shader) {
 		return
 	}
 	if f.beats == nil {
@@ -161,7 +175,10 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 	}
 	n := clamp(int(dt*viz.SampleRate), 1, len(samples))
 	b := f.beats.Feed(samples[len(samples)-n:], dt*1000)
-	if !b.Hit {
+	if shader {
+		f.feedShader(samples[len(samples)-n:], b)
+	}
+	if !b.Hit || !m.fxActive() {
 		return
 	}
 	f.pulse = math.Max(f.pulse, math.Min(1, 0.55+(b.Strength-1)/3))
