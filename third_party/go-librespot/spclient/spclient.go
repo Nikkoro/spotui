@@ -529,6 +529,12 @@ func (c *Spclient) ContextResolve(ctx context.Context, uri string) (*connectpb.C
 	// Playlists come from the playlist service: context resolve drops the
 	// episodes of one that mixes them with tracks. Anything that goes wrong
 	// there is left to context resolve to answer, refusals included.
+	// spotui patch: DJ is not a playlist the playlist service knows, and its
+	// context is a shell pointing at the session that holds the tracks.
+	if uri == djContextUri {
+		return c.djContext(ctx, uri)
+	}
+
 	if id, err := librespot.SpotifyIdFromUri(uri); err == nil && id.Type() == librespot.SpotifyIdTypePlaylist {
 		spotCtx, err := c.PlaylistContext(ctx, *id)
 		if err == nil {
@@ -537,6 +543,11 @@ func (c *Spclient) ContextResolve(ctx context.Context, uri string) (*connectpb.C
 		c.log.WithError(err).Debugf("failed building playlist context for %s, resolving it instead", uri)
 	}
 
+	return c.contextResolveRaw(ctx, uri)
+}
+
+// contextResolveRaw asks /context-resolve/v1 for uri.
+func (c *Spclient) contextResolveRaw(ctx context.Context, uri string) (*connectpb.Context, error) {
 	resp, err := c.Request(ctx, "GET", fmt.Sprintf("/context-resolve/v1/%s", uri), nil, nil, nil)
 	if err != nil {
 		return nil, err
@@ -545,7 +556,7 @@ func (c *Spclient) ContextResolve(ctx context.Context, uri string) (*connectpb.C
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return nil, &ContextResolveError{StatusCode: resp.StatusCode}
+		return nil, &ContextResolveError{StatusCode: resp.StatusCode, url: "/context-resolve/v1/" + uri}
 	}
 
 	respBytes, err := io.ReadAll(resp.Body)
