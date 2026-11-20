@@ -65,6 +65,7 @@ func (m Model) paletteCommands() []paletteCmd {
 			return m, m.cycleSleep()
 		}},
 
+		{title: "Now Playing layout: next", group: "look", key: "L"},
 		{title: "Visualizer on / off", group: "look", key: "v"},
 		{title: "Visualizer style: bars / mirror", group: "look", key: "V"},
 		{title: "Cover: real image / pixel blocks", group: "look", key: "c"},
@@ -110,6 +111,18 @@ func (m Model) paletteCommands() []paletteCmd {
 			return m, nil
 		}},
 	)
+
+	for _, l := range npLayouts {
+		l := l
+		title := "Now Playing layout: " + l
+		if l == m.npChoice {
+			title += "  ✓"
+		}
+		cmds = append(cmds, paletteCmd{title: title, group: "look", run: func(m Model) (tea.Model, tea.Cmd) {
+			m.setNpLayout(l)
+			return m, m.loadQueueForNp()
+		}})
+	}
 
 	names := make([]string, 0, len(palettes))
 	for name := range palettes {

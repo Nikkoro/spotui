@@ -72,6 +72,9 @@ type Config struct {
 	// Lyrics controls synced lyrics.
 	Lyrics LyricsConfig `toml:"lyrics"`
 
+	// NowPlaying controls the Now Playing page.
+	NowPlaying NowPlayingConfig `toml:"now_playing"`
+
 	// Notifications shows a desktop notification when the track changes.
 	Notifications bool `toml:"notifications"`
 	// MediaControls exposes the player to the OS: MPRIS on Linux (media
@@ -128,6 +131,12 @@ type LyricsConfig struct {
 	NowPlayingLine bool `toml:"now_playing_line"`
 }
 
+type NowPlayingConfig struct {
+	// Layout is "auto", "split", "panels", "compact" or "classic". L
+	// switches it while running, and that choice is remembered.
+	Layout string `toml:"layout"`
+}
+
 // Default returns the configuration used when no file exists yet.
 func Default() Config {
 	host, _ := os.Hostname()
@@ -164,6 +173,7 @@ func Default() Config {
 			Enabled:        true,
 			NowPlayingLine: true,
 		},
+		NowPlaying:      NowPlayingConfig{Layout: "auto"},
 		SeekStepSeconds: 5,
 		VolumeStep:      5,
 		Notifications:   true,

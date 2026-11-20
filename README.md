@@ -96,6 +96,10 @@ Small things:
 - [x] Crossfade and autoplay settings
 - [x] `[colors]` overrides single colours on top of any theme
 - [x] Oscilloscope visualizer style drawn with braille dots (`V` → wave)
+- [x] Now Playing layouts (`L`): split (cover and info beside synced
+      lyrics), panels (plus up next, device and DJ), compact (for small or
+      zoomed-in terminals, the visualizer shrinks but stays) and the classic
+      card; `auto` picks by the window's size
 - [x] Library tabs for Recently played (resumes in the playlist or album it
       came from) and your Top tracks / Top artists of the last weeks
 
@@ -168,6 +172,7 @@ The Windows build is a single static `.exe`.
 | `ctrl+k` / `:` | command palette |
 | `?` | help |
 | `V` | visualizer style (bars / mirror / wave) |
+| `L` | Now Playing layout (auto / split / panels / compact / classic) |
 | `P` | add selected / playing track to a playlist |
 | `A` / `I` | go to album / artist of the playing track |
 | `z` | sleep timer: 15, 30, 45, 60, 90 min, end of track, off |
@@ -225,7 +230,10 @@ style = "bars"            # bars | mirror | wave
 
 [lyrics]
 enabled = true
-now_playing_line = true   # show the current line on Now Playing
+now_playing_line = true   # show the current line on Now Playing (classic layout)
+
+[now_playing]
+layout = "auto"           # auto | split | panels | compact | classic  (L switches)
 ```
 
 ### Your own Spotify app (recommended)
