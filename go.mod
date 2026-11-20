@@ -63,3 +63,5 @@ require (
 )
 
 replace github.com/devgianlu/go-librespot => ./third_party/go-librespot
+
+replace github.com/jfreymuth/pulse => ./third_party/pulse
