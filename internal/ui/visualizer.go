@@ -40,15 +40,7 @@ func (m *Model) stepVisualizer(now time.Time) tea.Cmd {
 	// Only analyse while the device is actually pulling audio; otherwise
 	// the last buffer would freeze on screen when paused.
 	var samples []float32
-	total := m.vizTap.Total()
-	if total != m.vizSeen {
-		m.vizSeen = total
-		m.vizStalled = 0
-	} else {
-		m.vizStalled++
-	}
-	playing := !m.paused && !m.stopped && m.vizStalled < 6
-	if playing {
+	if !m.paused && !m.stopped && m.vizTap.Active() {
 		delay := m.cfg.Visualizer.DelayMs * viz.SampleRate / 1000
 		if m.vizTap.Snapshot(m.vizBuf, delay) {
 			samples = m.vizBuf

@@ -27,10 +27,9 @@ type placed struct {
 }
 
 // Writer sits between Bubble Tea and the terminal. Bubble Tea writes each
-// frame in one call; after it, Writer draws the image again if the frame
-// touched the rows it lies on, or if it moved or changed. A Sixel image is
-// erased by any text written over it, and Bubble Tea only rewrites lines
-// that changed, so most frames need nothing at all.
+// frame in one call; after it, Writer draws the image again when it moved or
+// changed, or after Invalidate. Update keeps the frame's text off the
+// image's cells, so nothing else erases it.
 type Writer struct {
 	out   *os.File
 	proto Protocol
@@ -38,7 +37,6 @@ type Writer struct {
 	mu       sync.Mutex
 	want     *placed
 	shown    *placed
-	prev     []string // previous frame's lines
 	dirty    bool
 	sixels   map[string]string
 	kittyIDs map[string]int
@@ -78,8 +76,13 @@ func (w *Writer) Invalidate() {
 }
 
 // Update is called with every rendered frame and the image that belongs at
-// the Marker in it (nil when no image should show).
-func (w *Writer) Update(frame string, img *Image) {
+// the Marker in it (nil when no image should show). It returns the frame to
+// hand to the terminal: on the rows the image covers, its cells become a
+// cursor move. Bubble Tea rewrites a changed line whole, and writing over a
+// Sixel image erases it; moving over it leaves it alone, so text beside the
+// image can change every frame (karaoke lyrics, a scrolling title) without
+// the image being drawn again, which flickered.
+func (w *Writer) Update(frame string, img *Image) string {
 	lines := strings.Split(frame, "\n")
 
 	var want *placed
@@ -91,18 +94,30 @@ func (w *Writer) Update(frame string, img *Image) {
 			}
 		}
 	}
+	if want != nil {
+		for r := want.row; r < want.row+want.Rows && r < len(lines); r++ {
+			lines[r] = SkipCells(lines[r], want.col, want.Cols)
+		}
+		frame = strings.Join(lines, "\n")
+	}
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
-
-	switch {
-	case !samePlace(want, w.want):
-		w.dirty = true
-	case want != nil && rowsChanged(w.prev, lines, want.row, want.Rows):
+	if !samePlace(want, w.want) {
 		w.dirty = true
 	}
 	w.want = want
-	w.prev = lines
+	return frame
+}
+
+// SkipCells replaces n cells of line from col with a cursor move over them.
+func SkipCells(line string, col, n int) string {
+	if n <= 0 {
+		return line
+	}
+	left := ansi.Truncate(line, col, "")
+	right := ansi.TruncateLeft(line, col+n, "")
+	return left + "\x1b[0m\x1b[" + strconv.Itoa(n) + "C" + right
 }
 
 func samePlace(a, b *placed) bool {
@@ -110,22 +125,6 @@ func samePlace(a, b *placed) bool {
 		return a == b
 	}
 	return a.Key == b.Key && a.row == b.row && a.col == b.col
-}
-
-func rowsChanged(prev, cur []string, from, n int) bool {
-	for i := from; i < from+n; i++ {
-		var p, c string
-		if i < len(prev) {
-			p = prev[i]
-		}
-		if i < len(cur) {
-			c = cur[i]
-		}
-		if p != c {
-			return true
-		}
-	}
-	return false
 }
 
 // pendingLocked returns what to send after the frame just written.

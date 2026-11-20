@@ -68,7 +68,7 @@ func (m Model) View() string {
 
 	out := m.theme.app.Render(lipgloss.JoinVertical(lipgloss.Left, header, "", body, footer))
 	if m.img != nil && m.frame != nil {
-		m.img.Update(out, m.frame.tmpl)
+		out = m.img.Update(out, m.frame.tmpl)
 	}
 	return out
 }
@@ -165,10 +165,16 @@ func (m Model) viewFooter(w int) string {
 		keys = [][2]string{{"o", "open link"}, {"q", "quit"}}
 	case m.phase != phaseReady:
 		keys = [][2]string{{"q", "quit"}}
+	case m.page == pageNowPlaying && m.npFocused(npFocusNext):
+		keys = [][2]string{{"↑↓", "choose"}, {"enter", "play it"}, {"tab", "next section"}, {"esc", "back"},
+			{"space", "play"}, {"n/p", "next/prev"}, {"q", "quit"}}
+	case m.page == pageNowPlaying && m.npFocused(npFocusLyrics):
+		keys = [][2]string{{"< >", "sync offset"}, {"0", "reset"}, {"tab", "next section"}, {"esc", "back"},
+			{"space", "play"}, {"n/p", "next/prev"}, {"q", "quit"}}
 	case m.page == pageNowPlaying:
 		keys = [][2]string{
 			{"space", "play"}, {"n/p", "next/prev"}, {"←→", "seek"}, {"+/-", "vol"},
-			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"D", "DJ"}, {"ctrl+k", "commands"}, {"?", "help"}, {"q", "quit"},
+			{"s", "shuffle"}, {"r", "repeat"}, {"f", "like"}, {"D", "DJ"}, {"L", "layout"}, {"tab", "sections"}, {"ctrl+k", "commands"}, {"?", "help"}, {"q", "quit"},
 		}
 	case m.page == pageLyrics:
 		keys = [][2]string{{"< >", "sync offset"}, {"0", "reset"}, {"↑↓", "scroll (plain)"},

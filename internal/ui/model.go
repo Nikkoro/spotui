@@ -47,6 +47,8 @@ const (
 type Model struct {
 	statusCheckedAt time.Time
 	npChoice        string // Now Playing layout picked: config, then L
+	npFocus         int    // Now Playing section tab moved to, npFocus*
+	npNextCursor    int    // selected entry in Up next
 
 	eng  *engine.Engine
 	cfg  *config.Config
@@ -173,8 +175,6 @@ type Model struct {
 	vizBuf      []float32
 	vizLevels   []float64
 	vizPeaks    []float64
-	vizSeen     int64
-	vizStalled  int
 	vizAt       time.Time
 
 	warnings       []string

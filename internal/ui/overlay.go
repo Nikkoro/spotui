@@ -170,6 +170,7 @@ var helpSections = []struct {
 		{"v", "visualizer on/off"},
 		{"V", "visualizer style: bars · mirror · wave"},
 		{"L", "Now Playing layout: auto · split · panels · compact · classic"},
+		{"tab", "Now Playing: move to lyrics (< > offset) or up next (enter plays)"},
 		{"< > 0", "lyrics offset (lyrics page)"},
 	}},
 }
