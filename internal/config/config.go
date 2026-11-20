@@ -137,7 +137,8 @@ type LyricsConfig struct {
 	// NowPlayingLine shows the current lyric line on Now Playing.
 	NowPlayingLine bool `toml:"now_playing_line"`
 	// Effects animates the line being sung to the beat: "off", "subtle"
-	// (it flashes) or "party" (sparkles, and a shake when the track drops).
+	// (it flashes), "party" (sparkles, and a shake when the track drops) or
+	// "nightcore" (it also zooms, flashes capitals and flows with colour).
 	Effects string `toml:"effects"`
 }
 

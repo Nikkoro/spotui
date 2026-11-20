@@ -69,3 +69,41 @@ func TestFxOffDoesNothing(t *testing.T) {
 		t.Fatal("effects off but something moved")
 	}
 }
+
+func TestNightcoreZoomsAndStaysInside(t *testing.T) {
+	m := fxModel(t, fxNightcore)
+	dt := 1.0 / 30
+	for i := 0; i < 40; i++ {
+		m.stepFx(kick(0.02), dt)
+	}
+	m.stepFx(kick(0.9), dt)
+	if m.fx.zoom < 0.5 {
+		t.Fatalf("no zoom on a kick: %.2f", m.fx.zoom)
+	}
+
+	plain := ansi.Strip(m.nightcoreLine("an invented line", 0, 80))
+	if low := strings.ToLower(plain); !strings.Contains(low, "i n v") && !strings.Contains(low, "i  n  v") {
+		t.Fatalf("letters not spread on the beat: %q", plain)
+	}
+	m.fx.caps = 0.1
+	if plain := ansi.Strip(m.nightcoreLine("an invented line", 0, 80)); !strings.Contains(plain, "A") {
+		t.Fatalf("no capitals on a hard beat: %q", plain)
+	}
+
+	// However long the line and narrow the panel, the row stays w wide.
+	long := strings.Repeat("a long invented line ", 6)
+	for _, w := range []int{30, 60, 120} {
+		row := m.fxRow(m.nightcoreLine(ansi.Truncate(long, w-4, "…"), 0, w), w)
+		if got := lipgloss.Width(row); got > w {
+			t.Fatalf("row %d wide in %d columns", got, w)
+		}
+	}
+
+	// The zoom fades back within half a second.
+	for i := 0; i < 15; i++ {
+		m.stepFx(nil, dt)
+	}
+	if m.fx.zoom > 0.15 {
+		t.Fatalf("zoom did not settle: %.2f", m.fx.zoom)
+	}
+}
