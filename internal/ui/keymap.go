@@ -28,6 +28,7 @@ var defaultKeys = map[string]string{
 	"dj":               "D",
 	"sleep_timer":      "z",
 	"visualizer":       "v",
+	"cover_mode":       "c",
 	"visualizer_style": "V",
 	"play_link":        "u",
 	"filter":           "/",

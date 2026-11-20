@@ -19,6 +19,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/config"
 	"github.com/Nikkoro/spotui/internal/engine"
 	"github.com/Nikkoro/spotui/internal/mediakeys"
+	"github.com/Nikkoro/spotui/internal/termimg"
 	"github.com/Nikkoro/spotui/internal/ui"
 	"github.com/Nikkoro/spotui/internal/viz"
 )
@@ -125,6 +126,14 @@ func run() error {
 	}
 	ui.Version = version
 
+	// Real cover images: ask the terminal before the interface takes it.
+	caps := termimg.Detect(cfg.Cover.Mode)
+	logger.Infof("covers: %s, cells %dx%d px", caps.Protocol, caps.CellW, caps.CellH)
+	var imgOut *termimg.Writer
+	if caps.Protocol != termimg.Blocks {
+		imgOut = termimg.NewWriter(os.Stdout, caps.Protocol)
+	}
+
 	// Media keys outlive player restarts, so they talk to whichever engine
 	// is current.
 	var current atomic.Pointer[engine.Engine]
@@ -158,7 +167,7 @@ func run() error {
 	// with the interface coming back where it was.
 	for attempt := 0; ; attempt++ {
 		started := time.Now()
-		restart, err := runSession(cfg, logger, tap, &current, attempt, warnings)
+		restart, err := runSession(cfg, logger, tap, &current, attempt, warnings, imgOut, caps)
 		warnings = nil // shown once
 		if err != nil || !restart {
 			return err
@@ -172,7 +181,8 @@ func run() error {
 
 // runSession runs one player and interface until the user quits (false) or
 // the interface asks for a restart (true).
-func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current *atomic.Pointer[engine.Engine], attempt int, warnings []string) (bool, error) {
+func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current *atomic.Pointer[engine.Engine],
+	attempt int, warnings []string, imgOut *termimg.Writer, caps termimg.Caps) (bool, error) {
 	eng, err := engine.New(cfg, engine.NewLogger(logger))
 	if err != nil {
 		return false, err
@@ -189,7 +199,14 @@ func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current
 
 	// Mouse reporting starts once logged in, so the login link can still be
 	// selected and copied with the mouse.
-	p := tea.NewProgram(ui.New(eng, cfg, tap).WithRestartAttempt(attempt).WithWarnings(warnings), tea.WithAltScreen())
+	opts := []tea.ProgramOption{tea.WithAltScreen()}
+	if imgOut != nil {
+		// Frames pass through the image writer, which draws the cover
+		// after each frame that needs it.
+		opts = append(opts, tea.WithOutput(imgOut))
+	}
+	model := ui.New(eng, cfg, tap).WithRestartAttempt(attempt).WithWarnings(warnings).WithImages(imgOut, caps)
+	p := tea.NewProgram(model, opts...)
 	final, uiErr := p.Run()
 	restart := false
 	if fm, ok := final.(ui.Model); ok {

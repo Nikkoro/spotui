@@ -99,6 +99,17 @@ Small things:
 - [x] Library tabs for Recently played (resumes in the playlist or album it
       came from) and your Top tracks / Top artists of the last weeks
 
+Real cover images:
+
+- [x] Sixel (Windows Terminal 1.22+, foot, WezTerm, mlterm, Konsole, …) and
+      the kitty graphics protocol (kitty, Ghostty, WezTerm), detected at
+      start; pixel blocks everywhere else
+- [x] Pixelated on purpose if you like: `[` `]` pick 8…128 pixels per side
+      or full detail (default 64, crisp square pixels), `{` `}` colours
+- [x] `c` switches between the real image and pixel blocks
+- [x] The image is sent once per track: everything that moves sits below
+      it, and it is only redrawn when something actually covered it
+
 ## Install
 
 Grab `spotui-linux-amd64.tar.gz` (Linux/WSL) or `spotui-windows-amd64.zip`
@@ -149,6 +160,7 @@ The Windows build is a single static `.exe`.
 | `v` | visualizer on / off |
 | `u` | play a Spotify link or URI |
 | `[` / `]` | cover pixel resolution |
+| `c` | cover: real image / pixel blocks |
 | `{` / `}` | cover colour depth |
 | `<` `>` / `0` | lyrics sync offset ±250 ms / reset (Lyrics page) |
 | `D` | DJ: start it; while it plays, ask it for something |
@@ -197,6 +209,9 @@ theme = "spotify"         # spotify | catppuccin | gruvbox | nord | rose-pine | 
 
 [cover]
 enabled = true
+mode = "auto"             # auto | sixel | kitty | blocks
+image_pixels = 64         # real images: pixels per side, 0 = full detail
+size = 0                  # max cover width in columns, 0 = as large as fits
 pixel_size = 32           # 8–64; lower = chunkier pixels
 levels = 8                # colour levels per channel; 0 = full colour
 dynamic_accent = true     # tint the UI with the cover's colour

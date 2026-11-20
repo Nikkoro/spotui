@@ -17,6 +17,9 @@ func (m Model) View() string {
 		return ""
 	}
 	w := m.width - 4 // app padding
+	if m.frame != nil {
+		m.frame.tmpl = nil
+	}
 
 	header := m.viewHeader(w)
 	footer := m.viewFooter(w)
@@ -39,7 +42,14 @@ func (m Model) View() string {
 		if m.overlay != overlayNone {
 			body = m.viewOverlay(w, m.bodyHeight(header, footer, ""))
 		} else if m.page == pageNowPlaying {
-			body = m.centre(w, m.bodyHeight(header, footer, ""), m.viewNowPlaying(w))
+			card, ok := "", false
+			if m.imagesOn() {
+				card, ok = m.viewNowPlayingImage(w)
+			}
+			if !ok {
+				card = m.viewNowPlaying(w)
+			}
+			body = m.centre(w, m.bodyHeight(header, footer, ""), card)
 		} else {
 			bar := m.viewPlayerBar(w)
 			h := m.bodyHeight(header, footer, bar)
@@ -51,7 +61,11 @@ func (m Model) View() string {
 		}
 	}
 
-	return m.theme.app.Render(lipgloss.JoinVertical(lipgloss.Left, header, "", body, footer))
+	out := m.theme.app.Render(lipgloss.JoinVertical(lipgloss.Left, header, "", body, footer))
+	if m.img != nil && m.frame != nil {
+		m.img.Update(out, m.frame.tmpl)
+	}
+	return out
 }
 
 func (m Model) bodyHeight(header, footer, bar string) int {
@@ -351,40 +365,63 @@ func (m Model) coverPlaceholder(size int) string {
 }
 
 func (m Model) viewTrackInfo(w int) string {
-	t := m.track
-	if t == nil {
-		tip := func(key, text string) string {
-			return m.theme.key.Width(9).Render(key) + m.theme.text.Render(text)
-		}
-		return lipgloss.JoinVertical(lipgloss.Left,
-			m.theme.title.Render("Nothing playing yet"),
-			"",
-			lipgloss.NewStyle().Width(w).Foreground(colSubtle).Render(
-				"This terminal is \""+m.cfg.DeviceName+"\" in Spotify Connect: pick it on your phone, or:"),
-			"",
-			tip("2", "your library"),
-			tip("3", "search"),
-			tip("D", "start Spotify's DJ"),
-			tip("d", "pull playback here from another device"),
-			tip("ctrl+k", "anything else, by name"),
-			tip("?", "all keys"),
-		)
+	if m.track == nil {
+		return m.viewNothingPlaying(w)
 	}
+	return lipgloss.JoinVertical(lipgloss.Left, m.viewTrackStatic(w, true), "", m.viewTrackDynamic(w))
+}
 
+func (m Model) viewNothingPlaying(w int) string {
+	tip := func(key, text string) string {
+		return m.theme.key.Width(9).Render(key) + m.theme.text.Render(text)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left,
+		m.theme.title.Render("Nothing playing yet"),
+		"",
+		lipgloss.NewStyle().Width(w).Foreground(colSubtle).Render(
+			"This terminal is \""+m.cfg.DeviceName+"\" in Spotify Connect: pick it on your phone, or:"),
+		"",
+		tip("2", "your library"),
+		tip("3", "search"),
+		tip("D", "start Spotify's DJ"),
+		tip("d", "pull playback here from another device"),
+		tip("ctrl+k", "anything else, by name"),
+		tip("?", "all keys"),
+	)
+}
+
+// viewTrackStatic is title, artist and album: what changes only with the
+// track. scroll lets a long title move (not beside a Sixel image, where
+// every change means drawing the image again).
+func (m Model) viewTrackStatic(w int, scroll bool) string {
+	t := m.track
 	trunc := lipgloss.NewStyle().MaxWidth(w)
 
 	heart := ""
 	if m.liked[t.Uri] {
 		heart = m.theme.accentTxt.Render("  ♥")
 	}
-	title := trunc.Render(m.theme.title.Render(marquee(t.Name, w-lipgloss.Width(heart), time.Now())) + heart)
+	name := t.Name
+	if scroll {
+		name = marquee(t.Name, w-lipgloss.Width(heart), time.Now())
+	}
+	title := trunc.Render(m.theme.title.Render(name) + heart)
 	artist := trunc.Render(m.theme.artist.Render(strings.Join(t.ArtistNames, ", ")))
 	album := t.AlbumName
 	if len(t.ReleaseDate) >= 4 {
 		album += " · " + t.ReleaseDate[:4]
 	}
 	albumLine := trunc.Render(m.theme.album.Render(album))
+	lines := []string{title, artist, albumLine}
+	if m.playingDj() {
+		lines = append(lines, "", m.theme.pill.Render("DJ"))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
 
+// viewTrackDynamic is everything that moves while a track plays.
+func (m Model) viewTrackDynamic(w int) string {
+	t := m.track
 	pos := m.position()
 	dur := int64(t.Duration)
 
@@ -398,9 +435,6 @@ func (m Model) viewTrackInfo(w int) string {
 		stateText = "Paused"
 	}
 	state := m.stateIcon() + " " + m.theme.text.Render(stateText)
-	if m.playingDj() {
-		state += "  " + m.theme.pill.Render("DJ")
-	}
 
 	posStr, durStr := fmtDuration(pos), fmtDuration(dur)
 	times := m.theme.dim.Render(posStr) +
@@ -411,10 +445,6 @@ func (m Model) viewTrackInfo(w int) string {
 	status := state + strings.Repeat(" ", max(w-lipgloss.Width(state)-lipgloss.Width(modes), 1)) + modes
 
 	parts := []string{
-		title,
-		artist,
-		albumLine,
-		"",
 		status,
 		m.progressBar(w, pos, dur),
 		times,

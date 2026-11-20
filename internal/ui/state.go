@@ -16,6 +16,9 @@ type uiState struct {
 	VizStyle      string   `json:"viz_style"`
 	SearchHistory []string `json:"search_history"`
 	Theme         string   `json:"theme,omitempty"`
+	ImageMode     *bool    `json:"image_mode,omitempty"`
+	ImagePixels   *int     `json:"image_pixels,omitempty"`
+	ImageLevels   *int     `json:"image_levels,omitempty"`
 	DynamicAccent *bool    `json:"dynamic_accent,omitempty"`
 }
 
@@ -65,6 +68,13 @@ func (m *Model) restoreState() {
 	if s.Theme != "" && ApplyPalette(s.Theme) {
 		m.themeName = s.Theme
 	}
+	if s.ImagePixels != nil {
+		m.imgPixels = *s.ImagePixels
+	}
+	if s.ImageLevels != nil {
+		m.imgLevels = *s.ImageLevels
+	}
+	m.savedImageMode = s.ImageMode
 	if s.DynamicAccent != nil {
 		m.dynamicAccent = *s.DynamicAccent
 	}
@@ -81,7 +91,7 @@ func (m Model) SaveState() error {
 	if pg == pageContext {
 		pg = pageLibrary
 	}
-	levels, viz, dyn := m.levels, m.vizOn, m.dynamicAccent
+	levels, viz, dyn, imgMode, imgPx, imgLv := m.levels, m.vizOn, m.dynamicAccent, m.imageMode, m.imgPixels, m.imgLevels
 	b, err := json.MarshalIndent(uiState{
 		Page:          int(pg),
 		LibraryTab:    m.lib.tab,
@@ -91,6 +101,9 @@ func (m Model) SaveState() error {
 		VizStyle:      m.vizStyle,
 		SearchHistory: m.searchHistory,
 		Theme:         m.themeName,
+		ImageMode:     &imgMode,
+		ImagePixels:   &imgPx,
+		ImageLevels:   &imgLv,
 		DynamicAccent: &dyn,
 	}, "", "  ")
 	if err != nil {
