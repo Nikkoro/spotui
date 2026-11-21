@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -338,5 +340,20 @@ func TestShaderAutoDropsGoWild(t *testing.T) {
 	}
 	if calm > 60 {
 		t.Fatalf("a drop out of a quiet build-up went to the aurora %d times in 400", calm)
+	}
+}
+
+// HLSL is compiled by Windows Terminal only, so a name it reserves shows up
+// as an error dialog there. Catch the ones that read like ordinary words.
+func TestShaderUsesNoReservedNames(t *testing.T) {
+	reserved := []string{"line", "lineadj", "point", "triangle", "triangleadj", "sample", "centroid",
+		"linear", "vector", "matrix", "texture", "string", "shared", "uniform", "pass", "precise",
+		"half", "register", "auto", "default", "case", "near", "far", "this", "new", "union", "long",
+		"short", "class", "template", "char", "packoffset", "compile", "inline", "technique"}
+	decl := regexp.MustCompile(`\b(?:float[234]?|int[234]?|bool|uint|half)\s+(\w+)`)
+	for _, m := range decl.FindAllStringSubmatch(string(shaders.Source), -1) {
+		if slices.Contains(reserved, m[1]) {
+			t.Errorf("shaders/spotui.hlsl names something %q, which HLSL reserves", m[1])
+		}
 	}
 }

@@ -21,10 +21,11 @@ var autoStyles = []struct {
 	style      int
 	calm, wild float64
 }{
-	{0, 0.6, 0.6}, // plasma
-	{1, 0.1, 1.0}, // tunnel
-	{2, 0.2, 1.0}, // warp
-	{3, 1.0, 0.1}, // aurora
+	{0, 0.6, 0.6},   // plasma
+	{1, 0.1, 1.0},   // tunnel
+	{2, 0.2, 1.0},   // warp
+	{3, 1.0, 0.1},   // aurora
+	{4, 0.15, 0.95}, // synthwave
 }
 
 const (

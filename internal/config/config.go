@@ -145,8 +145,8 @@ type LyricsConfig struct {
 	// (shaders/spotui.hlsl), which draws behind the lyrics. Off by
 	// default: without the shader the cells show as coloured squares.
 	WTShader bool `toml:"wt_shader"`
-	// WTShaderStyle is the shader's effect: "plasma", "tunnel", "warp" or
-	// "aurora"
+	// WTShaderStyle is the shader's effect: "plasma", "tunnel", "warp",
+	// "aurora", "synthwave" or "auto"
 	// ("debug" shows how evenly frames arrive).
 	WTShaderStyle string `toml:"wt_shader_style"`
 	// WTShaderMotion moves the shader's camera with the music, the way
