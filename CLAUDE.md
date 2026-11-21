@@ -98,6 +98,11 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   `internal/config`, a default in `Default()`, an entry in `settings.go`,
   a line in the README's config block.
 - Tests and previews use invented lyrics only, never real song text.
+- Every change that adds or alters a feature brings the docs along in the
+  same PR: `README.md` (use, settings, the config block, troubleshooting),
+  `docs/FEATURES.md` (what was built), `docs/DEVELOPMENT.md` (how to build,
+  test, tune, release), `third_party/PATCHES.md` (any vendored change) and
+  this file (where things are). Check all five before opening a PR.
 - Keep `gofmt`, `go vet` and `go test -race ./...` clean.
 
 ## Tuning the beat effects
