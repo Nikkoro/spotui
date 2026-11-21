@@ -142,11 +142,12 @@ Shader background in Windows Terminal:
 - [x] Effects, switched in Settings with no reload: plasma, tunnel (a
       flight that keeps the tempo, a ring arriving on every beat), warp
       (stars streaking past, hyperspace on drops), aurora (curtains of
-      light, a glow sweeping along them each beat)
+      light, a glow sweeping along them each beat), synthwave (a striped sun
+      over a grid flying at you in tempo, mountains made of the spectrum)
 - [x] auto: moves between them like MilkDrop presets in Winamp, at a drop,
       a louder part, a new track or every 32 bars, fading from one to the
       next; calm parts lean to the aurora, loud and fast ones to the
-      tunnel and the warp
+      tunnel, the warp and the synthwave
 - [x] Shader motion, MilkDrop-style: bass, mid and treble each against
       their own average; the view zooms with the bass, turns faster with
       the treble and ripples with the vocals

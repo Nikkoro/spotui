@@ -12,7 +12,7 @@
 //   cell 3     R colour phase in the track's tempo, G drop (1 for half a
 //              second; debug style: the frame count), B energy (this part
 //              of the track against the last half minute)
-//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 aurora, 4 debug), G B travel (16 bits, 0…1):
+//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 aurora, 4 synthwave, 5 debug), G B travel (16 bits, 0…1):
 //              the distance the music has pushed the effect, on top of
 //              its own steady pace (debug style: spotui's clock)
 //   cell 5…8   the spectrum, 12 bands low to high, three a cell
@@ -394,6 +394,77 @@ float3 aurora(float2 tex, Music m)
     return fx / (1.0 + 1.5 * fx); // a soft ceiling, so nothing glares
 }
 
+// synthwave: a striped sun setting behind mountains over a grid that
+// flies at you. The core reacts at once, like the plasma: the sun swells
+// and glows with the kick, the grid flashes on it and lunges forward with
+// the bass (travel, added up by spotui in the track's tempo). On top: the
+// mountains are the spectrum (bass on the flanks, highs in the middle),
+// the first beat of four is brighter, snares flash along the horizon, and
+// a verse is calmer than a chorus. No camera moves: a horizon that tilts
+// or breathes looks wrong.
+float3 synthwave(float2 tex, Music m)
+{
+    const float horizon = 0.58;
+    float aspect = Resolution.x / Resolution.y;
+    float x = (tex.x - 0.5) * aspect; // 0 in the middle
+    float y = tex.y;                  // 0 at the top
+    float punch = m.ck * (m.first ? 1.25 : 1.0);
+    float3 hot = m.accent;
+    float3 warm = m.accent.gbr;
+
+    // The grid, worked out everywhere: its lines need screen derivatives,
+    // which are not allowed inside a branch.
+    float dz = max(y - horizon, 1e-3);
+    float depth = 0.25 / dz;
+    float gx = x * depth * 1.2;
+    // Two lines per unit of depth and four per unit of travel, so the wrap
+    // of travel from 1 to 0 is seamless.
+    float gz = (depth + m.travel * 2.0 + Time * 0.3) * 2.0;
+    float lx = abs(frac(gx + 0.5) - 0.5) / max(fwidth(gx), 1e-4);
+    float lz = abs(frac(gz + 0.5) - 0.5) / max(fwidth(gz), 1e-4);
+    float grid = saturate(1.0 - 0.6 * min(lx, lz));
+
+    float3 c;
+    if (y >= horizon)
+    {
+        float closeness = saturate(dz * 6.0); // dim, and less aliased, far off
+        float glow = (0.35 + 0.65 * punch + 0.3 * m.drop) * closeness;
+        c = hot * 0.04 + lerp(hot, warm, 0.3) * grid * glow;
+        c += hot * 0.3 * exp(-dz * 18.0) * (0.5 + 0.5 * m.cb); // haze over the horizon
+    }
+    else
+    {
+        // Sky: dark above, glowing down to the horizon.
+        float up = (horizon - y) / horizon;
+        c = lerp(hot * 0.35, hot * 0.04, saturate(up * 1.6));
+
+        // The sun, swelling with the kick, striped in its lower half, the
+        // stripes sliding down.
+        float2 sc = float2(0.0, horizon - 0.16);
+        float r = 0.17 * (1.0 + 0.06 * punch + 0.04 * m.cb);
+        float d = length(float2(x, y) - sc);
+        float t = saturate((y - (sc.y - r)) / (2.0 * r)); // 0 its top … 1 its bottom
+        float stripes = step(0.3 + 0.6 * t * t, frac((y - sc.y) * 22.0 - Time * 0.4));
+        float3 sun = lerp(warm, hot, t) * 0.8;
+        c = lerp(c, sun, (t > 0.45 ? stripes : 1.0) * smoothstep(r, r - 0.004, d));
+        c += hot * 0.25 * exp(-max(d - r, 0.0) * 12.0) * (0.6 + 0.6 * punch);
+
+        // Mountains: the spectrum, bass on the flanks, highs in the middle.
+        float side = saturate(abs(x) / (0.5 * aspect));
+        float bi = (1.0 - side) * (BANDS - 1);
+        int b0 = int(bi);
+        float level = lerp(m.bands[b0], m.bands[min(b0 + 1, BANDS - 1)], frac(bi));
+        float ridge = horizon - (0.03 + 0.12 * level) * (0.7 + 0.3 * sin(x * 13.0 + 1.7) * sin(x * 5.3));
+        if (y > ridge)
+            c = hot * 0.05 + hot * 0.9 * exp(-(y - ridge) * 220.0);
+    }
+
+    c += warm * 0.4 * m.snare * exp(-abs(y - horizon) * 60.0); // snares along the horizon
+    float amount = 0.6 + 0.8 * m.energy; // the verse calmer, the chorus wilder
+    float3 fx = c * amount * 0.5;
+    return fx / (1.0 + 1.5 * fx); // a soft ceiling, so nothing glares
+}
+
 // debugView shows how evenly things move, top to bottom:
 //   1. a white bar timed by this shader: how smooth the terminal draws
 //   2. a yellow bar timed by spotui (its clock, sent each frame) at the
@@ -440,8 +511,10 @@ float3 debugView(float2 tex, Music m)
 // effect draws the given style.
 float3 effect(int style, float2 tex, Music m)
 {
-    if (style == 4)
+    if (style == 5)
         return debugView(tex, m);
+    if (style == 4)
+        return synthwave(tex, m);
     if (style == 3)
         return aurora(tex, m);
     if (style == 2)
