@@ -113,7 +113,47 @@ Later:
 - [x] Now Playing sections: `tab` moves to the lyrics and to Up next
 - [x] Self-update: `spotui update`, with a pre-release channel
 - [x] Settings page (`,`) that writes `config.toml` line by line
-- [x] Nightcore lyrics: a wave runs through the line letter by letter on
-      each beat, two from the middle on a drop
-- [x] Plasma behind the lyrics through a Windows Terminal pixel shader
-      (`shaders/spotui.hlsl`), fed the beat through coloured cells
+- [x] Lyrics from Spotify first, LRCLIB behind it; click a lyric line to
+      jump there, click Up next to play; the visualizer's delay matches
+      the audio output by itself
+- [x] Playlist and album pages show their cover as a real image
+- [x] Shimmering progress bar, an animated start-up screen, a heart that
+      sparkles when you like a track, `y` copies the track's link
+- [x] Linux binaries carry their own FLAC and mpg123, so only ALSA is needed
+
+Lyrics that move to the music:
+
+- [x] Beat effects on the line being sung: subtle (it flashes), party
+      (sparkles, a shake on drops), nightcore (a wave runs through it
+      letter by letter on each beat, two from the middle on a drop, the
+      letters spread a little on the hardest beats, colours flow in tempo)
+- [x] They follow the track's tempo: a tempo tracker (onset envelope,
+      autocorrelation, a beat grid locked to the kicks) keeps the beat
+      under a steady bass line that a plain bass threshold misses
+- [x] The audio tap's playhead moves on smoothly between the output's
+      reads (under WSLg they come 70–100 ms at a time), so the visualizer
+      and the effects no longer step
+
+Shader background in Windows Terminal:
+
+- [x] A pixel shader (`shaders/spotui.hlsl`) draws behind the lyrics in
+      the cover's colours; spotui sends it the music through a row of
+      coloured cells in the corner, which it reads and hides
+- [x] Effects, switched in Settings with no reload: plasma, tunnel (a
+      flight that keeps the tempo, a ring arriving on every beat), warp
+      (stars streaking past, hyperspace on drops), aurora (curtains of
+      light, a glow sweeping along them each beat)
+- [x] auto: moves between them like MilkDrop presets in Winamp, at a drop,
+      a louder part, a new track or every 32 bars, fading from one to the
+      next; calm parts lean to the aurora, loud and fast ones to the
+      tunnel and the warp
+- [x] Shader motion, MilkDrop-style: bass, mid and treble each against
+      their own average; the view zooms with the bass, turns faster with
+      the treble and ripples with the vocals
+- [x] On the lyrics page and panel whether or not there are lyrics
+      (instrumentals too)
+- [x] `spotui shader` writes the shader from the binary and prints the
+      line for the Windows Terminal profile; spotui keeps it up to date
+- [x] For tuning: a `debug` effect, per-second values in the debug log,
+      and recordings of a track's levels to replay through the tempo
+      tracker

@@ -236,7 +236,9 @@ shader changes nothing.
    }
    ```
 
-   Opacity and acrylic work with it.
+   Opacity and acrylic work with it. On a machine with two GPUs, have
+   Windows run Terminal on the stronger one (see
+   [Troubleshooting](#troubleshooting)), or a fullscreen window judders.
 3. Open a tab with that profile, start spotui and turn on **Windows
    Terminal shader** in Settings (`,`), or set `wt_shader = true` under
    `[lyrics]`.
@@ -257,7 +259,12 @@ reload it.
 - **Coloured squares in the top-left corner**: `wt_shader` is on but the
   Windows Terminal profile has no shader; see
   [Shader background](#shader-background-in-windows-terminal).
-- **Shader effect judders**: set `wt_shader_style = "debug"` and run
+- **Shader effect judders, above all in fullscreen**: on a machine with two
+  GPUs (one in the processor, one on a card), Windows may run Windows
+  Terminal on the weaker one. In Windows Settings → System → Display →
+  Graphics, pick Terminal (or add it: Microsoft Store app → Terminal),
+  set Options to High performance, and reopen Windows Terminal. If it
+  still judders, set `wt_shader_style = "debug"` and run
   `spotui --debug`. A white bar timed by the shader and a yellow one timed
   by spotui should both sweep smoothly; below them are the spectrum, bass,
   beat pulse, snare and energy. The log gets a line every 5 s on how
