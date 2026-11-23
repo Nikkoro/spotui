@@ -236,7 +236,7 @@ func (m Model) viewSyncedLyrics(w, h int, karaoke bool) string {
 			// Karaoke: the line fills in as it is sung, up to the next one.
 			line := m.theme.accentTxt.Render("› ") + m.theme.title.Bold(true).Render(text) + m.theme.accentTxt.Render(" ‹")
 			switch {
-			case karaoke && m.fxAtLeast(fxNightcore):
+			case karaoke && m.fxOn().letters():
 				line = m.nightcoreLine(text, i, w)
 			case karaoke:
 				line = m.karaokeLine(text, i)

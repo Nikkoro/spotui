@@ -548,10 +548,16 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
     bool inStrip = p.x >= origin.x && p.x < origin.x + cell.x * STRIP_CELLS &&
                    p.y >= origin.y && p.y < origin.y + cell.y;
     float4 base = inStrip ? blank : colour;
+    // With a transparent background this is exactly what a premultiplied
+    // "over" asks for: the effect shows through by what the letter does not
+    // cover, so its soft edges blend into the effect. Cutting the effect off
+    // faster than that left a dark rim around every letter on bright
+    // effects (the synthwave's sky). Opaque backgrounds have no coverage to
+    // go by: there the distance from the background colour stands in for it.
     float mask = 1.0;
     if (!inStrip)
-        mask = clearBg ? 1.0 - smoothstep(0.05, 0.6, colour.a)
-                       : 1.0 - smoothstep(0.02, 0.10, distance(colour.rgb, Background.rgb));
+        mask = clearBg ? saturate(1.0 - colour.a)
+                       : 1.0 - smoothstep(0.02, 0.35, distance(colour.rgb, Background.rgb));
     if (mask <= 0.0)
         return colour;
 

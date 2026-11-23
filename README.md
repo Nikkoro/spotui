@@ -164,11 +164,20 @@ style = "bars"            # bars | mirror | wave
 [lyrics]
 enabled = true
 now_playing_line = true   # show the current line on Now Playing (classic layout)
-effects = "subtle"        # off | subtle (flash on the beat) | party (sparkles, shake on drops)
-                          # | nightcore (party, plus letter waves and flowing colours)
+effects = "subtle"        # preset: off | subtle (flash on the beat) | party (sparkles,
+                          # shake on drops) | nightcore (party, plus letter waves, letter
+                          # spread and flowing colours) | custom (the switches below)
 wt_shader = false         # feed the beat to the Windows Terminal shader (spotui shader)
 wt_shader_style = "plasma" # its effect: plasma | tunnel | warp | aurora | synthwave | auto
 wt_shader_motion = true   # its view zooms, turns and ripples with the music (MilkDrop-style)
+
+[lyrics.fx]               # (an example) each effect on its own, used with effects = "custom";
+flash = true              # turning one in Settings switches to custom for you
+colors = true             # the sung part flows through the cover's colours in tempo
+wave = false              # a wave runs through the line letter by letter on each beat
+spread = false            # the letters spread apart on the hardest beats
+sparkles = true
+shake = true              # only when the track drops
 
 [now_playing]
 layout = "auto"           # auto | split | panels | compact | classic  (L switches)
@@ -260,6 +269,9 @@ reload it.
   PowerShell. spotui uses a 200 ms audio buffer; set `PULSE_LATENCY_MSEC`
   to change it.
 - **Visualizer ahead of the music**: raise its delay in Settings.
+- **A dark rim around letters over the shader**: fixed in the shader that
+  `spotui shader` writes; write it out again after updating and reopen the
+  tab.
 - **Coloured squares in the top-left corner**: `wt_shader` is on but the
   Windows Terminal profile has no shader; see
   [Shader background](#shader-background-in-windows-terminal).

@@ -210,3 +210,48 @@ func TestLyricEffectsFollowTheTempoGrid(t *testing.T) {
 		t.Fatalf("%d beats in the last 4 s, want about 8", beats)
 	}
 }
+
+func TestCustomEffectsOnlyWhatIsOn(t *testing.T) {
+	m := fxModel(t, fxCustom)
+	m.cfg.Lyrics.FX = config.LyricsFXConfig{Colors: true, Sparkles: true, Shake: true}
+	dt := 1.0 / 30
+	for i := 0; i < 40; i++ {
+		m.stepFx(kick(0.02), dt)
+	}
+	m.stepFx(kick(0.9), dt)
+	if len(m.fx.sparks) == 0 {
+		t.Fatal("sparkles on but none flew")
+	}
+	if m.fx.zoom != 0 || len(m.fx.waves) != 0 {
+		t.Fatalf("spread and wave off but zoom %.2f, %d waves", m.fx.zoom, len(m.fx.waves))
+	}
+	plain := ansi.Strip(m.nightcoreLine("an invented line", 0, 80))
+	if strings.Contains(plain, "a n") || strings.ContainsAny(plain, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+		t.Fatalf("no spread and no wave, yet the letters moved: %q", plain)
+	}
+	if !m.fxOn().letters() {
+		t.Fatal("flowing colours need the letter-by-letter line")
+	}
+}
+
+func TestSwitchFromPresetKeepsTheRest(t *testing.T) {
+	cfg, err := config.Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Lyrics.Effects = fxNightcore
+	m := New(nil, cfg, viz.NewTap())
+	for _, s := range m.settings() {
+		if strings.TrimSpace(s.label) == "Letter spread" {
+			_ = m.changeSetting(s, "false")
+		}
+	}
+	on := m.fxOn()
+	if m.fxLevel() != fxCustom || on.spread || !on.wave || !on.colors || !on.sparkles || !on.shake || !on.flash {
+		t.Fatalf("level %s, set %+v", m.fxLevel(), on)
+	}
+	reloaded, err := config.Load(cfg.ConfigDir)
+	if err != nil || reloaded.Lyrics.Effects != fxCustom || reloaded.Lyrics.FX.Spread || !reloaded.Lyrics.FX.Wave {
+		t.Fatalf("not saved: %v %+v", err, reloaded.Lyrics)
+	}
+}
