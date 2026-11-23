@@ -30,7 +30,10 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   call is a request on a channel.
 - `internal/ui`: the interface. `model.go` (state, keys, events), `view.go`,
   `view_pages.go`, `nowplaying.go` (layouts split/panels/compact/classic),
-  `lyrics.go`, `fx.go` (beat effects: subtle/party/nightcore), `beats.go`
+  `lyrics.go`, `fx.go` (beat effects, each its own switch in `fxSet`:
+  flash, colors, wave, spread, sparkles, shake; presets
+  subtle/party/nightcore are ready-made sets, `custom` reads
+  `[lyrics.fx]`), `beats.go`
   (the beats every effect follows: tempo grid, plain detector before it),
   `fun.go`
   (progress bar styles, splash, heart, copy link), `settings.go` (the `,`
@@ -61,7 +64,8 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   and the "shader frames" debug log line show where judder comes from.
   WT hands the shader a premultiplied texture where the
   background is transparent black, so the effect is added with alpha
-  untouched. Signature, cell and band counts and style numbers must match
+  untouched; text is laid over it by its coverage (`1 - alpha`), which
+  any faster cut-off turns into a dark rim on bright effects. Signature, cell and band counts and style numbers must match
   in both files (a test checks). A new effect: a function in the HLSL, a
   branch in `main`, a name in `shaderStyles`, the style list in the HLSL
   header.

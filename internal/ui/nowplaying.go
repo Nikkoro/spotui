@@ -405,7 +405,7 @@ func (m Model) npLyricLines(w int) string {
 	}
 	curLine := m.theme.accentTxt.Render("› ") + m.theme.title.Bold(true).Render(ansi.Truncate(now, w-4, "…"))
 	switch {
-	case cur >= 0 && m.fxAtLeast(fxNightcore):
+	case cur >= 0 && m.fxOn().letters():
 		curLine = m.nightcoreLine(ansi.Truncate(now, w-4, "…"), cur, w)
 	case cur >= 0:
 		// Fills in as it is sung, as on the lyrics page.

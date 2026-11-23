@@ -127,6 +127,9 @@ Lyrics that move to the music:
       (sparkles, a shake on drops), nightcore (a wave runs through it
       letter by letter on each beat, two from the middle on a drop, the
       letters spread a little on the hardest beats, colours flow in tempo)
+- [x] Each lyric effect has its own switch (flash, flowing colours, letter
+      wave, letter spread, sparkles, shake on drops); the presets stay as
+      ready-made sets, and changing a switch moves to custom
 - [x] They follow the track's tempo: a tempo tracker (onset envelope,
       autocorrelation, a beat grid locked to the kicks) keeps the beat
       under a steady bass line that a plain bass threshold misses
@@ -135,6 +138,10 @@ Lyrics that move to the music:
       and the effects no longer step
 
 Shader background in Windows Terminal:
+
+- [x] The effect blends into the soft edges of letters by their coverage
+      (a premultiplied "over"), so bright effects leave no dark rim around
+      the text
 
 - [x] A pixel shader (`shaders/spotui.hlsl`) draws behind the lyrics in
       the cover's colours; spotui sends it the music through a row of

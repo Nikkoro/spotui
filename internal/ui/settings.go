@@ -305,11 +305,23 @@ func (m Model) settings() []setting {
 				}
 				return on, cmd
 			}},
-		{group: "Lyrics", label: "Beat effects", kind: setChoice, section: "lyrics", key: "effects",
+		{group: "Lyrics", label: "Effects preset", kind: setChoice, section: "lyrics", key: "effects",
 			options: fxLevels,
-			help:    "The line being sung moves to the music: subtle flashes on the beat, party adds sparkles and a shake on drops, nightcore runs a wave through it letter by letter on each beat and flows with colour.",
+			help:    "Ready-made sets: subtle flashes on the beat, party adds sparkles and a shake on drops, nightcore adds the letter wave, the spread and flowing colours. custom uses the switches below; changing any of them switches to custom.",
 			value:   func(m Model) string { return m.fxLevel() },
 			set:     func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.Effects = v; return v, nil }},
+		fxSwitch("Flash on the beat", "flash", "The line lights up in the cover's colour on each beat.",
+			func(s fxSet) bool { return s.flash }, func(f *config.LyricsFXConfig, on bool) { f.Flash = on }),
+		fxSwitch("Flowing colours", "colors", "The sung part flows through shades of the cover's colour in the track's tempo.",
+			func(s fxSet) bool { return s.colors }, func(f *config.LyricsFXConfig, on bool) { f.Colors = on }),
+		fxSwitch("Letter wave", "wave", "On each beat a wave runs through the line; the letter at its crest hops up.",
+			func(s fxSet) bool { return s.wave }, func(f *config.LyricsFXConfig, on bool) { f.Wave = on }),
+		fxSwitch("Letter spread", "spread", "On the hardest beats the letters spread apart for a moment.",
+			func(s fxSet) bool { return s.spread }, func(f *config.LyricsFXConfig, on bool) { f.Spread = on }),
+		fxSwitch("Sparkles", "sparkles", "Sparkles fly off the line on beats.",
+			func(s fxSet) bool { return s.sparkles }, func(f *config.LyricsFXConfig, on bool) { f.Sparkles = on }),
+		fxSwitch("Shake on drops", "shake", "The line shakes when the track drops, only then.",
+			func(s fxSet) bool { return s.shake }, func(f *config.LyricsFXConfig, on bool) { f.Shake = on }),
 		{group: "Lyrics", label: "Windows Terminal shader", kind: setBool, section: "lyrics", key: "wt_shader",
 			help:  "Feeds the beat to shaders/spotui.hlsl, a Windows Terminal pixel shader that draws behind the lyrics. Set it as experimental.pixelShaderPath in your Windows Terminal profile first, or you will see coloured squares in the corner.",
 			value: func(m Model) string { return boolStr(m.cfg.Lyrics.WTShader) },
@@ -730,4 +742,29 @@ func (m *Model) handleUpdateResult(msg tea.Msg) {
 		m.updateTag = ""
 		m.setFlash("Installed spotui "+msg.tag+" · quit and start spotui again to use it", false)
 	}
+}
+
+// fxSwitch is one lyric effect's switch. Turning one while a preset is in
+// use copies the preset's set into [lyrics.fx] first and moves to custom,
+// so only that one effect changes.
+func fxSwitch(label, key, help string, get func(fxSet) bool, put func(*config.LyricsFXConfig, bool)) setting {
+	return setting{group: "Lyrics", label: "  " + label, kind: setBool, section: "lyrics.fx", key: key, help: help,
+		value: func(m Model) string { return boolStr(get(m.fxOn())) },
+		set: func(m *Model, v string) (any, tea.Cmd) {
+			if m.fxLevel() != fxCustom {
+				cur := m.fxOn()
+				m.cfg.Lyrics.FX = config.LyricsFXConfig{Flash: cur.flash, Colors: cur.colors, Wave: cur.wave,
+					Spread: cur.spread, Sparkles: cur.sparkles, Shake: cur.shake}
+				m.cfg.Lyrics.Effects = fxCustom
+				f := m.cfg.Lyrics.FX
+				for k, on := range map[string]bool{"flash": f.Flash, "colors": f.Colors, "wave": f.Wave,
+					"spread": f.Spread, "sparkles": f.Sparkles, "shake": f.Shake} {
+					_ = m.cfg.Set("lyrics.fx", k, on)
+				}
+				_ = m.cfg.Set("lyrics", "effects", fxCustom)
+			}
+			on := v == "true"
+			put(&m.cfg.Lyrics.FX, on)
+			return on, nil
+		}}
 }

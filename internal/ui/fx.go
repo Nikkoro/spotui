@@ -13,9 +13,10 @@ import (
 	"github.com/Nikkoro/spotui/internal/viz"
 )
 
-// Beat effects on the lyric line being sung: it flashes with each beat
-// (subtle), and at "party" sparkles fly off it and it shakes when the
-// track drops. Beats come from the audio itself (viz.BeatDetector).
+// Beat effects on the lyric line being sung, each with its own switch
+// (fxSet): a flash on each beat, flowing colours, a letter wave, a letter
+// spread, sparkles, a shake when the track drops. The presets (subtle,
+// party, nightcore) are ready-made sets; "custom" reads [lyrics.fx]. Beats come from the audio itself (viz.BeatDetector).
 
 const (
 	fxOff    = "off"
@@ -26,21 +27,52 @@ const (
 	// brightest, with a soft tail behind it), the hardest beats spread the
 	// letters a little, and colours flow in the track's tempo.
 	fxNightcore = "nightcore"
+	// fxCustom takes each effect's switch from [lyrics.fx].
+	fxCustom = "custom"
 )
 
-var fxLevels = []string{fxOff, fxSubtle, fxParty, fxNightcore}
+// fxLevels are what effects may be set to; fxPresets the ready-made sets.
+var (
+	fxPresets = []string{fxOff, fxSubtle, fxParty, fxNightcore}
+	fxLevels  = append(append([]string{}, fxPresets...), fxCustom)
+)
 
-// fxAtLeast reports whether the level in use includes level's effects.
-func (m Model) fxAtLeast(level string) bool {
-	rank := func(l string) int {
-		for i, x := range fxLevels {
-			if x == l {
-				return i
-			}
-		}
-		return 0
+// fxSet is which effects are on.
+type fxSet struct {
+	flash, colors, wave, spread, sparkles, shake bool
+}
+
+func (s fxSet) any() bool {
+	return s.flash || s.colors || s.wave || s.spread || s.sparkles || s.shake
+}
+
+// letters reports whether the line is drawn letter by letter
+// (nightcoreLine): for flowing colours, the wave or the spread.
+func (s fxSet) letters() bool { return s.colors || s.wave || s.spread }
+
+// strong: with the wave or the spread, sparkles burst twice as thick and
+// drops shake longer and wider, as nightcore had them.
+func (s fxSet) strong() bool { return s.wave || s.spread }
+
+func presetSet(level string) fxSet {
+	switch level {
+	case fxSubtle:
+		return fxSet{flash: true}
+	case fxParty:
+		return fxSet{flash: true, sparkles: true, shake: true}
+	case fxNightcore:
+		return fxSet{flash: true, colors: true, wave: true, spread: true, sparkles: true, shake: true}
 	}
-	return rank(m.fxLevel()) >= rank(level)
+	return fxSet{}
+}
+
+// fxOn is the set of effects in use: a preset's, or [lyrics.fx]'s.
+func (m Model) fxOn() fxSet {
+	if m.fxLevel() == fxCustom {
+		f := m.cfg.Lyrics.FX
+		return fxSet{flash: f.Flash, colors: f.Colors, wave: f.Wave, spread: f.Spread, sparkles: f.Sparkles, shake: f.Shake}
+	}
+	return presetSet(m.fxLevel())
 }
 
 func validFxLevel(s string) bool {
@@ -117,7 +149,7 @@ func (m Model) fxLevel() string {
 
 // fxActive reports whether synced lyrics with effects are on screen.
 func (m Model) fxActive() bool {
-	return m.fxLevel() != fxOff && m.syncedOnScreen()
+	return m.fxOn().any() && m.syncedOnScreen()
 }
 
 // syncedOnScreen reports whether synced lyrics are on screen.
@@ -196,21 +228,26 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 		}
 	}
 	f.sinceBeat = 0
-	if !m.fxAtLeast(fxParty) {
-		return
-	}
+	on := m.fxOn()
 	burst := 1
 	if b.Strength > 2 {
 		burst = 2
 	}
 	if b.Drop {
 		burst = 4
-		f.shake = 9
 		f.pulse = 1
+		if on.shake {
+			f.shake = 9
+			if on.strong() {
+				f.shake = 14
+			}
+		}
 	}
-	if m.fxAtLeast(fxNightcore) {
+	if on.spread {
 		// Only the harder beats spread the letters (see nightcoreLine).
 		f.zoom = math.Max(f.zoom, math.Min(1, 0.3+(b.Strength-1)/2))
+	}
+	if on.wave {
 		// Harder beats run faster and brighter: 0.4 s across down to 0.28.
 		k := math.Max(0, math.Min(1, (b.Strength-1)/2))
 		h := hop{dur: 0.4 - 0.12*k, bright: 0.55 + 0.45*k, dir: 1}
@@ -224,10 +261,12 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 		if len(f.waves) > maxHops {
 			f.waves = f.waves[len(f.waves)-maxHops:]
 		}
+	}
+	if on.strong() {
 		burst *= 2
-		if b.Drop {
-			f.shake = 14
-		}
+	}
+	if !on.sparkles {
+		return
 	}
 	for i := 0; i < burst; i++ {
 		for _, side := range []int{-1, 1} {
@@ -241,7 +280,8 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 
 // fxRow centres the current line in w columns with its sparkles and shake.
 func (m Model) fxRow(line string, w int) string {
-	if m.fxAtLeast(fxParty) && len(m.fx.sparks) > 0 && ansi.StringWidth(line)+2*sparkWidth <= w {
+	on := m.fxOn()
+	if on.sparkles && len(m.fx.sparks) > 0 && ansi.StringWidth(line)+2*sparkWidth <= w {
 		left := []rune(strings.Repeat(" ", sparkWidth))
 		right := []rune(strings.Repeat(" ", sparkWidth))
 		for _, s := range m.fx.sparks {
@@ -260,9 +300,9 @@ func (m Model) fxRow(line string, w int) string {
 		line = style.Render(string(left)) + line + style.Render(string(right))
 	}
 	row := lipgloss.PlaceHorizontal(w, lipgloss.Center, line)
-	if m.fxAtLeast(fxParty) && m.fx.shake > 0 {
+	if on.shake && m.fx.shake > 0 {
 		d := shakeOffsets[m.fx.shake%len(shakeOffsets)]
-		if m.fxAtLeast(fxNightcore) {
+		if on.strong() {
 			d *= 2
 		}
 		row = shift(row, d, w)
@@ -299,7 +339,7 @@ func shift(row string, d, w int) string {
 // fxSungStyle colours the sung part of the line: the accent while a beat
 // flashes, the title colour otherwise.
 func (m Model) fxSungStyle() lipgloss.Style {
-	if m.fxLevel() != fxOff && m.fx.pulse > 0.35 {
+	if m.fxOn().flash && m.fx.pulse > 0.35 {
 		return m.theme.accentTxt.Bold(true)
 	}
 	return m.theme.title.Bold(true)
@@ -307,7 +347,7 @@ func (m Model) fxSungStyle() lipgloss.Style {
 
 // fxMarkers are the marks around the current line, bigger on a beat.
 func (m Model) fxMarkers() (string, string) {
-	if m.fxLevel() != fxOff && m.fx.pulse > 0.7 {
+	if m.fxOn().flash && m.fx.pulse > 0.7 {
 		return m.theme.accentTxt.Bold(true).Render("❯ "), m.theme.accentTxt.Bold(true).Render(" ❮")
 	}
 	return m.theme.accentTxt.Render("› "), m.theme.accentTxt.Render(" ‹")
@@ -340,15 +380,16 @@ func (m Model) nightcoreLine(text string, i, w int) string {
 		sung = int(math.Round(p * float64(n)))
 	}
 
+	on := m.fxOn()
 	// Spread letters as far as the zoom asks and the width allows.
 	avail := w - 4
-	if m.fxAtLeast(fxParty) {
+	if on.sparkles {
 		avail -= 2 * sparkWidth
 	}
 	// One column between letters at most, and only for a moment on the
 	// harder beats: a wider spread moves the words too far to read.
 	gap := 0
-	if f.zoom > 0.45 && n > 1 && avail >= 2*n-1 {
+	if on.spread && f.zoom > 0.45 && n > 1 && avail >= 2*n-1 {
 		gap = 1
 	}
 
@@ -360,6 +401,7 @@ func (m Model) nightcoreLine(text string, i, w int) string {
 	sat = math.Max(sat, 0.55)
 	l = math.Min(math.Max(l, 0.5), 0.68)
 	text0, _ := parseRGB(string(colSubtle))
+	plain := hslToRGB(h, sat, l) // the sung part without flowing colours
 
 	var sb strings.Builder
 	before, after := m.fxMarkers()
@@ -367,15 +409,22 @@ func (m Model) nightcoreLine(text string, i, w int) string {
 	for k, r := range runes {
 		var c rgb
 		if k < sung {
-			hue := h + 0.12*math.Sin(2*math.Pi*(f.hue-float64(k)/24))
-			c = hslToRGB(hue, sat, l)
+			c = plain
+			if on.colors {
+				hue := h + 0.12*math.Sin(2*math.Pi*(f.hue-float64(k)/24))
+				c = hslToRGB(hue, sat, l)
+			}
 		} else {
 			c = text0
 			if c == (rgb{}) {
 				c = rgb{200, 200, 205}
 			}
 		}
-		crest, glow := f.hopAt(k, n)
+		var crest bool
+		var glow float64
+		if on.wave {
+			crest, glow = f.hopAt(k, n)
+		}
 		bold := k < sung
 		if glow > 0 {
 			c = c.mix(rgb{255, 255, 255}, glow)

@@ -136,10 +136,13 @@ type LyricsConfig struct {
 	Enabled bool `toml:"enabled"`
 	// NowPlayingLine shows the current lyric line on Now Playing.
 	NowPlayingLine bool `toml:"now_playing_line"`
-	// Effects animates the line being sung to the beat: "off", "subtle"
-	// (it flashes), "party" (sparkles, and a shake when the track drops) or
-	// "nightcore" (it also runs letter waves and flows with colour).
+	// Effects animates the line being sung to the beat. Presets: "off",
+	// "subtle" (it flashes), "party" (sparkles, and a shake when the track
+	// drops), "nightcore" (also letter waves, a letter spread on hard
+	// beats and flowing colours). "custom" uses the switches in FX.
 	Effects string `toml:"effects"`
+	// FX holds each effect's own switch, used when Effects is "custom".
+	FX LyricsFXConfig `toml:"fx"`
 	// WTShader paints a few cells in the top-left corner that carry the
 	// music's beat and level to a Windows Terminal pixel shader
 	// (shaders/spotui.hlsl), which draws behind the lyrics. Off by
@@ -159,6 +162,16 @@ type NowPlayingConfig struct {
 	// Layout is "auto", "split", "panels", "compact" or "classic". L
 	// switches it while running, and that choice is remembered.
 	Layout string `toml:"layout"`
+}
+
+// LyricsFXConfig switches each lyric beat effect on its own ([lyrics.fx]).
+type LyricsFXConfig struct {
+	Flash    bool `toml:"flash"`    // the line lights up in the accent on each beat
+	Colors   bool `toml:"colors"`   // the sung part flows through colours in tempo
+	Wave     bool `toml:"wave"`     // a wave runs through the line letter by letter
+	Spread   bool `toml:"spread"`   // the letters spread apart on hard beats
+	Sparkles bool `toml:"sparkles"` // sparkles fly off the line on beats
+	Shake    bool `toml:"shake"`    // the line shakes when the track drops
 }
 
 type UIConfig struct {
