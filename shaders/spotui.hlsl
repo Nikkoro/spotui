@@ -526,7 +526,8 @@ struct Chain
     float3 side;       // across it in the screen's plane: the way it sways
     float scale;       // its size, near ones bigger
     float slide;       // how far its links have slid along it, in link units
-    float wave, waveK, wavePh; // its sway: how far, how tight, where
+    float wave, waveK;  // its sway: how far, how tight
+    float2 wavePh;      // where its two waves are
     float radius;      // nothing of it is further than this from its axis
     float weight;      // how much of it shows, 0…1
     float tint;        // which of the cover's colours its glow leans to
@@ -553,8 +554,9 @@ Chain chainAt(int i, Music m, float aspect, int slots)
     float f = frac(u);
     float seed = floor(u) + fi * 17.0;
 
-    // Any angle across the screen, a little into the depth, rolled.
-    float ang = hs(seed, 1.0) * 3.1416;
+    // Any angle across the screen, a little into the depth, rolled. It
+    // turns slowly as it crosses, so it never glides by like a ruler.
+    float ang = hs(seed, 1.0) * 3.1416 + (f - 0.5) * (hs(seed, 13.0) - 0.5) * 1.2;
     float tilt = (hs(seed, 2.0) - 0.5) * 0.6;
     ch.e1 = float3(cos(ang) * cos(tilt), sin(ang) * cos(tilt), sin(tilt));
     ch.side = float3(-sin(ang), cos(ang), 0.0);
@@ -582,15 +584,20 @@ Chain chainAt(int i, Music m, float aspect, int slots)
     // travel (the tempo, the bass, beats and drops). travel wraps from 1
     // to 0, so each slot takes a whole number of patterns per unit of it.
     float dir = hs(seed, 7.0) < 0.5 ? -1.0 : 1.0;
-    float speed = 0.25 + 0.5 * hs(seed, 8.0); // link units a second
+    float speed = 0.5 + 0.8 * hs(seed, 8.0); // link units a second
     float k = hs(seed, 9.0) < 0.6 ? 1.0 : 2.0;
     ch.slide = dir * (frac(Time * speed / CH_PERIOD) + m.travel * k) * CH_PERIOD;
 
-    // The sway, deeper with the bass at once.
-    ch.waveK = 0.4 + 0.5 * hs(seed, 10.0);
-    ch.wavePh = Time * (0.5 + 0.4 * hs(seed, 11.0)) + fi * 2.3;
-    ch.wave = ch.scale * (0.05 + 0.08 * m.cb);
-    ch.radius = ch.scale * (CH_R1 + CH_R2 + 0.13 + 0.06) + 0.12; // + room for the glow
+    // The sway: two slow waves, a few links long, drifting opposite ways,
+    // so the bends change shape slowly rather than run along it like a
+    // ripple on water. Their length goes with the chain's size, so near
+    // chains bend too. The bass deepens them, smoothed: the shape following
+    // every kick looked nervous.
+    ch.waveK = (1.3 + 0.6 * hs(seed, 10.0)) / ch.scale;
+    float sway = 0.3 + 0.3 * hs(seed, 11.0); // radians a second
+    ch.wavePh = float2(Time * sway, -Time * sway * 0.7) + fi * float2(2.3, 4.1);
+    ch.wave = ch.scale * (0.06 + 0.06 * saturate(m.bassAtt - 0.8));
+    ch.radius = ch.scale * (CH_R1 + CH_R2 + 0.12 * 1.35 + 0.06) + 0.12; // + room for the glow
 
     float ends = smoothstep(0.0, 0.08, f) * smoothstep(1.0, 0.92, f);
     float present = saturate((0.45 + 0.75 * m.energy) * slots + 1.0 - fi);
@@ -604,7 +611,18 @@ float chainDist(Chain ch, float3 p)
 {
     float3 d = p - ch.c;
     float x = dot(d, ch.e1);
-    d -= ch.side * (ch.wave * sin(x * ch.waveK + ch.wavePh));
+    // The bend w(x), across in the screen's plane, and its slope.
+    float a1 = x * ch.waveK + ch.wavePh.x;
+    float a2 = x * ch.waveK * 2.3 + ch.wavePh.y;
+    float w = ch.wave * (sin(a1) + 0.35 * sin(a2));
+    float slope = ch.wave * ch.waveK * (cos(a1) + 0.805 * cos(a2));
+    // Into the bent chain's own frame, so the links turn along the bend
+    // rather than only shift sideways: along its tangent and across it.
+    float side = dot(d, ch.side);
+    float u = side - w;
+    float l = rsqrt(1.0 + slope * slope);
+    x += u * slope * l;
+    d += ch.side * (u * l - side);
     float3 q = float3(x / ch.scale + ch.slide, dot(d, ch.e2) / ch.scale, dot(d, ch.e3) / ch.scale);
     return chainLinks(q) * ch.scale;
 }
@@ -704,7 +722,7 @@ float3 chains(float2 tex, Music m)
             }
             if (d < 0.3 * pix * t)
                 break;
-            t += d * 0.8;
+            t += d * 0.75; // under 1: the sway bends the distances a little
         }
         float fog = exp(-max(tClosest - 2.5, 0.0) * 0.10);
         float3 tint = lerp(m.accent, m.accent.gbr, 0.6 * ch.tint);
