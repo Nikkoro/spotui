@@ -61,6 +61,17 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   effects (aurora) are the exception for shape: there the jumpy values
   only set brightness and the shape follows smooth ones (bass, level,
   bands), or it looks nervous. aurora and rain are the calm ones.
+  Easter eggs' scenes (`eastereggs.go`: a track's name picks one whatever
+  the effect) are hidden from Settings and auto; never describe them in
+  commits, PRs or release notes. WT
+  compiles the shader when a tab opens, and the compiler pastes every
+  function in where it is called: keep `effect()` called once (auto's
+  fade is a per-pixel dissolve for that) and never inside a loop (5x
+  slower to compile), take no screen derivatives (fwidth, ddx; work them
+  out, as synthwave does) so effects stay real branches, and prefer
+  `[loop]` to `[unroll]` in helpers called from many places (`fbm`).
+  Check with `tools/shadertime` (Windows' compiler, as WT uses; about 1 s
+  is the budget, `-each` shows each effect's share).
   chains is the heavy one (raymarched 3D): a ray marches only near the
   chains it passes (`nearAxis`), and
   `wt_shader_quality` (cell 14 B) sets how many chains and steps; keep it
@@ -87,6 +98,8 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   The audio tap must hand out a playhead that moves on smoothly: under
   WSLg the output reads 70-100 ms at a time, and a playhead that jumped by
   reads put every kick on a read's edge (see `playheadLocked`).
+- `tools/shadertime`: times the WT shader's compile with Windows'
+  `d3dcompiler_47.dll` (Windows only; build it with GOOS=windows from WSL).
 - `internal/termimg`: Sixel/kitty encoding and the writer that places
   images; image cells are skipped with cursor moves so text beside them
   never erases them.

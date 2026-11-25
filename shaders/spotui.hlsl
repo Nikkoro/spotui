@@ -12,7 +12,7 @@
 //   cell 3     R colour phase in the track's tempo, G drop (1 for half a
 //              second; debug style: the frame count), B energy (this part
 //              of the track against the last half minute)
-//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 aurora, 4 synthwave, 5 chains, 6 rain, 7 debug), G B travel (16 bits, 0…1):
+//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 aurora, 4 synthwave, 5 chains, 6 rain, 7 napoleon, 8 debug), G B travel (16 bits, 0…1):
 //              the distance the music has pushed the effect, on top of
 //              its own steady pace (debug style: spotui's clock)
 //   cell 5…8   the spectrum, 12 bands low to high, three a cell
@@ -105,12 +105,12 @@ bool findStrip(out int2 origin, out int2 cell)
     origin = o;
     cell = int2(w, h);
     // The strip ends with the signature again.
-    return isSig(o + int2(cell.x * (STRIP_CELLS - 1) + cell.x / 2, cell.y / 2));
+    return isSig(o + int2(cell.x * (STRIP_CELLS - 1) + (cell.x >> 1), (cell.y >> 1)));
 }
 
 float3 cellColour(int2 origin, int2 cell, int k)
 {
-    return px(origin + int2(cell.x * k + cell.x / 2, cell.y / 2));
+    return px(origin + int2(cell.x * k + (cell.x >> 1), (cell.y >> 1)));
 }
 
 // Music is what the strip carries.
@@ -321,7 +321,7 @@ float3 warp(float2 tex, Music m)
     float streak = 0.03 + 0.10 * m.cb + 0.15 * m.ck + 0.45 * m.drop;
 
     float light = 0.0;
-    [unroll] for (int layer = 0; layer < 3; layer++)
+    [loop] for (int layer = 0; layer < 3; layer++)
     {
         float sectors = 48.0 + 40.0 * layer;
         float id = floor(a * sectors);
@@ -373,7 +373,7 @@ float3 aurora(float2 tex, Music m)
     float sway = 1.0 + 0.6 * m.bass;
 
     float3 sum = float3(0.0, 0.0, 0.0);
-    [unroll] for (int i = 0; i < 3; i++)
+    [loop] for (int i = 0; i < 3; i++)
     {
         float fi = i;
         // The curtain's lower edge, waving across the screen.
@@ -418,16 +418,20 @@ float3 synthwave(float2 tex, Music m)
     float3 hot = m.accent;
     float3 warm = m.accent.gbr;
 
-    // The grid, worked out everywhere: its lines need screen derivatives,
-    // which are not allowed inside a branch.
+    // The grid.
     float dz = max(y - horizon, 1e-3);
     float depth = 0.25 / dz;
     float gx = x * depth * 1.2;
     // Two lines per unit of depth and four per unit of travel, so the wrap
     // of travel from 1 to 0 is seamless.
     float gz = (depth + m.travel * 2.0 + Time * 0.3) * 2.0;
-    float lx = abs(frac(gx + 0.5) - 0.5) / max(fwidth(gx), 1e-4);
-    float lz = abs(frac(gz + 0.5) - 0.5) / max(fwidth(gz), 1e-4);
+    // How much each changes across a pixel, worked out rather than taken
+    // with fwidth: screen derivatives would keep the effects from being
+    // real branches in a loop (see main). x and y both move 1/height a
+    // pixel; depth changes by 0.25 / dz^2 a unit of y.
+    float pix = 1.0 / Resolution.y;
+    float lx = abs(frac(gx + 0.5) - 0.5) / max(pix * 1.2 * (depth + abs(x) * 0.25 / (dz * dz)), 1e-4);
+    float lz = abs(frac(gz + 0.5) - 0.5) / max(pix * 0.5 / (dz * dz), 1e-4);
     float grid = saturate(1.0 - 0.6 * min(lx, lz));
 
     float3 c;
@@ -650,9 +654,14 @@ float3 chainShade(Chain ch, float3 pos, float3 rd, float t, Music m)
 {
     // The normal from four samples (a tetrahedron) rather than six.
     float h = 0.0015 * t;
-    float2 k = float2(1.0, -1.0);
-    float3 n = normalize(k.xyy * chainDist(ch, pos + k.xyy * h) + k.yyx * chainDist(ch, pos + k.yyx * h) +
-                         k.yxy * chainDist(ch, pos + k.yxy * h) + k.xxx * chainDist(ch, pos + k.xxx * h));
+    float3 n = float3(0.0, 0.0, 0.0);
+    [loop] for (int j = 0; j < 4; j++)
+    {
+        // The corners of a tetrahedron: (1,-1,-1), (-1,-1,1), (-1,1,-1), (1,1,1).
+        float3 e = float3((j == 0 || j == 3) ? 1.0 : -1.0, j >= 2 ? 1.0 : -1.0, (j == 1 || j == 3) ? 1.0 : -1.0);
+        n += e * chainDist(ch, pos + e * h);
+    }
+    n = normalize(n);
     float3 r = reflect(rd, n);
 
     float3 white = lerp(float3(1.0, 1.0, 1.0), m.accent, 0.2);
@@ -767,7 +776,7 @@ float3 chains(float2 tex, Music m)
 float3 rainBokeh(float2 q, float blur, Music m)
 {
     float3 sum = float3(0.0, 0.0, 0.0);
-    [unroll] for (int l = 0; l < 3; l++)
+    [loop] for (int l = 0; l < 3; l++)
     {
         float fl = l;
         float size = 0.24 - 0.06 * fl;
@@ -851,12 +860,14 @@ float3 rain(float2 tex, Music m)
     float2 q = (tex - 0.5) * float2(aspect, 1.0);
 
     float density = 0.35 + 0.45 * m.energy; // the slow energy: more rain in a chorus
-    float4 a = rainDrops(q, 0.22, 1.0, density);
-    float4 b = rainDrops(q, 0.14, 7.0, density * 0.8);
+    // Two layers of drops, big and small (in a loop: one copy to compile).
+    float4 ab = float4(0.0, 0.0, 0.0, 0.0);
+    [loop] for (int l = 0; l < 2; l++)
+        ab += rainDrops(q, l == 0 ? 0.22 : 0.14, l == 0 ? 1.0 : 7.0, density * (l == 0 ? 1.0 : 0.8));
     float3 dew = rainDew(q, 0.035);
-    float drop = saturate(a.x + b.x + dew.x);
-    float clearGlass = saturate(drop + 0.4 * (a.y + b.y));
-    float2 bend = a.zw + b.zw + dew.yz;
+    float drop = saturate(ab.x + dew.x);
+    float clearGlass = saturate(drop + 0.4 * ab.y);
+    float2 bend = ab.zw + dew.yz;
 
     // Through a drop the lights show bent and sharp, as through a lens,
     // and the drop gathers light, darker only at its rim; elsewhere they
@@ -876,6 +887,218 @@ float3 rain(float2 tex, Music m)
     c *= lerp(0.55, 1.0, smoothstep(0.6, 1.2, length((tex - 0.5) / float2(0.24, 0.36))));
     float amount = 0.75 + 0.6 * m.energy; // the verse calmer, the chorus fuller
     float3 fx = c * amount * (0.8 + 0.3 * m.cl);
+    return fx / (1.0 + 1.5 * fx); // a soft ceiling, so nothing glares
+}
+
+// napoleon: an easter egg, never picked by hand or by auto: while a track
+// called "Amour plastique" plays, spotui shows this whatever the effect.
+// Dusk over the sea like an old painting: a low sun behind the clouds, its
+// light glittering on the water, and on a cliff on the right a figure in a
+// greatcoat and a bicorne worn sideways, hands behind his back, looking out
+// to sea. There is nothing he can do. Calm: the clouds and the sea move at
+// their own pace, the smoothed bass raises the swell and the mid stirs his
+// coat; the kick lifts the sun's glow and the glitter, harder on the first
+// beat of four, and snares sparkle on the water.
+
+// hash21 is a repeatable random number in 0…1 for p, without sin, so it
+// stays exact for large p (pixel coordinates).
+float hash21(float2 p)
+{
+    float3 p3 = frac(p.xyx * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return frac((p3.x + p3.y) * p3.z);
+}
+
+float noise2(float2 p)
+{
+    float2 i = floor(p);
+    float2 f = frac(p);
+    float2 u = f * f * (3.0 - 2.0 * f);
+    return lerp(lerp(hash21(i), hash21(i + float2(1.0, 0.0)), u.x),
+                lerp(hash21(i + float2(0.0, 1.0)), hash21(i + float2(1.0, 1.0)), u.x), u.y);
+}
+
+float fbm(float2 p)
+{
+    float v = 0.0, a = 0.5;
+    [loop] for (int i = 0; i < 4; i++)
+    {
+        v += a * noise2(p);
+        p = p * 2.03 + 17.1;
+        a *= 0.5;
+    }
+    return v;
+}
+
+// smin joins two distances with a rounded seam k wide.
+float smin(float a, float b, float k)
+{
+    float h = saturate(0.5 + 0.5 * (b - a) / k);
+    return lerp(b, a, h) - k * h * (1.0 - h);
+}
+
+float sdCapsule(float2 p, float2 a, float2 b, float r)
+{
+    float2 pa = p - a, ba = b - a;
+    return length(pa - ba * saturate(dot(pa, ba) / dot(ba, ba))) - r;
+}
+
+// sdEllipse is roughly the distance to an ellipse of radii r.
+float sdEllipse(float2 p, float2 r)
+{
+    float k0 = length(p / r);
+    float k1 = length(p / (r * r));
+    return k0 * (k0 - 1.0) / max(k1, 1e-5);
+}
+
+// sdTrapezoid: half widths r1 at the bottom and r2 at the top, half height he.
+float sdTrapezoid(float2 p, float r1, float r2, float he)
+{
+    float2 k1 = float2(r2, he);
+    float2 k2 = float2(r2 - r1, 2.0 * he);
+    p.x = abs(p.x);
+    float2 ca = float2(p.x - min(p.x, p.y < 0.0 ? r1 : r2), abs(p.y) - he);
+    float2 cb = p - k1 + k2 * saturate(dot(k1 - p, k2) / dot(k2, k2));
+    float s = (cb.x < 0.0 && ca.y < 0.0) ? -1.0 : 1.0;
+    return s * sqrt(min(dot(ca, ca), dot(cb, cb)));
+}
+
+// napoleonShape is the distance to the figure, seen from behind, p in
+// units of his height: 0 at his feet, 1 at the top of the hat, y up.
+// flutter moves the hem of the coat.
+float napoleonShape(float2 p, float flutter)
+{
+    // Legs and boots.
+    float d = sdCapsule(p, float2(-0.05, 0.03), float2(-0.035, 0.40), 0.033);
+    d = min(d, sdCapsule(p, float2(0.05, 0.03), float2(0.035, 0.40), 0.033));
+    d = min(d, sdEllipse(p - float2(-0.06, 0.02), float2(0.048, 0.025)));
+    d = min(d, sdEllipse(p - float2(0.06, 0.02), float2(0.048, 0.025)));
+    // The greatcoat, flaring from round shoulders to below the knees, its
+    // hem moving in the wind; the parts blended so it reads as one cloth.
+    float2 cp = p - float2(0.0, 0.54);
+    cp.x -= flutter * saturate((0.62 - p.y) / 0.3);
+    float coat = sdTrapezoid(cp, 0.165, 0.09, 0.24) - 0.012;
+    coat = smin(coat, sdEllipse(p - float2(0.0, 0.755), float2(0.118, 0.055)), 0.03);
+    // Elbows of the arms folded behind his back.
+    coat = smin(coat, sdEllipse(p - float2(-0.118, 0.60), float2(0.034, 0.08)), 0.03);
+    coat = smin(coat, sdEllipse(p - float2(0.118, 0.60), float2(0.034, 0.08)), 0.03);
+    // The high collar and the head.
+    coat = smin(coat, sdEllipse(p - float2(0.0, 0.80), float2(0.07, 0.05)), 0.03);
+    coat = smin(coat, length(p - float2(0.0, 0.85)) - 0.05, 0.02);
+    d = min(d, coat);
+    // The bicorne, worn sideways: an upturned boat, an arch over the head
+    // with its tips curving down to the sides.
+    float hat = sdEllipse(p - float2(0.0, 0.80), float2(0.185, 0.19));
+    hat = max(hat, (0.875 - 0.065 * sq(p.x / 0.185)) - p.y);
+    return min(d, hat);
+}
+
+// napoleonCliff is how far down the screen the cliff's top is at x (0…1
+// across); below the bottom of the screen where there is no cliff.
+float napoleonCliff(float x)
+{
+    float top = 0.74 + 0.025 * (fbm(float2(x * 9.0, 3.7)) - 0.5);
+    return lerp(1.1, top, smoothstep(0.56, 0.7, x));
+}
+
+// napoleonHills is how high the land far off reaches above the horizon at
+// x: x the nearer hills on the right (and rocks out at sea on the left),
+// y the hazy ones behind them.
+float2 napoleonHills(float x)
+{
+    float nearer = smoothstep(0.5, 0.95, x) * (0.05 + 0.06 * fbm(float2(x * 4.0, 1.3)));
+    nearer += 0.012 * exp(-sq((x - 0.07) / 0.02)) + 0.007 * exp(-sq((x - 0.13) / 0.012)) +
+              0.009 * exp(-sq((x - 0.42) / 0.016));
+    float behind = smoothstep(0.35, 0.8, x) * (0.05 + 0.06 * fbm(float2(x * 3.0 + 5.0, 2.9)));
+    return float2(nearer, behind);
+}
+
+float3 napoleon(float2 tex, Music m)
+{
+    const float horizon = 0.5;
+    float aspect = Resolution.x / Resolution.y;
+    float2 s = float2(tex.x * aspect, tex.y); // y down
+    float2 sun = float2(0.28 * aspect, horizon - 0.06);
+    float punch = m.ck * (m.first ? 1.3 : 1.0);
+    float3 warm = float3(1.0, 0.72, 0.38);
+    float sd = length(s - sun);
+
+    float3 c;
+    if (tex.y < horizon)
+    {
+        // Dusk: gold at the horizon, grey-blue above, a little of the cover.
+        float up = (horizon - tex.y) / horizon;
+        c = lerp(float3(0.95, 0.62, 0.32), float3(0.22, 0.34, 0.38), smoothstep(0.0, 0.8, up));
+        c = lerp(c, c * (0.6 + 0.8 * m.accent), 0.15);
+        // Clouds in long bands, drifting, lit from below by the sun.
+        float2 cp = float2(s.x * 2.5 + Time * 0.01, s.y * 9.0);
+        float cl = fbm(cp + float2(0.0, 1.5 * fbm(cp * 0.5)));
+        float cloud = smoothstep(0.4, 0.62, cl) * smoothstep(0.0, 0.12, up);
+        float3 cloudCol = lerp(float3(0.22, 0.19, 0.2), warm * 1.1, saturate(0.9 * exp(-up * 2.5) + 0.5 * exp(-sd * 3.0)) * (0.6 + 0.6 * (1.0 - cl)));
+        c = lerp(c, cloudCol, cloud * 0.85);
+        // The sun, half hidden; its glow lifts with the kick.
+        c += warm * (0.35 * exp(-sd * 6.0) * (1.0 + 0.8 * punch) + smoothstep(0.036, 0.03, sd) * (1.0 - 0.7 * cloud));
+
+        // Land far off: hazy hills on the right, rocks out at sea, their
+        // tops catching the sun.
+        float2 hills = napoleonHills(tex.x);
+        float above = horizon - tex.y;
+        float hpx = 1.5 / Resolution.y;
+        c = lerp(c, lerp(c, float3(0.40, 0.43, 0.40), 0.6), smoothstep(hills.y + hpx, hills.y - hpx, above));
+        float3 hill = lerp(float3(0.18, 0.23, 0.14), float3(0.30, 0.21, 0.15), noise2(s * 30.0));
+        hill += warm * 0.4 * exp(-(hills.x - above) * 150.0);
+        c = lerp(c, hill, 0.85 * smoothstep(hills.x + hpx, hills.x - hpx, above));
+    }
+    else
+    {
+        float down = tex.y - horizon;
+        c = lerp(float3(0.30, 0.35, 0.33), float3(0.05, 0.11, 0.12), smoothstep(0.0, 0.25, down));
+        // The swell: slow waves coming in, higher with the bass (smoothed).
+        float z = 0.08 / max(down, 0.004);
+        float wav = noise2(float2(s.x * z * 3.0, (z * 2.0 - Time * 0.15) * 4.0));
+        c *= 0.8 + 0.4 * wav * (0.5 + 0.5 * saturate(m.bassAtt - 0.7));
+        // The sun's path on the water, glittering with the kick and snares.
+        float path = exp(-sq((s.x - sun.x) / (0.05 + down * 0.6)));
+        float glint = pow(noise2(float2(s.x * 80.0, z * 6.0 - Time * 0.6)), 6.0) * 4.0;
+        c += warm * path * exp(-down * 4.0) * (0.25 + glint * (0.3 + 0.7 * punch + 0.5 * m.snare));
+    }
+
+    // A sail far out on the left, rocking.
+    float2 bq = (s - float2(0.15 * aspect, horizon + 0.002)) / 0.03;
+    bq.x -= bq.y * 0.08 * sin(Time * 0.7);
+    float sail = step(-1.0, bq.y) * step(bq.y, -0.12) * step(0.0, bq.x) * step(bq.x, 0.5 * (bq.y + 1.0));
+    float hull = step(-0.12, bq.y) * step(bq.y, 0.0) * step(-0.13 + bq.y, bq.x) * step(bq.x, 0.53 - bq.y);
+    c = lerp(c, float3(0.75, 0.62, 0.48), sail * 0.8);
+    c = lerp(c, float3(0.06, 0.06, 0.07), hull * 0.8);
+
+    // The cliff on the right, dark, its edge lit by the low sun.
+    float cliff = napoleonCliff(tex.x);
+    if (tex.y > cliff)
+    {
+        float3 rock = float3(0.11, 0.09, 0.07) * (0.6 + 0.7 * fbm(s * 18.0));
+        rock = lerp(rock, float3(0.09, 0.12, 0.06), exp(-(tex.y - cliff) * 40.0)); // grass on top
+        c = rock + warm * 0.25 * exp(-(tex.y - cliff) * 90.0);
+    }
+
+    // He stands on it, looking out to sea, the sun catching his left side.
+    const float xn = 0.8;
+    const float height = 0.32;
+    float feet = napoleonCliff(xn) + 0.004;
+    float2 p = float2((tex.x - xn) * aspect, feet - tex.y) / height;
+    float flutter = 0.015 * sin(Time * 1.3) + 0.02 * saturate(m.midAtt - 0.8) * sin(Time * 3.1);
+    float d = napoleonShape(p, flutter) * height;
+    float px = 1.5 / Resolution.y;
+    float body = smoothstep(px, -px, d);
+    float rim = smoothstep(-0.006, 0.0, d) * saturate(0.3 - p.x * 6.0);
+    c = lerp(c, float3(0.035, 0.035, 0.045) + warm * 0.5 * rim * (1.0 + 0.6 * punch), body);
+
+    // An old painting: canvas grain and a vignette.
+    c *= 0.9 + 0.1 * noise2(tex * Resolution / 3.0);
+    c *= smoothstep(1.15, 0.35, length((tex - 0.5) * float2(1.0, 1.2)));
+
+    // Dimmed behind the lyrics.
+    c *= lerp(0.45, 1.0, smoothstep(0.6, 1.2, length((tex - 0.5) / float2(0.24, 0.36))));
+    float3 fx = c * (0.7 + 0.3 * m.energy);
     return fx / (1.0 + 1.5 * fx); // a soft ceiling, so nothing glares
 }
 
@@ -922,24 +1145,30 @@ float3 debugView(float2 tex, Music m)
     return c * 0.6;
 }
 
-// effect draws the given style.
+// effect draws the given style. Real branches: no effect takes screen
+// derivatives (fwidth, ddx), so only the one showing runs.
 float3 effect(int style, float2 tex, Music m)
 {
-    if (style == 7)
-        return debugView(tex, m);
-    if (style == 6)
-        return rain(tex, m);
-    if (style == 5)
-        return chains(tex, m);
-    if (style == 4)
-        return synthwave(tex, m);
-    if (style == 3)
-        return aurora(tex, m);
-    if (style == 2)
-        return warp(tex, m);
-    if (style == 1)
-        return tunnel(tex, m);
-    return plasma(tex, m);
+    float3 c;
+    [branch] if (style == 8)
+        c = debugView(tex, m);
+    else [branch] if (style == 7)
+        c = napoleon(tex, m);
+    else [branch] if (style == 6)
+        c = rain(tex, m);
+    else [branch] if (style == 5)
+        c = chains(tex, m);
+    else [branch] if (style == 4)
+        c = synthwave(tex, m);
+    else [branch] if (style == 3)
+        c = aurora(tex, m);
+    else [branch] if (style == 2)
+        c = warp(tex, m);
+    else [branch] if (style == 1)
+        c = tunnel(tex, m);
+    else
+        c = plasma(tex, m);
+    return c;
 }
 
 // Windows Terminal hands the shader a premultiplied texture: where only
@@ -957,7 +1186,7 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
 
     // Is the background left transparent in the texture? The blank cell
     // right after the strip tells.
-    bool clearBg = shaderTexture.Load(int3(origin + int2(cell.x * STRIP_CELLS + cell.x / 2, cell.y / 2), 0)).a < 0.5;
+    bool clearBg = shaderTexture.Load(int3(origin + int2(cell.x * STRIP_CELLS + (cell.x >> 1), (cell.y >> 1)), 0)).a < 0.5;
     float4 blank = clearBg ? float4(0.0, 0.0, 0.0, 0.0) : float4(Background.rgb, 1.0);
 
     // How much of this pixel is background: 1 on it, 0 on text, in between
@@ -980,10 +1209,22 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
         return colour;
 
     Music m = readMusic(origin, cell);
-    float3 fx = effect(m.style, tex, m);
-    // auto fading from one effect to the next: both, mixed.
-    if (m.blend < 1.0 && m.prevStyle != m.style)
-        fx = lerp(effect(m.prevStyle, tex, m), fx, smoothstep(0.0, 1.0, m.blend));
+    // auto fading from one effect to the next: a dissolve. Each pixel
+    // draws one of the two, the new one more often as the fade goes on,
+    // picked afresh every frame, so the eye sees them mixed. The pick is
+    // interleaved gradient noise, stepped each frame: it spreads the two
+    // evenly in space and time, so it averages out far smoother than
+    // random noise did (which showed as grain), at less cost. Drawing both
+    // and mixing them needs effect() called twice, and the compiler
+    // pastes every effect in at each call: twice the code, a tab that
+    // opened in 1 s took 2.3 s (measured with d3dcompiler_47, as WT uses).
+    // A loop around a single call was worse still (5.4 s).
+    int style = m.style;
+    if (m.blend < 1.0 && m.prevStyle != m.style &&
+        frac(52.9829189 * frac(dot(float2(p) + 5.588238 * fmod(floor(Time * 60.0), 64.0), float2(0.06711056, 0.00583715)))) >
+            smoothstep(0.0, 1.0, m.blend))
+        style = m.prevStyle;
+    float3 fx = effect(style, tex, m);
 
     // Premultiplied: adding colour with the alpha left alone lays the
     // effect over whatever is drawn underneath, background or acrylic.

@@ -15,6 +15,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/shaders"
+	"github.com/devgianlu/go-librespot/daemon"
 )
 
 func sigEscape() string {
@@ -372,5 +373,33 @@ func TestShaderUsesNoReservedNames(t *testing.T) {
 		if slices.Contains(reserved, m[1]) {
 			t.Errorf("shaders/spotui.hlsl names something %q, which HLSL reserves", m[1])
 		}
+	}
+}
+
+func TestAmourPlastiqueBringsNapoleon(t *testing.T) {
+	m := fxModel(t, fxOff)
+	m.cfg.Lyrics.WTShader = true
+	m.cfg.Lyrics.WTShaderStyle = "rain"
+	m.cfg.UI.EasterEggs = true
+	nap := slices.Index(shaderStyles, "napoleon")
+
+	m.track = &daemon.ApiTrack{Uri: "spotify:track:a", Name: "Amour plastique (slowed + reverb)"}
+	if m.shaderStyle() != nap {
+		t.Fatalf("style %s, want napoleon", shaderStyles[m.shaderStyle()])
+	}
+	if want := fmt.Sprintf("\x1b[48;2;%d;", nap); !strings.Contains(m.shaderStrip(), want) {
+		t.Fatal("napoleon not sent in cell 4")
+	}
+	m.cfg.UI.EasterEggs = false
+	if shaderStyles[m.shaderStyle()] != "rain" {
+		t.Fatal("easter egg shown with easter_eggs off")
+	}
+	m.cfg.UI.EasterEggs = true
+	m.track = &daemon.ApiTrack{Uri: "spotify:track:b", Name: "Another song"}
+	if shaderStyles[m.shaderStyle()] != "rain" {
+		t.Fatal("easter egg shown for another track")
+	}
+	if slices.Contains(shaderChoices, "napoleon") || slices.Contains(shaderChoices, "debug") {
+		t.Fatalf("Settings offers a hidden style: %v", shaderChoices)
 	}
 }

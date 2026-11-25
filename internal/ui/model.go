@@ -721,6 +721,9 @@ func (m *Model) setTrack(t *daemon.ApiTrack) tea.Cmd {
 	}
 	m.track = t
 	m.setPosition(t.Position)
+	if _, hello := m.shaderEgg(); changed && hello != "" && m.cfg.Lyrics.WTShader {
+		m.setFlash(hello, false)
+	}
 
 	var cmds []tea.Cmd
 	if changed {

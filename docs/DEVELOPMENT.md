@@ -34,7 +34,22 @@ python3 scripts/ans2png.py /tmp/frames/1-now-playing.ans /tmp/np.png 120 36
 a mistake only shows as WT's error dialog. While working on it, point a WT
 profile straight at the repo's file (from WSL,
 `\\wsl.localhost\<distro>\...\shaders\spotui.hlsl`, with `"padding": "0"`)
-and open a new tab after each edit to reload it. spotui sends the shader the
+and open a new tab after each edit to reload it. WT compiles it when a tab
+opens, so a heavy shader shows as a slow first start: keep `effect()`
+called once and outside any loop, use no screen derivatives, and prefer
+`[loop]` to `[unroll]` (see CLAUDE.md). `tools/shadertime` compiles it
+with Windows' own `d3dcompiler_47.dll`, as WT does, and says whether it
+compiles, how long it took and what the compiler warns about; `-each`
+adds what each effect costs. About 1 s is where it should stay. On
+Windows, `go run ./tools/shadertime`; from WSL:
+
+```sh
+GOOS=windows go build -o /tmp/shadertime.exe ./tools/shadertime
+/tmp/shadertime.exe -each shaders/spotui.hlsl
+```
+
+(run it without a pipe: piped through WSL, a long run's output can get
+lost). spotui sends the shader the
 music through a row of data cells (layout at the top of both
 `internal/ui/wtshader.go` and the `.hlsl`); a test checks that the two agree
 on the signature, the cell and band counts and the style numbers.
@@ -64,6 +79,12 @@ Tune against real tracks, from numbers rather than by eye:
   (cell size, how fast a column slides, the stop-and-go), condensation in
   `rainDew`. Keep a drop's movement inside its cell, or it is cut off at
   the cell's edge.
+- Easter eggs live in `internal/ui/eastereggs.go`: a part of a track's
+  name, the style it shows and a greeting. Their styles are hidden from
+  Settings and auto (`shaderHidden`); to see one without its track, set
+  `wt_shader_style` to its style name in config.toml. Keep what they are
+  out of commit messages, PRs and release notes: they are meant to be
+  found.
 - `SPOTUI_TEMPO_DUMP=track.csv spotui` records a track's levels (log
   energies only, no audio), and
   `SPOTUI_TEMPO_RECORDING=track.csv SPOTUI_TEMPO_EXPECT=148 go test -run OnRecording -v ./internal/viz`

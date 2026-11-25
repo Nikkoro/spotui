@@ -187,6 +187,9 @@ type UIConfig struct {
 	LikeAnimation bool `toml:"like_animation"`
 	// CopyAs is what y copies: "url" (open.spotify.com link) or "uri".
 	CopyAs string `toml:"copy_as"`
+	// EasterEggs lets a few tracks bring a surprise of their own to the
+	// Windows Terminal shader.
+	EasterEggs bool `toml:"easter_eggs"`
 }
 
 type UpdateConfig struct {
@@ -239,7 +242,7 @@ func Default() Config {
 		},
 		NowPlaying:      NowPlayingConfig{Layout: "auto"},
 		Update:          UpdateConfig{Check: true},
-		UI:              UIConfig{ProgressStyle: "shimmer", Splash: true, LikeAnimation: true, CopyAs: "url"},
+		UI:              UIConfig{ProgressStyle: "shimmer", Splash: true, LikeAnimation: true, CopyAs: "url", EasterEggs: true},
 		SeekStepSeconds: 5,
 		VolumeStep:      5,
 		Notifications:   true,

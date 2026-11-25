@@ -66,16 +66,28 @@ const (
 
 var shaderSig = [3]int{13, 37, 241}
 
-// shaderStyles are the effects in shaders/spotui.hlsl, by index. The last,
-// "debug", is for checking how evenly frames arrive and is left out of
-// the Settings page.
-var shaderStyles = []string{"plasma", "tunnel", "warp", "aurora", "synthwave", "chains", "rain", "debug"}
+// shaderStyles are the effects in shaders/spotui.hlsl, by index. The last
+// two are left out of the Settings page: "napoleon", an easter egg's
+// scene (eastereggs.go), and "debug", for checking how evenly frames
+// arrive.
+var shaderStyles = []string{"plasma", "tunnel", "warp", "aurora", "synthwave", "chains", "rain", "napoleon", "debug"}
+
+const shaderDebug = "debug"
+
+// shaderHidden are the styles Settings does not offer.
+var shaderHidden = []string{"napoleon", shaderDebug}
 
 // shaderChoices are what Settings offers: the effects, and auto, which
 // moves between them by itself (shaderauto.go).
-var shaderChoices = append(append([]string{}, shaderStyles[:len(shaderStyles)-1]...), shaderAuto)
-
-const shaderDebug = "debug"
+var shaderChoices = func() []string {
+	var c []string
+	for _, s := range shaderStyles {
+		if !slices.Contains(shaderHidden, s) {
+			c = append(c, s)
+		}
+	}
+	return append(c, shaderAuto)
+}()
 
 // shaderQualities are wt_shader_quality's values, sent as their index:
 // how many chains the chains effect draws and how far it marches.
@@ -107,12 +119,21 @@ func validShaderStyle(s string) bool {
 	return false
 }
 
-// shaderStyle is the index of the style showing: the one set, or with
-// auto, the one auto shows.
+// shaderStyle is the index of the style showing: an easter egg's while
+// its track plays, else the one set, or with auto, the one auto shows.
 func (m Model) shaderStyle() int {
+	if egg, _ := m.shaderEgg(); egg >= 0 {
+		return egg
+	}
 	if m.shaderIsAuto() {
 		return m.fx.shader.auto.cur
 	}
+	return m.shaderSetStyle()
+}
+
+// shaderSetStyle is the index of the style set in the config (plasma for
+// auto).
+func (m Model) shaderSetStyle() int {
 	if m.cfg != nil {
 		for i, x := range shaderStyles {
 			if x == m.cfg.Lyrics.WTShaderStyle {
@@ -398,7 +419,7 @@ func (m Model) shaderStrip() string {
 	spin := clamp(int(s.spin*65536), 0, 65535)
 	cells[13] = [3]int{motion, spin >> 8, spin & 0xff}
 	cells[14] = [3]int{m.shaderStyle(), 255, m.shaderQuality()}
-	if m.shaderIsAuto() {
+	if egg, _ := m.shaderEgg(); egg < 0 && m.shaderIsAuto() {
 		cells[14] = [3]int{s.auto.prev, byte8(s.auto.blend), m.shaderQuality()}
 	}
 	for i := 0; i < shaderBands; i++ {

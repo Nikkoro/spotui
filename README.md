@@ -187,6 +187,7 @@ layout = "auto"           # auto | split | panels | compact | classic  (L switch
 progress_style = "shimmer" # plain | gradient | shimmer
 splash = true             # animated start-up screen
 like_animation = true     # the heart sparkles when you like a track
+easter_eggs = true        # a few tracks bring their own surprise to the WT shader
 copy_as = "url"           # what y copies: url (open.spotify.com) | uri
 
 [update]
@@ -239,6 +240,9 @@ several effects, switched in Settings (`,` → Shader effect) with no reload:
   in, on a new track or every 32 bars; calm parts lean to the aurora and
   the rain, loud
   and fast ones to the tunnel, the warp, the synthwave and the chains
+
+A few tracks bring a surprise of their own, whatever the effect; turn it
+off with `easter_eggs = false` under `[ui]` (Settings → Easter eggs).
 
 A shader only sees the window, so spotui sends it the music through a row
 of coloured cells in the top-left corner, which the shader reads and
