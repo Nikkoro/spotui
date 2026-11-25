@@ -421,9 +421,25 @@ func TestEasterEggColour(t *testing.T) {
 	if !strings.Contains(strip, "\x1b[48;2;160;64;255m ") {
 		t.Fatalf("the egg's colour not sent: %q", strip)
 	}
-	// Every egg names a style the shader has.
+	// An egg that keeps the effect showing only colours it.
+	m.track = &daemon.ApiTrack{Uri: "spotify:track:b", Name: "Blue (Da Ba Dee)"}
+	if shaderStyles[m.shaderStyle()] != "plasma" {
+		t.Fatalf("a colour-only egg changed the effect to %s", shaderStyles[m.shaderStyle()])
+	}
+	if _, hello := m.shaderEgg(); hello == "" {
+		t.Fatal("a colour-only egg says nothing")
+	}
+	if want := fmt.Sprintf("\x1b[48;2;%d;", slices.Index(shaderStyles, "plasma")|shaderMono); !strings.Contains(m.shaderStrip(), want) {
+		t.Fatal("a colour-only egg does not send the one-colour bit")
+	}
+	// Titles are matched lower case, Polish letters too.
+	m.track = &daemon.ApiTrack{Uri: "spotify:track:z", Name: "ZA KAŻDYM RA2EM"}
+	if shaderStyles[m.shaderStyle()] != "chains" {
+		t.Fatalf("ZA KAŻDYM RA2EM shows %s", shaderStyles[m.shaderStyle()])
+	}
+	// Every egg names a style the shader has, or none.
 	for _, e := range shaderEggs {
-		if !slices.Contains(shaderStyles, e.style) {
+		if e.style != "" && !slices.Contains(shaderStyles, e.style) {
 			t.Fatalf("easter egg %q names no style: %q", e.title, e.style)
 		}
 	}

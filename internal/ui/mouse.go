@@ -2,10 +2,12 @@ package ui
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 const wheelStep = 3
@@ -19,6 +21,11 @@ type hitMap struct {
 	progressX int
 	progressW int
 	barRow    int // progress line's row within the player bar, after the rule
+
+	// barText is the last progress bar drawn, as plain text. Now Playing
+	// places its bar differently in each layout (and centres the classic
+	// card), so View finds it on the finished screen instead (locateBar).
+	barText string
 
 	// Synced lyrics on screen: rows from lyrTop, columns lyrX0…lyrX1, and
 	// for each row the line it shows (-1: none).
@@ -83,8 +90,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		h := *m.hits
 
-		// Progress bar in the player bar: click to seek.
-		if m.page != pageNowPlaying && h.progressW > 0 && msg.Y == h.progressY &&
+		// The progress bar, in the player bar or on Now Playing: click to
+		// seek.
+		if h.progressW > 0 && msg.Y == h.progressY &&
 			msg.X >= h.progressX && msg.X < h.progressX+h.progressW && m.track != nil {
 			ratio := float64(msg.X-h.progressX) / float64(max(h.progressW-1, 1))
 			pos := int64(ratio * float64(m.track.Duration))
@@ -112,6 +120,23 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// locateBar finds the progress bar drawn last (hits.barText) on the
+// finished screen and records where it is, for clicks to seek. It is how
+// Now Playing's bar is found, wherever its layout put it.
+func (h *hitMap) locateBar(screen string) {
+	if h.barText == "" {
+		return
+	}
+	for y, line := range strings.Split(ansi.Strip(screen), "\n") {
+		if i := strings.Index(line, h.barText); i >= 0 {
+			h.progressY = y
+			h.progressX = ansi.StringWidth(line[:i])
+			h.progressW = ansi.StringWidth(h.barText)
+			return
+		}
+	}
 }
 
 // tabAt maps a click to a header tab, mirroring viewHeader's layout.

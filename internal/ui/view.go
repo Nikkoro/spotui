@@ -67,6 +67,9 @@ func (m Model) View() string {
 	}
 
 	out := m.theme.app.Render(lipgloss.JoinVertical(lipgloss.Left, header, "", body, footer))
+	if m.hits != nil && m.phase == phaseReady && m.overlay == overlayNone && m.page == pageNowPlaying {
+		m.hits.locateBar(out)
+	}
 	out = m.withShaderStrip(out)
 	if m.frames != nil && m.shaderActive() {
 		m.frames.viewTook(time.Since(viewStart))
@@ -559,6 +562,14 @@ func (m Model) modeBadges() string {
 }
 
 func (m Model) progressBar(w int, pos, dur int64) string {
+	bar := m.drawProgressBar(w, pos, dur)
+	if m.hits != nil {
+		m.hits.barText = ansi.Strip(bar)
+	}
+	return bar
+}
+
+func (m Model) drawProgressBar(w int, pos, dur int64) string {
 	if w < 3 {
 		return ""
 	}

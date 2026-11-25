@@ -76,7 +76,9 @@ Command palette:
 Mouse & pages:
 
 - [x] Click a row to select it, double-click to open or play; click the
-      progress bar to seek; the wheel is the volume knob on Now Playing
+      progress bar to seek, on every page and in every Now Playing layout
+      (the bar is found on the finished screen); the wheel is the volume
+      knob on Now Playing
 - [x] Playlist, album and artist pages show their cover next to the title
 
 Small things:
