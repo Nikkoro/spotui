@@ -12,7 +12,7 @@
 //   cell 3     R colour phase in the track's tempo, G drop (1 for half a
 //              second; debug style: the frame count), B energy (this part
 //              of the track against the last half minute)
-//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 aurora, 4 synthwave, 5 chains, 6 debug), G B travel (16 bits, 0…1):
+//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 aurora, 4 synthwave, 5 chains, 6 rain, 7 debug), G B travel (16 bits, 0…1):
 //              the distance the music has pushed the effect, on top of
 //              its own steady pace (debug style: spotui's clock)
 //   cell 5…8   the spectrum, 12 bands low to high, three a cell
@@ -751,6 +751,134 @@ float3 chains(float2 tex, Music m)
     return fx / (1.0 + 0.7 * fx);
 }
 
+// rain: a window on a rainy night. Behind the fogged glass, the lights of
+// a city, soft and out of focus, in the cover's colours; drops slide down
+// the glass, stopping and going, and leave a clear trail of tiny drops
+// where the lights show sharper; small drops of condensation come and go.
+// A calm effect: the rain flows at its own pace (timed here) and its shape
+// follows only the slow energy (how many drops run); the jumpy values only
+// light it: the kick flares some of the lights, harder on the first beat
+// of four, the bass warms the haze, snares glint on the drops, and a drop
+// in the music flashes like lightning.
+
+// rainBokeh is the city behind the glass: three layers of soft discs of
+// light drifting slowly sideways, the near ones bigger. blur is 1 seen
+// through fogged glass, 0 sharp (through a drop or a trail).
+float3 rainBokeh(float2 q, float blur, Music m)
+{
+    float3 sum = float3(0.0, 0.0, 0.0);
+    [unroll] for (int l = 0; l < 3; l++)
+    {
+        float fl = l;
+        float size = 0.24 - 0.06 * fl;
+        float2 g = (q + float2(Time * (0.004 + 0.003 * fl), 0.0)) / size + fl * 17.3;
+        float2 id = floor(g);
+        float2 f = frac(g) - 0.5;
+        float h = hash1(dot(id, float2(12.7, 91.3)) + fl * 5.1);
+        float h2 = hash1(h * 41.3 + 2.7), h3 = hash1(h * 73.1 + 5.3), h4 = hash1(h * 19.7 + 8.9);
+        // Each disc stays inside its cell, so no neighbours need looking at.
+        float2 c = (float2(h2, h3) - 0.5) * 0.3;
+        float r = 0.1 + 0.1 * h4;
+        float soft = 0.02 + blur * r * 0.7;
+        float d = length(f - c);
+        float disc = smoothstep(r + soft * 0.5, r - soft * 0.5, d);
+        disc *= 0.8 + 0.4 * smoothstep(r * 0.4, r, d) * (1.0 - blur); // a bright rim when sharp
+        float3 col = h4 < 0.3 ? m.accent : (h4 < 0.55 ? m.accent.gbr : (h4 < 0.75 ? m.accent.brg : float3(1.0, 0.85, 0.6)));
+        float flare = h2 > 0.6 ? m.ck * (m.first ? 1.4 : 1.0) : 0.0;
+        float lit = step(0.55, h) * (0.4 + 0.6 * h3) * (1.0 + 1.5 * flare);
+        sum += col * disc * lit * (0.5 + 0.25 * fl);
+    }
+    // More lights low down, where the street is.
+    return sum * (0.35 + 0.65 * smoothstep(-0.5, 0.4, q.y));
+}
+
+// rainDrops is one layer of drops sliding down the glass, q with y down,
+// size how big. Each column of cells slides down at its own pace with a
+// drop in some cells; on top, the drop moves up and down in its cell, so on
+// the glass it stops and goes but never climbs. density 0…1 is how many
+// cells have one. x: how much of a drop is here, y: how clear its trail
+// makes the glass, zw: how the drop bends the view (out from its middle).
+float4 rainDrops(float2 q, float size, float seed, float density)
+{
+    float2 cellSize = float2(0.5, 1.0) * size; // tall: a drop slides down its cell
+    float2 st = q / cellSize;
+    float hc = hash1(floor(st.x) * 7.13 + seed);
+    float v = 0.5 + 0.3 * hc; // cells a second the column slides
+    st.y += hc * 5.0 - Time * v;
+    float2 id = floor(st);
+    float2 f = frac(st) - 0.5; // y: -0.5 the cell's top … 0.5 its bottom
+    // id.y grows with time; wrapped, so the hash's sin keeps its precision.
+    float n = hash1(id.x * 13.7 + fmod(id.y, 512.0) * 71.3 + seed);
+    float present = saturate((density - n) * 8.0);
+
+    // Up and down in the cell no faster than the column slides: it stops.
+    float omega = 2.0 + 0.5 * hash1(n * 17.9); // fast enough to stay inside its cell
+    float y = 0.95 * v / omega * sin(Time * omega + n * 6.2832);
+    float x = (hash1(n * 31.7 + 1.1) - 0.5) * 0.5;
+
+    // In units of size from here, the drop's middle and its trail.
+    float2 dp = (f - float2(x, y)) * float2(0.5, 1.0);
+    const float rd = 0.09;
+    float drop = smoothstep(rd, rd * 0.55, length(dp * float2(1.0, 0.8))) * present;
+    float above = f.y < y ? smoothstep(-0.5, y, f.y) : 0.0;
+    float trail = above * smoothstep(rd * 0.8, rd * 0.3, abs(dp.x)) * present;
+    // Tiny drops left in the trail, fixed on the glass.
+    float2 tp = float2(dp.x, (frac(q.y / (size * 0.1)) - 0.5) * 0.1);
+    float tiny = smoothstep(0.022, 0.01, length(tp)) * trail;
+    float2 bend = dp / rd * drop + tp / 0.022 * tiny;
+    return float4(saturate(drop + tiny), trail, bend);
+}
+
+// rainDew is condensation: small round drops fixed on the glass, coming
+// and going slowly. x: how much of one is here, yz: how it bends the view.
+float3 rainDew(float2 q, float size)
+{
+    float2 g = q / size;
+    float2 id = floor(g);
+    float2 f = frac(g) - 0.5;
+    float h = hash1(dot(id, float2(27.1, 61.7)) + 3.3);
+    float h2 = hash1(h * 53.9 + 1.7);
+    float2 c = (float2(h, h2) - 0.5) * 0.5;
+    float r = 0.08 + 0.14 * hash1(h * 7.7 + 4.1);
+    float life = sin(3.1416 * frac(Time * 0.03 + h2));
+    float dew = smoothstep(r, r * 0.5, length(f - c)) * step(0.45, h) * life;
+    return float3(dew, (f - c) / r * dew);
+}
+
+float3 rain(float2 tex, Music m)
+{
+    float aspect = Resolution.x / Resolution.y;
+    float2 q = (tex - 0.5) * float2(aspect, 1.0);
+
+    float density = 0.35 + 0.45 * m.energy; // the slow energy: more rain in a chorus
+    float4 a = rainDrops(q, 0.22, 1.0, density);
+    float4 b = rainDrops(q, 0.14, 7.0, density * 0.8);
+    float3 dew = rainDew(q, 0.035);
+    float drop = saturate(a.x + b.x + dew.x);
+    float clearGlass = saturate(drop + 0.4 * (a.y + b.y));
+    float2 bend = a.zw + b.zw + dew.yz;
+
+    // Through a drop the lights show bent and sharp, as through a lens,
+    // and the drop gathers light, darker only at its rim; elsewhere they
+    // show through fog.
+    float3 city = rainBokeh(q - bend * 0.12, 1.0 - 0.85 * clearGlass, m);
+    float3 haze = lerp(m.accent, m.accent.gbr, 0.4) * (0.04 + 0.04 * m.cb) * (0.4 + 0.6 * smoothstep(-0.5, 0.5, q.y));
+    float rim = drop * smoothstep(0.55, 1.0, length(bend));
+    float3 c = city * lerp(0.45, 1.0, clearGlass) * (1.0 + 0.6 * drop) + haze * (1.0 - 0.5 * clearGlass + 2.0 * drop);
+    c *= 1.0 - 0.6 * rim;
+    // The drops catch a light on their upper left, snares make them glint.
+    float shine = drop * exp(-sq(length(bend - float2(-0.4, -0.5)) * 2.5));
+    c += float3(0.9, 0.9, 1.0) * shine * (0.12 + 0.5 * m.snare);
+    // A drop in the music: lightning behind the fog.
+    c += (haze * 4.0 + 0.03) * m.drop * m.ck;
+
+    // Dimmed a little behind the lyrics.
+    c *= lerp(0.55, 1.0, smoothstep(0.6, 1.2, length((tex - 0.5) / float2(0.24, 0.36))));
+    float amount = 0.75 + 0.6 * m.energy; // the verse calmer, the chorus fuller
+    float3 fx = c * amount * (0.8 + 0.3 * m.cl);
+    return fx / (1.0 + 1.5 * fx); // a soft ceiling, so nothing glares
+}
+
 // debugView shows how evenly things move, top to bottom:
 //   1. a white bar timed by this shader: how smooth the terminal draws
 //   2. a yellow bar timed by spotui (its clock, sent each frame) at the
@@ -797,8 +925,10 @@ float3 debugView(float2 tex, Music m)
 // effect draws the given style.
 float3 effect(int style, float2 tex, Music m)
 {
-    if (style == 6)
+    if (style == 7)
         return debugView(tex, m);
+    if (style == 6)
+        return rain(tex, m);
     if (style == 5)
         return chains(tex, m);
     if (style == 4)

@@ -58,6 +58,12 @@ Tune against real tracks, from numbers rather than by eye:
   (5/24, 7/32, 9/48: chains, steps per chain). Check a change on the
   slowest machine with `wt_shader_quality = "low"` and the "shader frames"
   log line.
+- rain (style 6) is built from cells, each holding at most one light or
+  drop that stays inside it, so no pixel looks at its neighbours: lights
+  in `rainBokeh` (three layers, how many lit, sizes), drops in `rainDrops`
+  (cell size, how fast a column slides, the stop-and-go), condensation in
+  `rainDew`. Keep a drop's movement inside its cell, or it is cut off at
+  the cell's edge.
 - `SPOTUI_TEMPO_DUMP=track.csv spotui` records a track's levels (log
   energies only, no audio), and
   `SPOTUI_TEMPO_RECORDING=track.csv SPOTUI_TEMPO_EXPECT=148 go test -run OnRecording -v ./internal/viz`

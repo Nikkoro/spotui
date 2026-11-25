@@ -168,7 +168,7 @@ effects = "subtle"        # preset: off | subtle (flash on the beat) | party (sp
                           # shake on drops) | nightcore (party, plus letter waves, letter
                           # spread and flowing colours) | custom (the switches below)
 wt_shader = false         # feed the beat to the Windows Terminal shader (spotui shader)
-wt_shader_style = "plasma" # its effect: plasma | tunnel | warp | aurora | synthwave | chains | auto
+wt_shader_style = "plasma" # its effect: plasma | tunnel | warp | aurora | synthwave | chains | rain | auto
 wt_shader_motion = true   # its view zooms, turns and ripples with the music (MilkDrop-style)
 wt_shader_quality = "medium" # low | medium | high: how much chains draws (low for a laptop without a GPU card)
 
@@ -228,9 +228,16 @@ several effects, switched in Settings (`,` → Shader effect) with no reload:
   metal (harder on the first beat of a bar), snares glint, a drop jerks
   them, and louder parts bring more chains. The heaviest effect: Settings
   → Shader quality sets how much it draws
+- **rain**: a calm one: a window on a rainy night, the lights of a city
+  soft and out of focus behind the fogged glass in the cover's colours.
+  Drops slide down the glass, stopping and going, and leave clear trails;
+  through a drop the lights show sharp, like through a lens. More rain in
+  louder parts; the kick flares some of the lights, snares glint on the
+  drops, and a drop in the track flashes like lightning
 - **auto**: moves between them by itself, like MilkDrop presets in
   Winamp, fading from one to the next at a drop, when a louder part comes
-  in, on a new track or every 32 bars; calm parts lean to the aurora, loud
+  in, on a new track or every 32 bars; calm parts lean to the aurora and
+  the rain, loud
   and fast ones to the tunnel, the warp, the synthwave and the chains
 
 A shader only sees the window, so spotui sends it the music through a row

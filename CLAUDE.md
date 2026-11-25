@@ -60,8 +60,9 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   effects built only on the smooth, "smarter" values felt bland. Slow
   effects (aurora) are the exception for shape: there the jumpy values
   only set brightness and the shape follows smooth ones (bass, level,
-  bands), or it looks nervous. chains is the heavy one (raymarched 3D):
-  a ray marches only near the chains it passes (`nearAxis`), and
+  bands), or it looks nervous. aurora and rain are the calm ones.
+  chains is the heavy one (raymarched 3D): a ray marches only near the
+  chains it passes (`nearAxis`), and
   `wt_shader_quality` (cell 14 B) sets how many chains and steps; keep it
   running on an iGPU. Give
   every effect a soft ceiling on brightness (warp: fx / (1 + 1.5 fx)). The `debug` style (config only)
