@@ -331,7 +331,7 @@ func (m Model) settings() []setting {
 			}},
 		{group: "Lyrics", label: "Shader effect", kind: setChoice, section: "lyrics", key: "wt_shader_style",
 			options: shaderChoices,
-			help:    "What the Windows Terminal shader draws: plasma (soft waves in the cover's colours), tunnel (a flight down a tunnel, faster with the bass, its walls lit by the spectrum), warp (stars streaking past, hyperspace on drops) or aurora (curtains of light swaying across the sky, a glow sweeping along them each beat), synthwave (a striped sun over a grid flying at you in tempo, the mountains made of the spectrum), or auto, which moves between them with the music: calm parts lean to the aurora, loud and fast ones to the tunnel, warp and synthwave, a change fading in at a drop, a louder part, a new track or every 32 bars. Switches at once, no reload. wt_shader_style = \"debug\" in config.toml shows how evenly frames arrive.",
+			help:    "What the Windows Terminal shader draws: plasma (soft waves in the cover's colours), tunnel (a flight down a tunnel, faster with the bass, its walls lit by the spectrum), warp (stars streaking past, hyperspace on drops) or aurora (curtains of light swaying across the sky, a glow sweeping along them each beat), synthwave (a striped sun over a grid flying at you in tempo, the mountains made of the spectrum), chains (chrome chains crossing at different depths, their links sliding along them, a light running over the metal on each kick; the heaviest, see Shader quality), or auto, which moves between them with the music: calm parts lean to the aurora, loud and fast ones to the tunnel, warp, synthwave and chains, a change fading in at a drop, a louder part, a new track or every 32 bars. Switches at once, no reload. wt_shader_style = \"debug\" in config.toml shows how evenly frames arrive.",
 			value: func(m Model) string {
 				if m.shaderIsAuto() {
 					return shaderAuto
@@ -346,6 +346,11 @@ func (m Model) settings() []setting {
 				m.cfg.Lyrics.WTShaderMotion = v == "true"
 				return m.cfg.Lyrics.WTShaderMotion, nil
 			}},
+		{group: "Lyrics", label: "Shader quality", kind: setChoice, section: "lyrics", key: "wt_shader_quality",
+			options: shaderQualities,
+			help:    "How much the heavy shader effects draw (chains: how many chains and how finely). Windows Terminal runs the shader on every pixel, so on a laptop without a dedicated GPU pick low if the window stutters; high for a desktop GPU.",
+			value:   func(m Model) string { return shaderQualities[m.shaderQuality()] },
+			set:     func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.WTShaderQuality = v; return v, nil }},
 		{group: "Lyrics", label: "Line on classic Now Playing", kind: setBool, section: "lyrics", key: "now_playing_line",
 			help:  "The current line under the progress bar in the classic layout.",
 			value: func(m Model) string { return boolStr(m.cfg.Lyrics.NowPlayingLine) },

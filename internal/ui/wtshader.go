@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -49,7 +50,9 @@ import (
 //	          G B its turn (16 bits, 0…1 a whole turn), added up here: a
 //	          slow spin that the treble speeds up
 //	cell 14   R the style faded from (auto), G how far the fade has got,
-//	          0 showing that one … 255 showing the style in cell 4
+//	          0 showing that one … 255 showing the style in cell 4,
+//	          B wt_shader_quality (0 low, 1 medium, 2 high): how much the
+//	          heavy effects (chains) may draw
 //	cell 15   signature again, so the shader knows where the strip ends
 //
 // The shader keeps no state between frames, so anything that should move
@@ -66,13 +69,31 @@ var shaderSig = [3]int{13, 37, 241}
 // shaderStyles are the effects in shaders/spotui.hlsl, by index. The last,
 // "debug", is for checking how evenly frames arrive and is left out of
 // the Settings page.
-var shaderStyles = []string{"plasma", "tunnel", "warp", "aurora", "synthwave", "debug"}
+var shaderStyles = []string{"plasma", "tunnel", "warp", "aurora", "synthwave", "chains", "debug"}
 
 // shaderChoices are what Settings offers: the effects, and auto, which
 // moves between them by itself (shaderauto.go).
 var shaderChoices = append(append([]string{}, shaderStyles[:len(shaderStyles)-1]...), shaderAuto)
 
 const shaderDebug = "debug"
+
+// shaderQualities are wt_shader_quality's values, sent as their index:
+// how many chains the chains effect draws and how far it marches.
+var shaderQualities = []string{"low", "medium", "high"}
+
+func validShaderQuality(s string) bool {
+	return slices.Contains(shaderQualities, s)
+}
+
+// shaderQuality is the index of wt_shader_quality, medium if unset.
+func (m Model) shaderQuality() int {
+	if m.cfg != nil {
+		if i := slices.Index(shaderQualities, m.cfg.Lyrics.WTShaderQuality); i >= 0 {
+			return i
+		}
+	}
+	return 1
+}
 
 func validShaderStyle(s string) bool {
 	if s == shaderAuto {
@@ -376,9 +397,9 @@ func (m Model) shaderStrip() string {
 	}
 	spin := clamp(int(s.spin*65536), 0, 65535)
 	cells[13] = [3]int{motion, spin >> 8, spin & 0xff}
-	cells[14] = [3]int{m.shaderStyle(), 255, 0}
+	cells[14] = [3]int{m.shaderStyle(), 255, m.shaderQuality()}
 	if m.shaderIsAuto() {
-		cells[14] = [3]int{s.auto.prev, byte8(s.auto.blend), 0}
+		cells[14] = [3]int{s.auto.prev, byte8(s.auto.blend), m.shaderQuality()}
 	}
 	for i := 0; i < shaderBands; i++ {
 		if i < len(s.bands) {

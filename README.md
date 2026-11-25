@@ -168,8 +168,9 @@ effects = "subtle"        # preset: off | subtle (flash on the beat) | party (sp
                           # shake on drops) | nightcore (party, plus letter waves, letter
                           # spread and flowing colours) | custom (the switches below)
 wt_shader = false         # feed the beat to the Windows Terminal shader (spotui shader)
-wt_shader_style = "plasma" # its effect: plasma | tunnel | warp | aurora | synthwave | auto
+wt_shader_style = "plasma" # its effect: plasma | tunnel | warp | aurora | synthwave | chains | auto
 wt_shader_motion = true   # its view zooms, turns and ripples with the music (MilkDrop-style)
+wt_shader_quality = "medium" # low | medium | high: how much chains draws (low for a laptop without a GPU card)
 
 [lyrics.fx]               # (an example) each effect on its own, used with effects = "custom";
 flash = true              # turning one in Settings switches to custom for you
@@ -218,10 +219,19 @@ several effects, switched in Settings (`,` → Shader effect) with no reload:
   flies at you in the track's tempo; the sun swells and the grid flashes
   on the kick, the mountains are the spectrum, snares flash along the
   horizon
+- **chains**: glossy chrome chains in 3D crossing the screen at different
+  angles and depths, a few near and big, more far and dim, glowing in the
+  cover's colours. The view stays still; the links slide along each chain
+  in its own direction, faster with the music, and the chains sway deeper
+  with the bass, drift in from off screen and leave, and come back as new
+  ones, so the picture never repeats. Each kick runs a light over the
+  metal (harder on the first beat of a bar), snares glint, a drop jerks
+  them, and louder parts bring more chains. The heaviest effect: Settings
+  → Shader quality sets how much it draws
 - **auto**: moves between them by itself, like MilkDrop presets in
   Winamp, fading from one to the next at a drop, when a louder part comes
   in, on a new track or every 32 bars; calm parts lean to the aurora, loud
-  and fast ones to the tunnel, the warp and the synthwave
+  and fast ones to the tunnel, the warp, the synthwave and the chains
 
 A shader only sees the window, so spotui sends it the music through a row
 of coloured cells in the top-left corner, which the shader reads and
@@ -285,6 +295,12 @@ reload it.
   by spotui should both sweep smoothly; below them are the spectrum, bass,
   beat pulse, snare and energy. The log gets a line every 5 s on how
   evenly spotui sends frames (`grep "shader frames" spotui.log`).
+- **chains is slow or makes the window stutter**: Windows Terminal runs
+  the shader on every pixel, and chains is raymarched 3D. Set
+  `wt_shader_quality = "low"` (Settings → Shader quality), which draws
+  fewer chains with shorter rays; on a machine with two GPUs also check the
+  High performance setting above. `wt_shader_style = "debug"` and
+  `grep "shader frames" spotui.log` show whether frames are dropped.
 - **No real cover images**: they need Sixel (Windows Terminal 1.22+, foot,
   WezTerm, Konsole, …) or the kitty protocol (kitty, Ghostty, WezTerm).
 - **Start over**: `spotui logout` forgets the login, `spotui clear-cache`

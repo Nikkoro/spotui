@@ -121,6 +121,23 @@ func TestShaderStripCarriesStyleAndTravel(t *testing.T) {
 	}
 }
 
+func TestShaderStripCarriesQuality(t *testing.T) {
+	m := fxModel(t, fxOff)
+	m.cfg.Lyrics.WTShader = true
+	m.cfg.Lyrics.WTShaderStyle = "chains"
+	for i, q := range shaderQualities {
+		m.cfg.Lyrics.WTShaderQuality = q
+		// cell 14: the style faded from (none: chains itself), done, quality
+		if want := fmt.Sprintf("\x1b[48;2;5;255;%dm ", i); !strings.Contains(m.shaderStrip(), want) {
+			t.Fatalf("quality %s not sent as %q", q, want)
+		}
+	}
+	m.cfg.Lyrics.WTShaderQuality = ""
+	if m.shaderQuality() != 1 {
+		t.Fatal("an unset quality is not medium")
+	}
+}
+
 func TestFrameStatsSummary(t *testing.T) {
 	var ds []time.Duration
 	for i := 1; i <= 100; i++ {
