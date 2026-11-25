@@ -11,9 +11,9 @@ import (
 // MilkDrop presets: it moves on at a drop (quickly), when a louder part
 // comes in, on a new track, or after about 32 bars on the first beat of a
 // bar, and fades from one effect to the next. Which effect comes next
-// fits the mood with a little chance: calm music leans to the aurora,
-// loud and fast music to the tunnel, the warp, synthwave and chains, the
-// plasma fits any.
+// fits the mood with a little chance: calm music leans to the aurora and
+// the rain, loud and fast music to the tunnel, the warp, synthwave and
+// chains, the plasma fits any.
 const shaderAuto = "auto"
 
 // autoStyles are the effects auto chooses from (indices in shaderStyles),
@@ -28,6 +28,7 @@ var autoStyles = []struct {
 	{3, 1.0, 0.1},   // aurora
 	{4, 0.15, 0.95}, // synthwave
 	{5, 0.1, 0.9},   // chains
+	{6, 0.9, 0.15},  // rain
 }
 
 const (

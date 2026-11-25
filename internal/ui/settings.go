@@ -196,6 +196,13 @@ func (m Model) settings() []setting {
 			help:  "An equalizer dancing while spotui connects.",
 			value: func(m Model) string { return boolStr(m.cfg.UI.Splash) },
 			set:   func(m *Model, v string) (any, tea.Cmd) { m.cfg.UI.Splash = v == "true"; return m.cfg.UI.Splash, nil }},
+		{group: "Look", label: "Easter eggs", kind: setBool, section: "ui", key: "easter_eggs",
+			help:  "A few tracks bring a surprise of their own to the Windows Terminal shader.",
+			value: func(m Model) string { return boolStr(m.cfg.UI.EasterEggs) },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				m.cfg.UI.EasterEggs = v == "true"
+				return m.cfg.UI.EasterEggs, nil
+			}},
 		{group: "Look", label: "Heart sparkle on like", kind: setBool, section: "ui", key: "like_animation",
 			help:  "The heart sparkles for a moment when you like a track.",
 			value: func(m Model) string { return boolStr(m.cfg.UI.LikeAnimation) },
@@ -336,7 +343,7 @@ func (m Model) settings() []setting {
 				if m.shaderIsAuto() {
 					return shaderAuto
 				}
-				return shaderStyles[m.shaderStyle()]
+				return shaderStyles[m.shaderSetStyle()]
 			},
 			set: func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.WTShaderStyle = v; return v, nil }},
 		{group: "Lyrics", label: "Shader motion", kind: setBool, section: "lyrics", key: "wt_shader_motion",

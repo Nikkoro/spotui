@@ -149,7 +149,7 @@ type LyricsConfig struct {
 	// default: without the shader the cells show as coloured squares.
 	WTShader bool `toml:"wt_shader"`
 	// WTShaderStyle is the shader's effect: "plasma", "tunnel", "warp",
-	// "aurora", "synthwave", "chains" or "auto"
+	// "aurora", "synthwave", "chains", "rain" or "auto"
 	// ("debug" shows how evenly frames arrive).
 	WTShaderStyle string `toml:"wt_shader_style"`
 	// WTShaderMotion moves the shader's camera with the music, the way
@@ -187,6 +187,9 @@ type UIConfig struct {
 	LikeAnimation bool `toml:"like_animation"`
 	// CopyAs is what y copies: "url" (open.spotify.com link) or "uri".
 	CopyAs string `toml:"copy_as"`
+	// EasterEggs lets a few tracks bring a surprise of their own to the
+	// Windows Terminal shader.
+	EasterEggs bool `toml:"easter_eggs"`
 }
 
 type UpdateConfig struct {
@@ -239,7 +242,7 @@ func Default() Config {
 		},
 		NowPlaying:      NowPlayingConfig{Layout: "auto"},
 		Update:          UpdateConfig{Check: true},
-		UI:              UIConfig{ProgressStyle: "shimmer", Splash: true, LikeAnimation: true, CopyAs: "url"},
+		UI:              UIConfig{ProgressStyle: "shimmer", Splash: true, LikeAnimation: true, CopyAs: "url", EasterEggs: true},
 		SeekStepSeconds: 5,
 		VolumeStep:      5,
 		Notifications:   true,

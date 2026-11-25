@@ -153,13 +153,19 @@ Shader background in Windows Terminal:
       over a grid flying at you in tempo, mountains made of the spectrum),
       chains (raymarched chrome chains in 3D at different depths, links
       sliding along them to the music, a light running over the metal on
-      each kick, chains drifting in and out so the picture never repeats)
+      each kick, chains drifting in and out so the picture never repeats),
+      rain (a calm one: drops sliding down fogged glass in front of soft
+      city lights, sharp through the drops, lights flaring on the kick)
+- [x] Easter eggs (`ui.easter_eggs`): a track can bring its own shader
+      scene and a word in the status line (which ones is left to find)
+- [x] Auto fades between effects as a dissolve, so each effect is compiled
+      once: a tab with the shader opens in about a second
 - [x] `wt_shader_quality` (low, medium, high): how many chains and how far
       their rays march, so chains runs on a laptop without a GPU card
 - [x] auto: moves between them like MilkDrop presets in Winamp, at a drop,
       a louder part, a new track or every 32 bars, fading from one to the
-      next; calm parts lean to the aurora, loud and fast ones to the
-      tunnel, the warp, the synthwave and the chains
+      next; calm parts lean to the aurora and the rain, loud and fast ones
+      to the tunnel, the warp, the synthwave and the chains
 - [x] Shader motion, MilkDrop-style: bass, mid and treble each against
       their own average; the view zooms with the bass, turns faster with
       the treble and ripples with the vocals
