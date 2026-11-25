@@ -30,7 +30,8 @@ import (
 //	          second after one (debug style: the frame count), B energy:
 //	          how loud this part of the track is against the last half
 //	          minute
-//	cell 4    R style (index in shaderStyles), G B travel (16 bits, 0…1
+//	cell 4    R style (index in shaderStyles; +128: all of it in the
+//	          accent's colour), G B travel (16 bits, 0…1
 //	          wrapping): how far the music (bass, beats, drops) has pushed
 //	          the effect on top of the steady pace the shader keeps itself
 //	cell 5…8  the spectrum, shaderBands bands low to high, three a cell
@@ -67,15 +68,18 @@ const (
 var shaderSig = [3]int{13, 37, 241}
 
 // shaderStyles are the effects in shaders/spotui.hlsl, by index. The last
-// two are left out of the Settings page: "napoleon", an easter egg's
-// scene (eastereggs.go), and "debug", for checking how evenly frames
-// arrive.
-var shaderStyles = []string{"plasma", "tunnel", "warp", "aurora", "synthwave", "chains", "rain", "napoleon", "debug"}
+// ones are left out of the Settings page: easter eggs' scenes
+// (eastereggs.go) and "debug", for checking how evenly frames arrive.
+var shaderStyles = []string{"plasma", "tunnel", "warp", "aurora", "synthwave", "chains", "rain", "napoleon", "space", "debug"}
 
 const shaderDebug = "debug"
 
+// shaderMono, added to the style in cell 4, draws the effect in one
+// colour, the accent's (easter eggs).
+const shaderMono = 128
+
 // shaderHidden are the styles Settings does not offer.
-var shaderHidden = []string{"napoleon", shaderDebug}
+var shaderHidden = []string{"napoleon", "space", shaderDebug}
 
 // shaderChoices are what Settings offers: the effects, and auto, which
 // moves between them by itself (shaderauto.go).
@@ -386,7 +390,12 @@ func (s *shaderFx) phase() float64 {
 func (m Model) shaderStrip() string {
 	s := m.fx.shader
 	byte8 := func(v float64) int { return clamp(int(math.Round(v*255)), 0, 255) }
-	accent, ok := parseRGB(m.theme.accentHex)
+	egg := m.activeEgg()
+	hex := m.theme.accentHex
+	if egg != nil && egg.accent != "" {
+		hex = egg.accent
+	}
+	accent, ok := parseRGB(hex)
 	if !ok {
 		accent = rgb{29, 185, 84}
 	}
@@ -401,12 +410,16 @@ func (m Model) shaderStrip() string {
 		travel, drop = s.clock, s.frames&0xff
 	}
 	t16 := clamp(int(travel*65536), 0, 65535)
+	styleByte := m.shaderStyle()
+	if egg != nil && egg.mono {
+		styleByte |= shaderMono
+	}
 	cells := [shaderCells][3]int{
 		shaderSig,
 		{byte8(s.hit), byte8(s.bass), byte8(s.level)},
 		{int(accent.r), int(accent.g), int(accent.b)},
 		{byte8(m.fx.hue), drop, byte8(s.energy)},
-		{m.shaderStyle(), t16 >> 8, t16 & 0xff},
+		{styleByte, t16 >> 8, t16 & 0xff},
 	}
 	cells[9] = [3]int{byte8(s.phase()), ((s.count + 3) % 4) * 85, byte8(s.snare)}
 	cells[10] = [3]int{byte8(s.ck), byte8(s.cb), byte8(s.cl)}

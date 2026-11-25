@@ -80,7 +80,10 @@ Tune against real tracks, from numbers rather than by eye:
   `rainDew`. Keep a drop's movement inside its cell, or it is cut off at
   the cell's edge.
 - Easter eggs live in `internal/ui/eastereggs.go`: a part of a track's
-  name, the style it shows and a greeting. Their styles are hidden from
+  name, the style it shows, optionally a colour of its own (and `mono`,
+  the whole effect in that colour: 128 added to the style in cell 4), and
+  a greeting. A colour costs nothing to compile; a new scene does, so
+  check it with `tools/shadertime`. Their styles are hidden from
   Settings and auto (`shaderHidden`); to see one without its track, set
   `wt_shader_style` to its style name in config.toml. Keep what they are
   out of commit messages, PRs and release notes: they are meant to be

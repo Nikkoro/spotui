@@ -44,7 +44,8 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   `spotui shader`. spotui paints sixteen data cells at the start of the
   top row (layout at the top of both files: beat, bass, accent, style,
   travel, 12 spectrum bands, tempo phase, snare, energy, MilkDrop bands,
-  camera, auto's fade, `wt_shader_quality`); the shader finds
+  camera, auto's fade, `wt_shader_quality`; 128 added to the style draws
+  it in one colour, for easter eggs); the shader finds
   and hides them. They are sent 60 times a second; the analysis behind
   them runs at 30 (the beat detector is tuned for it). One file holds every
   effect, picked by the style cell, so switching needs no reload. The

@@ -157,7 +157,8 @@ Shader background in Windows Terminal:
       rain (a calm one: drops sliding down fogged glass in front of soft
       city lights, sharp through the drops, lights flaring on the kick)
 - [x] Easter eggs (`ui.easter_eggs`): a track can bring its own shader
-      scene and a word in the status line (which ones is left to find)
+      scene or its own colour, and a word in the status line (which ones
+      is left to find)
 - [x] Auto fades between effects as a dissolve, so each effect is compiled
       once: a tab with the shader opens in about a second
 - [x] `wt_shader_quality` (low, medium, high): how many chains and how far
