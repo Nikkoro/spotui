@@ -12,7 +12,8 @@
 //   cell 3     R colour phase in the track's tempo, G drop (1 for half a
 //              second; debug style: the frame count), B energy (this part
 //              of the track against the last half minute)
-//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 aurora, 4 synthwave, 5 chains, 6 rain, 7 napoleon, 8 debug), G B travel (16 bits, 0…1):
+//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 aurora, 4 synthwave, 5 chains, 6 rain, 7 napoleon, 8 space, 9 debug)
+//              plus 128 to draw all of it in the accent's colour, G B travel (16 bits, 0…1):
 //              the distance the music has pushed the effect, on top of
 //              its own steady pace (debug style: spotui's clock)
 //   cell 5…8   the spectrum, 12 bands low to high, three a cell
@@ -127,6 +128,7 @@ struct Music
     float bass3, mid3, treb3, bassAtt, midAtt, trebAtt;
     float motion; // how much the camera moves with them, 0…1
     float spin;   // its turn, 0…1 a whole circle
+    bool mono;     // all of it in the accent's colour (easter eggs)
     int prevStyle; // the style faded from (auto)…
     float blend;   // …and how far: 0 that one, 1 style
     int quality;   // wt_shader_quality: 0 low, 1 medium, 2 high
@@ -149,7 +151,8 @@ Music readMusic(int2 origin, int2 cell)
     m.hue = d3.r;
     m.drop = d3.g;
     m.energy = d3.b;
-    m.style = int(d4.r);
+    m.style = int(d4.r) & 127;
+    m.mono = int(d4.r) >= 128;
     m.travel = (d4.g * 256.0 + d4.b) / 65536.0;
     float3 d9 = cellColour(origin, cell, 9);
     m.phase = d9.r;
@@ -1102,6 +1105,129 @@ float3 napoleon(float2 tex, Music m)
     return fx / (1.0 + 1.5 * fx); // a soft ceiling, so nothing glares
 }
 
+// space: an easter egg's scene. High above the Earth, its curve along the
+// bottom of the window (oceans and land turning slowly, clouds, the night
+// side's city lights, a thin blue atmosphere), stars all around, and an
+// astronaut in a white suit drifting away, turning slowly, the sun
+// catching the suit and the gold visor. Calm: everything moves at its own
+// pace; the kick brightens the atmosphere and the sun, harder on the
+// first beat of four, snares make the stars flare.
+
+float sdBox(float2 p, float2 b)
+{
+    float2 q = abs(p) - b;
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+}
+
+// spaceAstronaut is the distance to the astronaut, p in units of its
+// height from its middle, y up; visor is the distance to the visor.
+float spaceAstronaut(float2 p, out float visor)
+{
+    float d = length(p - float2(0.0, 0.30)) - 0.13; // helmet
+    d = smin(d, sdBox(p - float2(0.0, 0.03), float2(0.10, 0.16)) - 0.04, 0.03); // body
+    d = min(d, sdBox(p - float2(-0.12, 0.10), float2(0.06, 0.13)) - 0.02); // backpack
+    d = smin(d, sdCapsule(p, float2(0.10, 0.15), float2(0.24, 0.29), 0.045), 0.02); // an arm out
+    d = smin(d, sdCapsule(p, float2(-0.09, 0.12), float2(-0.19, -0.06), 0.045), 0.02); // the other down
+    d = smin(d, sdCapsule(p, float2(0.055, -0.12), float2(0.11, -0.39), 0.058), 0.04); // legs
+    d = smin(d, sdCapsule(p, float2(-0.055, -0.12), float2(-0.13, -0.37), 0.058), 0.04);
+    visor = sdEllipse(p - float2(0.035, 0.30), float2(0.085, 0.07));
+    return d;
+}
+
+float3 space(float2 tex, Music m)
+{
+    float aspect = Resolution.x / Resolution.y;
+    float2 s = float2(tex.x * aspect, tex.y); // y down
+    float px = 1.5 / Resolution.y;
+    float punch = m.ck * (m.first ? 1.3 : 1.0);
+    float3 sunCol = float3(1.0, 0.95, 0.85);
+    float3 atmo = lerp(float3(0.30, 0.60, 1.0), m.accent, 0.2);
+
+    // Stars: one at most a cell, some brighter, twinkling, flaring on
+    // snares; and the sun's glow from beyond the top-left corner.
+    float2 g = s * 140.0;
+    float2 cellId = floor(g);
+    float h = hash21(cellId);
+    float2 at = float2(hash21(cellId + 17.0), hash21(cellId + 41.0)) * 0.6 + 0.2;
+    float star = step(0.985, h) * smoothstep(0.25, 0.0, length(frac(g) - at));
+    star *= (0.4 + 0.6 * hash21(cellId + 7.0)) * (0.75 + 0.25 * sin(Time * 3.0 + h * 50.0)) * (1.0 + 2.0 * m.snare * step(0.995, h));
+    float3 c = float3(0.9, 0.92, 1.0) * star;
+    c += float3(0.05, 0.05, 0.09) * noise2(s * 6.0) * exp(-sq((s.y - 0.25 - 0.15 * s.x) * 3.0)); // a faint band of the galaxy
+    c += sunCol * (0.2 * exp(-length(s + 0.1) * 5.0) * (1.0 + 0.6 * punch));
+
+    // The Earth: a sphere far below, lit from the top left, turning.
+    const float R = 1.1;
+    float2 e = s - float2(0.3 * aspect, 1.75);
+    float r = length(e);
+    float3 L = normalize(float3(-0.6, 0.5, 0.45)); // towards the sun, y up, z towards us
+    if (r < R)
+    {
+        float3 n = float3(e.x, -e.y, sqrt(R * R - r * r)) / R;
+        float2 uv = float2(atan2(n.x, n.z) + Time * 0.01, asin(n.y)) * 2.0;
+        float land = smoothstep(0.52, 0.56, fbm(uv * 2.5 + 3.1));
+        float cloud = smoothstep(0.5, 0.75, fbm(uv * 4.0 + float2(Time * 0.004, 7.0)));
+        float3 albedo = lerp(float3(0.03, 0.10, 0.25), lerp(float3(0.10, 0.18, 0.07), float3(0.35, 0.30, 0.18), noise2(uv * 8.0)), land);
+        albedo = lerp(albedo, float3(0.95, 0.95, 0.95), cloud * 0.85);
+        float lit = dot(n, L);
+        float day = smoothstep(-0.1, 0.2, lit);
+        float3 earth = albedo * (0.02 + 0.75 * saturate(lit));
+        // city lights on the night side, the sun's glint on the sea
+        earth += float3(1.0, 0.75, 0.4) * 0.6 * land * (1.0 - cloud) * step(0.85, hash21(floor(uv * 60.0))) * (1.0 - day);
+        earth += sunCol * 0.6 * (1.0 - land) * (1.0 - cloud) * pow(saturate(dot(n, normalize(L + float3(0.0, 0.0, 1.0)))), 60.0);
+        earth += atmo * pow(1.0 - n.z, 3.0) * (0.2 + 0.8 * day) * (1.0 + 0.5 * punch); // thicker air at the edge
+        c = lerp(c, earth, smoothstep(R, R - px, r));
+    }
+    // The atmosphere's glow above the edge, brighter on the day side.
+    float limbDay = saturate(dot(normalize(float3(e.x, -e.y, 0.0)), L) + 0.3);
+    c += atmo * exp(-max(r - R, 0.0) * 30.0) * step(R, r) * (0.15 + 0.6 * limbDay) * (1.0 + 0.6 * punch);
+
+    // The astronaut, drifting and slowly turning.
+    const float height = 0.3;
+    float2 centre = float2(0.78 * aspect + 0.03 * sin(Time * 0.05), 0.33 + 0.03 * sin(Time * 0.07));
+    float a = Time * 0.015 + 0.3 * sin(Time * 0.11);
+    float ca = cos(a), sa = sin(a);
+    float2 q = float2(s.x - centre.x, centre.y - s.y) / height;
+    q = float2(ca * q.x + sa * q.y, -sa * q.x + ca * q.y);
+    // Its distance here and a step right and up, for the way its surface
+    // faces (one copy of the figure in a loop, three looks).
+    float3 ds = float3(0.0, 0.0, 0.0);
+    float visor = 0.0;
+    [loop] for (int k = 0; k < 3; k++)
+    {
+        float v;
+        float dk = spaceAstronaut(q + (k == 1 ? float2(0.01, 0.0) : (k == 2 ? float2(0.0, 0.01) : float2(0.0, 0.0))), v);
+        if (k == 0)
+        {
+            ds.x = dk;
+            visor = v;
+        }
+        else if (k == 1)
+            ds.y = dk;
+        else
+            ds.z = dk;
+    }
+    float body = smoothstep(px, -px, ds.x * height);
+    if (body > 0.0)
+    {
+        float2 grad = normalize(float2(ds.y - ds.x, ds.z - ds.x) + 1e-6);
+        // the sun's direction in the figure's own frame
+        float2 sunDir = normalize(float2(ca * -0.6 + sa * 0.5, -sa * -0.6 + ca * 0.5));
+        float bulge = sqrt(saturate(-ds.x / 0.05)); // inside, facing us more
+        float lambert = saturate(dot(grad, sunDir) * (1.0 - bulge) + 0.55 * bulge);
+        float3 suit = float3(0.62, 0.63, 0.61) * (0.1 + 0.9 * lambert) * (1.0 + 0.3 * punch);
+        suit += atmo * 0.25 * saturate(-grad.y); // the Earth's blue light from below
+        // the visor: dark gold, the Earth reflected low in it, a highlight
+        float vin = smoothstep(px, -px, visor * height);
+        float3 gold = float3(0.20, 0.13, 0.04) + atmo * 0.3 * saturate(-(q.y - 0.30) / 0.07) + sunCol * 0.8 * exp(-length(q - float2(0.0, 0.33)) * 60.0);
+        c = lerp(c, lerp(suit, gold, vin), body);
+    }
+
+    // Dimmed behind the lyrics.
+    c *= lerp(0.5, 1.0, smoothstep(0.6, 1.2, length((tex - 0.5) / float2(0.24, 0.36))));
+    float3 fx = c * (0.5 + 0.2 * m.energy);
+    return fx / (1.0 + 1.5 * fx); // a soft ceiling, so nothing glares
+}
+
 // debugView shows how evenly things move, top to bottom:
 //   1. a white bar timed by this shader: how smooth the terminal draws
 //   2. a yellow bar timed by spotui (its clock, sent each frame) at the
@@ -1150,8 +1276,10 @@ float3 debugView(float2 tex, Music m)
 float3 effect(int style, float2 tex, Music m)
 {
     float3 c;
-    [branch] if (style == 8)
+    [branch] if (style == 9)
         c = debugView(tex, m);
+    else [branch] if (style == 8)
+        c = space(tex, m);
     else [branch] if (style == 7)
         c = napoleon(tex, m);
     else [branch] if (style == 6)
@@ -1225,8 +1353,22 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
             smoothstep(0.0, 1.0, m.blend))
         style = m.prevStyle;
     float3 fx = effect(style, tex, m);
+    // An easter egg's colour: the effect's light, all in the accent's hue.
+    if (m.mono)
+    {
+        const float3 luma = float3(0.299, 0.587, 0.114);
+        fx = dot(fx, luma) * m.accent / max(dot(m.accent, luma), 0.15);
+    }
 
     // Premultiplied: adding colour with the alpha left alone lays the
-    // effect over whatever is drawn underneath, background or acrylic.
-    return float4(saturate(base.rgb + fx * mask), base.a);
+    // effect over whatever is drawn underneath, background or acrylic. The
+    // effects are light added to the profile's background; the easter
+    // eggs' scenes are whole pictures, and over a grey background (One
+    // Half Dark's, say) their darks came out washed out, so they cover
+    // most of the background instead: some alpha of their own, laid under
+    // the text like the colour.
+    float cover = (style == 7 || style == 8) ? 0.85 : 0.0;
+    if (clearBg)
+        return float4(saturate(base.rgb + fx * mask), saturate(base.a + cover * mask));
+    return float4(saturate(base.rgb * (1.0 - cover * mask) + fx * mask), base.a);
 }

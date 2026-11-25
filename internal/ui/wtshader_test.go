@@ -399,7 +399,48 @@ func TestAmourPlastiqueBringsNapoleon(t *testing.T) {
 	if shaderStyles[m.shaderStyle()] != "rain" {
 		t.Fatal("easter egg shown for another track")
 	}
-	if slices.Contains(shaderChoices, "napoleon") || slices.Contains(shaderChoices, "debug") {
-		t.Fatalf("Settings offers a hidden style: %v", shaderChoices)
+	for _, h := range shaderHidden {
+		if slices.Contains(shaderChoices, h) {
+			t.Fatalf("Settings offers a hidden style: %v", shaderChoices)
+		}
+	}
+}
+
+func TestEasterEggColour(t *testing.T) {
+	m := fxModel(t, fxOff)
+	m.cfg.Lyrics.WTShader = true
+	m.cfg.Lyrics.WTShaderStyle = "plasma"
+	m.cfg.UI.EasterEggs = true
+	m.track = &daemon.ApiTrack{Uri: "spotify:track:p", Name: "Purple Rain"}
+	rain := slices.Index(shaderStyles, "rain")
+	strip := m.shaderStrip()
+	// cell 4: the style with the one-colour bit; cell 2: the egg's colour
+	if want := fmt.Sprintf("\x1b[48;2;%d;", rain|shaderMono); !strings.Contains(strip, want) {
+		t.Fatalf("style not sent as %d with the one-colour bit: %q", rain|shaderMono, strip)
+	}
+	if !strings.Contains(strip, "\x1b[48;2;160;64;255m ") {
+		t.Fatalf("the egg's colour not sent: %q", strip)
+	}
+	// An egg that keeps the effect showing only colours it.
+	m.track = &daemon.ApiTrack{Uri: "spotify:track:b", Name: "Blue (Da Ba Dee)"}
+	if shaderStyles[m.shaderStyle()] != "plasma" {
+		t.Fatalf("a colour-only egg changed the effect to %s", shaderStyles[m.shaderStyle()])
+	}
+	if _, hello := m.shaderEgg(); hello == "" {
+		t.Fatal("a colour-only egg says nothing")
+	}
+	if want := fmt.Sprintf("\x1b[48;2;%d;", slices.Index(shaderStyles, "plasma")|shaderMono); !strings.Contains(m.shaderStrip(), want) {
+		t.Fatal("a colour-only egg does not send the one-colour bit")
+	}
+	// Titles are matched lower case, Polish letters too.
+	m.track = &daemon.ApiTrack{Uri: "spotify:track:z", Name: "ZA KAŻDYM RA2EM"}
+	if shaderStyles[m.shaderStyle()] != "chains" {
+		t.Fatalf("ZA KAŻDYM RA2EM shows %s", shaderStyles[m.shaderStyle()])
+	}
+	// Every egg names a style the shader has, or none.
+	for _, e := range shaderEggs {
+		if e.style != "" && !slices.Contains(shaderStyles, e.style) {
+			t.Fatalf("easter egg %q names no style: %q", e.title, e.style)
+		}
 	}
 }
