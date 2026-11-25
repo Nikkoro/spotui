@@ -49,6 +49,15 @@ Tune against real tracks, from numbers rather than by eye:
   on how evenly frames go out; `grep` them in `spotui.log`.
 - `wt_shader_style = "debug"` draws bars timed by the shader and by spotui
   side by side, with the spectrum and the beat values under them.
+- chains (style 5) is the one heavy effect: each pixel marches only
+  against the chains its ray passes near (`nearAxis`, a cylinder around
+  each chain's axis), from where it comes within reach. The knobs are at
+  the top of `chainAt` (life 20…40 s, depth 2.5…10, size, tilt, slide
+  speed), the studio lights in `chainShade`, the dimming behind the lyrics
+  at the top of `chains`, and slots and steps per `wt_shader_quality`
+  (5/24, 7/32, 9/48: chains, steps per chain). Check a change on the
+  slowest machine with `wt_shader_quality = "low"` and the "shader frames"
+  log line.
 - `SPOTUI_TEMPO_DUMP=track.csv spotui` records a track's levels (log
   energies only, no audio), and
   `SPOTUI_TEMPO_RECORDING=track.csv SPOTUI_TEMPO_EXPECT=148 go test -run OnRecording -v ./internal/viz`

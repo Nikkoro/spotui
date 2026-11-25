@@ -149,13 +149,16 @@ type LyricsConfig struct {
 	// default: without the shader the cells show as coloured squares.
 	WTShader bool `toml:"wt_shader"`
 	// WTShaderStyle is the shader's effect: "plasma", "tunnel", "warp",
-	// "aurora", "synthwave" or "auto"
+	// "aurora", "synthwave", "chains" or "auto"
 	// ("debug" shows how evenly frames arrive).
 	WTShaderStyle string `toml:"wt_shader_style"`
 	// WTShaderMotion moves the shader's camera with the music, the way
 	// MilkDrop does: zooming with the bass, turning with the treble,
 	// rippling with the mid.
 	WTShaderMotion bool `toml:"wt_shader_motion"`
+	// WTShaderQuality is how much the heavy effects (chains) draw:
+	// "low", "medium" or "high". Low for a laptop without a dedicated GPU.
+	WTShaderQuality string `toml:"wt_shader_quality"`
 }
 
 type NowPlayingConfig struct {
@@ -227,11 +230,12 @@ func Default() Config {
 			Style:    "bars",
 		},
 		Lyrics: LyricsConfig{
-			Enabled:        true,
-			NowPlayingLine: true,
-			Effects:        "subtle",
-			WTShaderStyle:  "plasma",
-			WTShaderMotion: true,
+			Enabled:         true,
+			NowPlayingLine:  true,
+			Effects:         "subtle",
+			WTShaderStyle:   "plasma",
+			WTShaderMotion:  true,
+			WTShaderQuality: "medium",
 		},
 		NowPlaying:      NowPlayingConfig{Layout: "auto"},
 		Update:          UpdateConfig{Check: true},

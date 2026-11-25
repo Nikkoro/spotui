@@ -255,6 +255,10 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		m.warnings = append(m.warnings, "lyrics.wt_shader_style \""+cfg.Lyrics.WTShaderStyle+"\" is not one of "+strings.Join(shaderStyles, ", "))
 		cfg.Lyrics.WTShaderStyle = shaderStyles[0]
 	}
+	if !validShaderQuality(cfg.Lyrics.WTShaderQuality) {
+		m.warnings = append(m.warnings, "lyrics.wt_shader_quality \""+cfg.Lyrics.WTShaderQuality+"\" is not one of "+strings.Join(shaderQualities, ", "))
+		cfg.Lyrics.WTShaderQuality = "medium"
+	}
 	if !validFxLevel(cfg.Lyrics.Effects) {
 		m.warnings = append(m.warnings, "lyrics.effects \""+cfg.Lyrics.Effects+"\" is not one of "+strings.Join(fxLevels, ", "))
 		cfg.Lyrics.Effects = fxSubtle

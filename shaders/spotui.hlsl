@@ -12,7 +12,7 @@
 //   cell 3     R colour phase in the track's tempo, G drop (1 for half a
 //              second; debug style: the frame count), B energy (this part
 //              of the track against the last half minute)
-//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 aurora, 4 synthwave, 5 debug), G B travel (16 bits, 0…1):
+//   cell 4     R style (0 plasma, 1 tunnel, 2 warp, 3 aurora, 4 synthwave, 5 chains, 6 debug), G B travel (16 bits, 0…1):
 //              the distance the music has pushed the effect, on top of
 //              its own steady pace (debug style: spotui's clock)
 //   cell 5…8   the spectrum, 12 bands low to high, three a cell
@@ -28,7 +28,9 @@
 //              G B its turn (16 bits, 0…1 a whole turn): a slow spin
 //              that the treble speeds up
 //   cell 14    R the style faded from (auto), G how far the fade has got
-//              (0 showing that one … 255 showing the style in cell 4)
+//              (0 showing that one … 255 showing the style in cell 4),
+//              B wt_shader_quality (0 low, 1 medium, 2 high: how much
+//              the heavy effects, chains, may draw)
 //   cell 15    signature again
 //
 // This shader finds them, reads them, hides them, and adds the effect
@@ -127,6 +129,8 @@ struct Music
     float spin;   // its turn, 0…1 a whole circle
     int prevStyle; // the style faded from (auto)…
     float blend;   // …and how far: 0 that one, 1 style
+    int quality;   // wt_shader_quality: 0 low, 1 medium, 2 high
+    float rowH;    // a row of text, as a share of the window's height
     float3 accent;
     int style;
     float bands[BANDS];
@@ -165,6 +169,8 @@ Music readMusic(int2 origin, int2 cell)
     float3 d14 = round(cellColour(origin, cell, 14) * 255.0);
     m.prevStyle = int(d14.r);
     m.blend = d14.g / 255.0;
+    m.quality = int(d14.b);
+    m.rowH = cell.y / Resolution.y;
     float3 d10 = cellColour(origin, cell, 10);
     m.ck = d10.r;
     m.cb = d10.g;
@@ -465,6 +471,286 @@ float3 synthwave(float2 tex, Music m)
     return fx / (1.0 + 1.5 * fx); // a soft ceiling, so nothing glares
 }
 
+// chains: glossy chrome chains crossing the screen at different angles
+// and depths, a few near, big and bright, more far, thin and dim. The
+// camera stays still; the chains move: their links slide along them like
+// a snake, each its own way and speed, and they sway. Each comes in from
+// off screen and leaves again, then comes back as a new chain (angle,
+// depth, size), so the picture never repeats. Raymarched signed distance
+// fields: a ray only marches against the chains it passes near, from
+// where it comes within reach of one, so most pixels cost one or two
+// short marches. The core reacts at once: the kick runs a light across
+// the metal and lifts the glow around the links, the bass sways the
+// chains deeper. On top: the first beat of four flashes harder, snares
+// glint, a drop jerks them and slides them faster (spotui's travel), and
+// the louder the part of the track, the more chains and the brighter.
+// Dimmed hard behind the lyrics and under the first and last rows.
+
+static const float CH_R1 = 0.16;  // a link's ring radius
+static const float CH_R2 = 0.055; // its wire radius
+static const float CH_LE = 0.10;  // half its straight part
+static const float CH_PITCH = 2.0 * (CH_LE + CH_R1 - CH_R2); // link to link
+static const float CH_PERIOD = 2.0 * CH_PITCH; // the pattern repeats every two links
+static const float CH_FAR = 16.0;  // nothing is marched further than this
+static const float CH_LENS = 1.4;  // the camera's focal length (-1…1 up the screen)
+
+float sq(float x)
+{
+    return x * x;
+}
+
+// chainLinks is the distance to an endless chain of unit size along x, q
+// in its frame: x along the chain, y and z across. Links alternate by 90
+// degrees; the two nearest are tested so they interlock.
+float chainLinks(float3 q)
+{
+    float best = 1e3;
+    [unroll] for (int o = 0; o < 2; o++)
+    {
+        float idx = floor(q.x / CH_PITCH) + o;
+        float zl = q.x - idx * CH_PITCH;
+        bool odd = frac(idx * 0.5) > 0.25;
+        float a = odd ? q.y : q.z;
+        float b = odd ? q.z : q.y;
+        float qz = max(abs(zl) - CH_LE, 0.0);
+        best = min(best, length(float2(length(float2(qz, a)) - CH_R1, b)) - CH_R2);
+    }
+    return best;
+}
+
+// Chain is one chain as this frame has it.
+struct Chain
+{
+    float3 c;          // a point on its axis
+    float3 e1, e2, e3; // along it, and two across (rolled)
+    float3 side;       // across it in the screen's plane: the way it sways
+    float scale;       // its size, near ones bigger
+    float slide;       // how far its links have slid along it, in link units
+    float wave, waveK;  // its sway: how far, how tight
+    float2 wavePh;      // where its two waves are
+    float radius;      // nothing of it is further than this from its axis
+    float weight;      // how much of it shows, 0…1
+    float tint;        // which of the cover's colours its glow leans to
+};
+
+// hs is the j-th repeatable random number, 0…1, of a chain's seed.
+float hs(float seed, float j)
+{
+    return hash1(seed * 1.37 + j * 7.91);
+}
+
+// chainAt is chain slot i now. Each slot lives 20…40 s; over a life its
+// chain drifts across, at right angles to itself, from off screen to off
+// screen (and fades in and out at the ends, in case a far end of a chain
+// tilted into the depth still shows), then the slot comes back as a new
+// chain. slots is how many there are; the louder this part of the track,
+// the more of them show.
+Chain chainAt(int i, Music m, float aspect, int slots)
+{
+    Chain ch;
+    float fi = i;
+    float lifeSec = 20.0 + 20.0 * hash1(fi * 3.71 + 0.5);
+    float u = Time / lifeSec + hash1(fi * 5.13 + 1.3);
+    float f = frac(u);
+    float seed = floor(u) + fi * 17.0;
+
+    // Any angle across the screen, a little into the depth, rolled. It
+    // turns slowly as it crosses, so it never glides by like a ruler.
+    float ang = hs(seed, 1.0) * 3.1416 + (f - 0.5) * (hs(seed, 13.0) - 0.5) * 1.2;
+    float tilt = (hs(seed, 2.0) - 0.5) * 0.6;
+    ch.e1 = float3(cos(ang) * cos(tilt), sin(ang) * cos(tilt), sin(tilt));
+    ch.side = float3(-sin(ang), cos(ang), 0.0);
+    float3 up = cross(ch.e1, ch.side);
+    float roll = hs(seed, 3.0) * 6.2832;
+    ch.e2 = ch.side * cos(roll) + up * sin(roll);
+    ch.e3 = up * cos(roll) - ch.side * sin(roll);
+
+    // More far chains than near ones; near ones bigger.
+    float distant = sqrt(hs(seed, 4.0));
+    float z = lerp(2.5, 10.0, distant);
+    ch.scale = lerp(1.6, 0.7, distant) * (0.85 + 0.3 * hs(seed, 5.0));
+
+    // Off screen: the line clear of the view at its depth, with room for
+    // its links and the depth it tilts into.
+    float2 n = ch.side.xy;
+    float halfH = z / CH_LENS;
+    float off = (halfH * aspect * abs(n.x) + halfH * abs(n.y)) * (1.1 + 1.5 * abs(tilt)) + ch.scale * 0.6;
+    float way = hs(seed, 6.0) < 0.5 ? -1.0 : 1.0;
+    ch.c = float3(n * (way * lerp(-off, off, f)), z);
+    // A drop jerks it.
+    ch.c += ch.side * (0.06 * ch.scale * m.drop * sin(Time * 31.0 + fi * 1.7));
+
+    // The links slide along it: a steady pace timed here, plus spotui's
+    // travel (the tempo, the bass, beats and drops). travel wraps from 1
+    // to 0, so each slot takes a whole number of patterns per unit of it.
+    float dir = hs(seed, 7.0) < 0.5 ? -1.0 : 1.0;
+    float speed = 0.5 + 0.8 * hs(seed, 8.0); // link units a second
+    float k = hs(seed, 9.0) < 0.6 ? 1.0 : 2.0;
+    ch.slide = dir * (frac(Time * speed / CH_PERIOD) + m.travel * k) * CH_PERIOD;
+
+    // The sway: two slow waves, a few links long, drifting opposite ways,
+    // so the bends change shape slowly rather than run along it like a
+    // ripple on water. Their length goes with the chain's size, so near
+    // chains bend too. The bass deepens them, smoothed: the shape following
+    // every kick looked nervous.
+    ch.waveK = (1.3 + 0.6 * hs(seed, 10.0)) / ch.scale;
+    float sway = 0.3 + 0.3 * hs(seed, 11.0); // radians a second
+    ch.wavePh = float2(Time * sway, -Time * sway * 0.7) + fi * float2(2.3, 4.1);
+    ch.wave = ch.scale * (0.06 + 0.06 * saturate(m.bassAtt - 0.8));
+    ch.radius = ch.scale * (CH_R1 + CH_R2 + 0.12 * 1.35 + 0.06) + 0.12; // + room for the glow
+
+    float ends = smoothstep(0.0, 0.08, f) * smoothstep(1.0, 0.92, f);
+    float present = saturate((0.45 + 0.75 * m.energy) * slots + 1.0 - fi);
+    ch.weight = ends * present;
+    ch.tint = hs(seed, 12.0);
+    return ch;
+}
+
+// chainDist is the distance from p to the chain.
+float chainDist(Chain ch, float3 p)
+{
+    float3 d = p - ch.c;
+    float x = dot(d, ch.e1);
+    // The bend w(x), across in the screen's plane, and its slope.
+    float a1 = x * ch.waveK + ch.wavePh.x;
+    float a2 = x * ch.waveK * 2.3 + ch.wavePh.y;
+    float w = ch.wave * (sin(a1) + 0.35 * sin(a2));
+    float slope = ch.wave * ch.waveK * (cos(a1) + 0.805 * cos(a2));
+    // Into the bent chain's own frame, so the links turn along the bend
+    // rather than only shift sideways: along its tangent and across it.
+    float side = dot(d, ch.side);
+    float u = side - w;
+    float l = rsqrt(1.0 + slope * slope);
+    x += u * slope * l;
+    d += ch.side * (u * l - side);
+    float3 q = float3(x / ch.scale + ch.slide, dot(d, ch.e2) / ch.scale, dot(d, ch.e3) / ch.scale);
+    return chainLinks(q) * ch.scale;
+}
+
+// nearAxis is where the ray from the camera along rd is within the
+// chain's radius of its axis: from x to y (x > y: nowhere).
+float2 nearAxis(float3 rd, Chain ch)
+{
+    float3 w = -ch.c;
+    float3 rp = rd - ch.e1 * dot(rd, ch.e1);
+    float3 wp = w - ch.e1 * dot(w, ch.e1);
+    float a = dot(rp, rp);
+    float b = dot(wp, rp);
+    float c = dot(wp, wp) - ch.radius * ch.radius;
+    float disc = b * b - a * c;
+    if (a < 1e-6 || disc <= 0.0)
+        return float2(1.0, 0.0);
+    float s = sqrt(disc);
+    return float2((-b - s) / a, (-b + s) / a);
+}
+
+// chainShade is the chrome at pos: a dark studio tinted by the cover,
+// reflected, with a few sharp white lights in it.
+float3 chainShade(Chain ch, float3 pos, float3 rd, float t, Music m)
+{
+    // The normal from four samples (a tetrahedron) rather than six.
+    float h = 0.0015 * t;
+    float2 k = float2(1.0, -1.0);
+    float3 n = normalize(k.xyy * chainDist(ch, pos + k.xyy * h) + k.yyx * chainDist(ch, pos + k.yyx * h) +
+                         k.yxy * chainDist(ch, pos + k.yxy * h) + k.xxx * chainDist(ch, pos + k.xxx * h));
+    float3 r = reflect(rd, n);
+
+    float3 white = lerp(float3(1.0, 1.0, 1.0), m.accent, 0.2);
+    // Dark below, a grey-blue room above in the cover's colours, a bright
+    // horizon between.
+    float3 sky = lerp(m.accent * 0.10 + 0.04, m.accent.gbr * 0.30 + 0.30, smoothstep(-0.6, 0.8, r.y));
+    sky += white * 0.5 * exp(-sq(r.y / 0.06));
+    float lights = 1.6 * exp(-sq((r.y - 0.55) / 0.10)) + // a softbox above
+                   1.1 * exp(-sq((r.x + 0.6) / 0.08)) +  // a strip on the left
+                   0.5 * exp(-sq((r.x - 0.7) / 0.12));   // a dimmer one on the right
+    float spec = pow(saturate(dot(r, normalize(float3(0.5, 0.6, -0.6)))), 120.0);
+    // The kick: a light running across the metal as it fades, the first
+    // beat of four harder.
+    float run = lerp(-0.9, 0.9, 1.0 - m.ck);
+    float flash = m.ck * (m.first ? 1.6 : 1.0) * exp(-sq((dot(r, normalize(float3(0.8, 0.4, -0.3))) - run) / 0.12));
+    float glint = m.snare * pow(saturate(dot(r, normalize(float3(-0.3, 0.6, -0.75)))), 300.0) * 4.0;
+
+    float fresnel = pow(1.0 - saturate(-dot(rd, n)), 3.0);
+    float3 c = (sky + white * (0.9 * lights + 1.5 * spec + 1.5 * flash + glint)) * lerp(0.6, 1.0, fresnel);
+    c += m.accent * 0.04 * saturate(dot(n, normalize(float3(-0.4, 0.7, -0.6))));
+    return c;
+}
+
+float3 chains(float2 tex, Music m)
+{
+    float aspect = Resolution.x / Resolution.y;
+
+    // Keep the lyrics readable: dim hard in an ellipse around the middle
+    // and under the first and last rows.
+    float clear = lerp(0.1, 1.0, smoothstep(0.7, 1.2, length((tex - 0.5) / float2(0.24, 0.36))));
+    float edge = min(tex.y, 1.0 - tex.y);
+    clear *= lerp(0.15, 1.0, smoothstep(2.0 * m.rowH, 3.0 * m.rowH, edge));
+
+    // wt_shader_quality: low, medium, high.
+    int slots = m.quality == 0 ? 5 : (m.quality == 2 ? 9 : 7);
+    int steps = m.quality == 0 ? 24 : (m.quality == 2 ? 48 : 32);
+    steps = max(8, int(steps * lerp(0.4, 1.0, clear))); // rays end early where it is dimmed
+
+    float2 p = float2((tex.x - 0.5) * aspect, 0.5 - tex.y) * 2.0;
+    float3 rd = normalize(float3(p, CH_LENS));
+    float pix = 2.0 / (Resolution.y * CH_LENS); // a pixel's width at distance 1
+
+    Chain best = (Chain)0;
+    float bestCov = 0.0, bestT = CH_FAR, bestLit = 0.0;
+    float3 glow = float3(0.0, 0.0, 0.0);
+    [loop] for (int i = 0; i < slots; i++)
+    {
+        Chain ch = chainAt(i, m, aspect, slots);
+        if (ch.weight < 0.01)
+            continue;
+        float2 span = nearAxis(rd, ch);
+        float t = max(span.x, 0.3);
+        float tEnd = min(span.y, CH_FAR);
+        if (t >= tEnd)
+            continue;
+        // March along the stretch near its axis; keep how close the ray
+        // came (as an angle) to smooth the chain's edges.
+        float closest = 1e3, tClosest = t, g = 0.0;
+        [loop] for (int s = 0; s < steps && t < tEnd; s++)
+        {
+            float d = chainDist(ch, rd * t);
+            g += exp(-d * 12.0);
+            if (d / t < closest)
+            {
+                closest = d / t;
+                tClosest = t;
+            }
+            if (d < 0.3 * pix * t)
+                break;
+            t += d * 0.75; // under 1: the sway bends the distances a little
+        }
+        float fog = exp(-max(tClosest - 2.5, 0.0) * 0.10);
+        float3 tint = lerp(m.accent, m.accent.gbr, 0.6 * ch.tint);
+        glow += tint * g * fog * ch.weight;
+
+        // How much of the pixel it covers: all where the ray hit, a part on
+        // its edge. The nearest chain that covers most of it is shaded.
+        float cov = 1.0 - smoothstep(0.3, 1.3, closest / pix);
+        bool better = (cov > 0.5 && (bestCov <= 0.5 || tClosest < bestT)) || (bestCov <= 0.5 && cov > bestCov);
+        if (better)
+        {
+            best = ch;
+            bestCov = cov;
+            bestT = tClosest;
+            bestLit = ch.weight * fog; // far ones dim
+        }
+    }
+
+    float3 c = glow * 0.012 * (1.0 + 2.5 * m.ck);
+    if (bestCov > 0.0)
+        c += chainShade(best, rd * bestT, rd, bestT, m) * bestCov * bestLit;
+
+    float amount = 0.8 + 0.4 * m.energy; // the verse calmer, the chorus wilder
+    float3 fx = c * clear * amount;
+    // A soft ceiling, gentler than the others': chrome needs its whites.
+    return fx / (1.0 + 0.7 * fx);
+}
+
 // debugView shows how evenly things move, top to bottom:
 //   1. a white bar timed by this shader: how smooth the terminal draws
 //   2. a yellow bar timed by spotui (its clock, sent each frame) at the
@@ -511,8 +797,10 @@ float3 debugView(float2 tex, Music m)
 // effect draws the given style.
 float3 effect(int style, float2 tex, Music m)
 {
-    if (style == 5)
+    if (style == 6)
         return debugView(tex, m);
+    if (style == 5)
+        return chains(tex, m);
     if (style == 4)
         return synthwave(tex, m);
     if (style == 3)

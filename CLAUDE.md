@@ -41,9 +41,10 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   (Sixel/kitty covers), `palette.go` (ctrl+k).
 - `shaders/spotui.hlsl` with `internal/ui/wtshader.go`: the Windows
   Terminal pixel shader behind the lyrics, embedded by `shaders/` for
-  `spotui shader`. spotui paints twelve data cells at the start of the
+  `spotui shader`. spotui paints sixteen data cells at the start of the
   top row (layout at the top of both files: beat, bass, accent, style,
-  travel, 12 spectrum bands, tempo phase, snare, energy); the shader finds
+  travel, 12 spectrum bands, tempo phase, snare, energy, MilkDrop bands,
+  camera, auto's fade, `wt_shader_quality`); the shader finds
   and hides them. They are sent 60 times a second; the analysis behind
   them runs at 30 (the beat detector is tuned for it). One file holds every
   effect, picked by the style cell, so switching needs no reload. The
@@ -59,7 +60,10 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   effects built only on the smooth, "smarter" values felt bland. Slow
   effects (aurora) are the exception for shape: there the jumpy values
   only set brightness and the shape follows smooth ones (bass, level,
-  bands), or it looks nervous. Give
+  bands), or it looks nervous. chains is the heavy one (raymarched 3D):
+  a ray marches only near the chains it passes (`nearAxis`), and
+  `wt_shader_quality` (cell 14 B) sets how many chains and steps; keep it
+  running on an iGPU. Give
   every effect a soft ceiling on brightness (warp: fx / (1 + 1.5 fx)). The `debug` style (config only)
   and the "shader frames" debug log line show where judder comes from.
   WT hands the shader a premultiplied texture where the
