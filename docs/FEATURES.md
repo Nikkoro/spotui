@@ -196,3 +196,18 @@ Control from outside (#58, #59):
       `SPOTUI_*` variables (title, artists, album, URI, link, duration,
       cover URL and cached file, accent colour), run in the background
       with a timeout, after the same 1.5 s as the notification
+
+Playlist management (#60):
+
+- [x] New playlist (`N`, the palette, or "+ New playlist" in the `P`
+      picker, which also adds the track): name, then an optional
+      description; public or not by `[playlists] public_by_default`
+- [x] Rename (`e`) and edit the description (`E`) of your playlists
+- [x] Delete (`X`, asks first): your own are deleted, someone else's
+      leave your library (both are an unfollow, as in the Spotify apps)
+- [x] Take a track out of a playlist you can edit (`x`), with `U` to put
+      it back where it was for `undo_seconds`
+- [x] Move tracks down / up (`J` / `K`), shown at once and sent in the
+      background; a failed change reads the playlist again
+- [x] All through the embedded player and Spotify's playlist service (a
+      vendored patch), like adding tracks: no Web API calls, no rate limit

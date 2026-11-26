@@ -39,7 +39,9 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   `fun.go`
   (progress bar styles, splash, heart, copy link), `settings.go` (the `,`
   page; each setting writes its own line of config.toml), `images.go`
-  (Sixel/kitty covers), `palette.go` (ctrl+k).
+  (Sixel/kitty covers), `palette.go` (ctrl+k), `playlists.go` (create,
+  rename, delete playlists, remove and move tracks with undo; the footer
+  question `ask` / `confirm` lives there too).
 - `shaders/spotui.hlsl` with `internal/ui/wtshader.go`: the Windows
   Terminal pixel shader behind the lyrics, embedded by `shaders/` for
   `spotui shader`. spotui paints sixteen data cells at the start of the

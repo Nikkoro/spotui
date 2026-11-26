@@ -114,7 +114,35 @@ type contextPage struct {
 	err         error
 	back        page
 	backCtx     *contextPage
-	openedAt    time.Time
+	// a playlist's: may its tracks change, is it the user's, its description
+	editable, owned bool
+	desc            string
+	// pollEvery is how often the listing is asked for while it fills; it
+	// grows while nothing changes. seen is what the last answer held.
+	pollEvery time.Duration
+	seen      [3]int
+	openedAt  time.Time
+}
+
+// Polling a filling listing: quick while it moves on, slower and slower
+// while it does not (a listing the player cannot resolve).
+const (
+	ctxPollFast = 800 * time.Millisecond
+	ctxPollSlow = 10 * time.Second
+)
+
+func (cp *contextPage) nextPoll(length, cached int, ready bool) time.Duration {
+	now := [3]int{length, cached, 0}
+	if ready {
+		now[2] = 1
+	}
+	if cp.pollEvery == 0 || now != cp.seen {
+		cp.pollEvery = ctxPollFast
+	} else {
+		cp.pollEvery = min(cp.pollEvery*2, ctxPollSlow)
+	}
+	cp.seen = now
+	return cp.pollEvery
 }
 
 // activeList returns the list the cursor keys drive on the current page.
@@ -206,6 +234,7 @@ func (m Model) loadLibrary(tab int) tea.Cmd {
 					kind: kindPlaylist, title: p.Name, subtitle: sub,
 					right: plural(int(p.Length), "track"), uri: p.Uri, imageURL: deref(p.ImageUrl),
 					editable: p.CanEdit || p.OwnerUsername == username,
+					owned:    p.OwnerUsername == username, desc: p.Description,
 				})
 			}
 		case libAlbums:
@@ -379,6 +408,16 @@ func (m *Model) openContext(it listItem) tea.Cmd {
 		openedAt: time.Now(),
 	}
 	cp.list.numbered = true
+	cp.editable, cp.owned, cp.desc = it.editable, it.owned, it.desc
+	if it.kind == kindPlaylist && !it.editable {
+		// Opened from search or the palette: the library knows whose it is.
+		for _, li := range m.lib.lists[libPlaylists].items {
+			if li.uri == it.uri {
+				cp.editable, cp.owned, cp.desc = li.editable, li.owned, li.desc
+				break
+			}
+		}
+	}
 	m.ctxPage = cp
 	m.page = pageContext
 	m.closeFilter()
@@ -578,7 +617,7 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if !done && time.Since(cp.openedAt) < 3*time.Minute {
 			uri := cp.uri
-			return m, tea.Tick(800*time.Millisecond, func(time.Time) tea.Msg { return ctxPollMsg{uri: uri} })
+			return m, tea.Tick(cp.nextPoll(res.Length, res.Cached, res.Ready), func(time.Time) tea.Msg { return ctxPollMsg{uri: uri} })
 		}
 		return m, nil
 
@@ -679,6 +718,10 @@ func (m Model) handlePageKey(key string) (bool, tea.Model, tea.Cmd) {
 	}
 	if m.page == pageNowPlaying {
 		return m.handleNpKey(key)
+	}
+
+	if handled, next, cmd := m.handlePlaylistKey(key); handled {
+		return true, next, cmd
 	}
 
 	if m.webAuthURL != "" && key == "o" {

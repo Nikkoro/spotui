@@ -224,6 +224,9 @@ func (m Model) viewContext(w, h int) string {
 		if cp.subtitle != "" {
 			lines = append(lines, m.theme.album.Render(ansi.Truncate(cp.subtitle, textW, "…")))
 		}
+		if d := plainDescription(cp.desc); d != "" {
+			lines = append(lines, m.theme.dim.Render(ansi.Truncate(d, textW, "…")))
+		}
 		lines = append(lines, "", m.theme.dim.Render(info), playing)
 		header = lipgloss.JoinHorizontal(lipgloss.Top, art, "   ", lipgloss.JoinVertical(lipgloss.Left, lines...))
 	} else {
@@ -233,6 +236,9 @@ func (m Model) viewContext(w, h int) string {
 			head += strings.Repeat(" ", gap) + m.theme.dim.Render(info)
 		}
 		header = head + "\n" + playing
+		if d := plainDescription(cp.desc); d != "" {
+			header = head + "\n" + m.theme.dim.Render(ansi.Truncate(d, w, "…")) + "\n" + playing
+		}
 	}
 	above := lipgloss.Height(header) + 1
 

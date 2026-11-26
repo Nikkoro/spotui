@@ -30,7 +30,9 @@ type listItem struct {
 	context string
 	// extra info used by specific pages.
 	imageURL string
-	editable bool
+	editable bool   // a playlist the user can change the tracks of
+	owned    bool   // a playlist the user owns: rename, describe, delete
+	desc     string // a playlist's description
 }
 
 // listModel is a scrollable, filterable list with a cursor.
@@ -144,6 +146,14 @@ func (l *listModel) selected() *listItem {
 		return nil
 	}
 	return it
+}
+
+// selectedIndex is the index in items of the selected entry, or -1.
+func (l *listModel) selectedIndex() int {
+	if l.selected() == nil {
+		return -1
+	}
+	return l.visible[l.cursor]
 }
 
 func (l *listModel) move(delta int) {

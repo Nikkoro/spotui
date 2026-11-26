@@ -3,6 +3,7 @@ package spclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -21,6 +22,10 @@ type ContextResolver struct {
 	typ librespot.SpotifyIdType
 	ctx *connectpb.Context
 }
+
+// ErrContextEmpty reports a context without tracks, such as a new playlist
+// (spotui patch).
+var ErrContextEmpty = errors.New("context has no tracks")
 
 func isTracksComplete(ctx *connectpb.Context) bool {
 	expectedNumberOfTracks := -1
@@ -103,7 +108,8 @@ func NewContextResolver(ctx context.Context, log librespot.Logger, sp *Spclient,
 		// Context resolve answers a bare track or episode uri with no pages:
 		// such a context is that one item.
 		if !isItemUri(spotCtx.Uri) {
-			return nil, fmt.Errorf("context %s has no tracks", spotCtx.Uri)
+			// spotui patch: a sentinel, so an empty playlist lists as empty.
+			return nil, fmt.Errorf("context %s: %w", spotCtx.Uri, ErrContextEmpty)
 		}
 		spotCtx.Pages = []*connectpb.ContextPage{{
 			Tracks: []*connectpb.ContextTrack{{Uri: spotCtx.Uri, Metadata: map[string]string{}}},

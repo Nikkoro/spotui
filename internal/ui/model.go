@@ -154,6 +154,9 @@ type Model struct {
 	input     textinput.Model
 	inputting bool
 
+	asking askState    // a question in the footer (playlist names, yes / no)
+	undo   *undoRemove // the last track taken out of a playlist
+
 	// Web API authorization in progress, and the library tab waiting for it
 	webAuthURL    string
 	pendingLibTab int
@@ -534,8 +537,13 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
 
+	case playlistChangedMsg:
+		return m, m.handlePlaylistChanged(msg)
+
 	case tea.KeyMsg:
 		switch {
+		case m.asking.active:
+			return m.updateAsk(msg)
 		case m.overlay == overlayDj:
 			return m.updateDjKey(msg)
 		case m.overlay == overlayPlaylists:
