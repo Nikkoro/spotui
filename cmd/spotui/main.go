@@ -334,7 +334,9 @@ func runShader(cfg *config.Config, path string) error {
 	}
 	js, _ := json.Marshal(winPath)
 	fmt.Printf("\nIn your Windows Terminal profile for spotui (Settings → Open JSON file):\n\n")
-	fmt.Printf("    \"experimental.pixelShaderPath\": %s,\n    \"padding\": \"0\"\n\n", js)
+	// No padding and no scrollbar: the shader reaches neither, and they
+	// would show as a plain frame and strip.
+	fmt.Printf("    \"experimental.pixelShaderPath\": %s,\n    \"padding\": \"0\",\n    \"scrollbarState\": \"hidden\"\n\n", js)
 	fmt.Println("Then turn on \"Windows Terminal shader\" in spotui's settings (,).")
 	fmt.Println("spotui keeps this file up to date when it starts.")
 	return nil

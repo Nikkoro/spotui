@@ -25,12 +25,41 @@ Runs on Linux, WSL and Windows. Needs Spotify Premium.
 Download the latest [release](../../releases): `spotui-linux-amd64.tar.gz`
 for Linux and WSL, `spotui-windows-amd64.zip` for Windows.
 
+**Windows or WSL?** On a Windows PC, use the Windows build: WSL's sound
+goes through WSLg's audio bridge, which makes it quieter and late, and the
+shader runs less smoothly.
+
+**Windows** (PowerShell):
+
+```powershell
+$version = "v0.2.0"   # the newest one on the releases page
+$dir = "$env:LOCALAPPDATA\Programs\spotui"
+New-Item -ItemType Directory -Force $dir | Out-Null
+Invoke-WebRequest "https://github.com/Nikkoro/spotui/releases/download/$version/spotui-windows-amd64.zip" -OutFile "$env:TEMP\spotui.zip"
+Expand-Archive "$env:TEMP\spotui.zip" $dir -Force
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$dir", "User")
+& "$dir\spotui.exe" shader   # optional: the shader background, prints its path
+```
+
+Then add a Windows Terminal profile (Settings → Open JSON file →
+`profiles.list`) and open a tab with it:
+
+```json
+{
+    "name": "spotui",
+    "commandline": "C:\\Users\\you\\AppData\\Local\\Programs\\spotui\\spotui.exe",
+    "experimental.pixelShaderPath": "C:\\Users\\you\\AppData\\Roaming\\spotui\\spotui.hlsl",
+    "padding": "0",
+    "scrollbarState": "hidden"
+}
+```
+
 **Linux / WSL** (Ubuntu 24.04 or newer, Debian 13): unpack it somewhere on
 your `PATH`. The audio decoders are built in; only ALSA comes from the
 system:
 
 ```sh
-VERSION=v0.1.6   # the newest one on the releases page
+VERSION=v0.2.0   # the newest one on the releases page
 mkdir -p ~/.local/bin
 curl -L https://github.com/Nikkoro/spotui/releases/download/$VERSION/spotui-linux-amd64.tar.gz | tar xz -C ~/.local/bin spotui
 sudo apt install libasound2t64
@@ -39,8 +68,6 @@ sudo apt install libasound2t64
 After this first install, `spotui update` keeps it current.
 
 On WSL, sound goes through WSLg (Windows 11), nothing else to set up.
-
-**Windows**: unzip `spotui.exe` anywhere and run it in Windows Terminal.
 
 **Updating**: `spotui update` installs the newest release over the one you
 have. While releases are marked pre-release, use `spotui update --pre` or
@@ -258,14 +285,16 @@ shader changes nothing.
    for spotui to `profiles.list`. The shader applies to every tab of its
    profile, so keep it separate from your everyday shell. `padding` must
    be `0`, or the window's padding shows as a plain frame the shader
-   cannot reach:
+   cannot reach; hide the scrollbar too, a strip it does not reach
+   either. For the Windows build, the profile from
+   [Install](#install); for WSL:
 
    ```json
    {
-       "guid": "{5b0f3c9e-7a41-4d2b-9c6e-2f8a1d3b7e55}",
        "name": "spotui",
        "commandline": "wsl.exe -d Ubuntu",
        "padding": "0",
+       "scrollbarState": "hidden",
        "experimental.pixelShaderPath": "<the path spotui shader printed>"
    }
    ```
