@@ -28,6 +28,27 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
 python3 scripts/ans2png.py /tmp/frames/1-now-playing.ans /tmp/np.png 120 36
 ```
 
+## Remote control and `spotui now`
+
+`internal/remote` holds the three pieces; `cmd/spotui/remote.go` wires
+them up. The socket (`spotui.sock` next to `config.toml`) takes one line
+of JSON per connection (`{"cmd":"next","args":[]}`) and answers with one
+(`{"ok":true}`); the handler passes it to the interface as a
+`ui.RemoteMsg`, so commands act like keys (flashes, the heart) and the
+answer waits for the player's result. The state file (`now.json` in the
+cache folder) is built by `Model.remoteState` after every `Update`; the
+publisher drops unchanged states, so it only writes on events. The
+position is stored with its timestamp and readers move it on, which keeps
+the file from changing every frame.
+
+Try it against a running spotui:
+
+```sh
+go run ./cmd/spotui next
+go run ./cmd/spotui now --json
+watch -n1 go run ./cmd/spotui now --format "'{icon} {title} {bar} {pos}'"
+```
+
 ## The Windows Terminal shader
 
 `shaders/spotui.hlsl` is compiled by Windows Terminal, not by the build, so

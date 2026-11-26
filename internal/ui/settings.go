@@ -396,6 +396,27 @@ func (m Model) settings() []setting {
 				m.cfg.MediaControls = v == "true"
 				return m.cfg.MediaControls, nil
 			}},
+		{group: "System", label: "Remote control", kind: setBool, section: "control", key: "enabled", restart: true,
+			help:  "spotui next, spotui play <link>, spotui now for status bars. Needs a new start of spotui.",
+			value: func(m Model) string { return boolStr(m.cfg.Control.Enabled) },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				m.cfg.Control.Enabled = v == "true"
+				return m.cfg.Control.Enabled, nil
+			}},
+		{group: "System", label: "Extra status file", kind: setText, section: "control", key: "status_file", restart: true,
+			help:  "One more place for spotui now's file, e.g. the Windows side from WSL. Needs a new start of spotui.",
+			value: func(m Model) string { return m.cfg.Control.StatusFile },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				m.cfg.Control.StatusFile = strings.TrimSpace(v)
+				return m.cfg.Control.StatusFile, nil
+			}},
+		{group: "System", label: "On track change", kind: setText, section: "hooks", key: "on_track_change",
+			help:  "A shell command run on every new track, with SPOTUI_TITLE, SPOTUI_ARTIST, … set.",
+			value: func(m Model) string { return m.cfg.Hooks.OnTrackChange },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				m.cfg.Hooks.OnTrackChange = strings.TrimSpace(v)
+				return m.cfg.Hooks.OnTrackChange, nil
+			}},
 
 		// --- updates
 		{group: "Updates", label: "Release channel", kind: setChoice, section: "update", key: "prerelease",

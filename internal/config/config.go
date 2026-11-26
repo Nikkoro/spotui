@@ -87,6 +87,11 @@ type Config struct {
 	// keys, playerctl, desktop widgets) and global media keys on Windows.
 	MediaControls bool `toml:"media_controls"`
 
+	// Control lets other programs steer and read the running spotui.
+	Control ControlConfig `toml:"control"`
+	// Hooks run commands of your own on player events.
+	Hooks HooksConfig `toml:"hooks"`
+
 	// Dirs are resolved at load time and never written to the file.
 	ConfigDir string `toml:"-"`
 	CacheDir  string `toml:"-"`
@@ -192,6 +197,25 @@ type UIConfig struct {
 	EasterEggs bool `toml:"easter_eggs"`
 }
 
+// ControlConfig is [control]: `spotui next`, `spotui now` and the like.
+type ControlConfig struct {
+	// Enabled listens for commands from other terminals (`spotui next`,
+	// `spotui play <link>`, ...) on a local socket and keeps the state file
+	// `spotui now` reads.
+	Enabled bool `toml:"enabled"`
+	// StatusFile is one more place to keep the state file, for example the
+	// Windows side from WSL (/mnt/c/Users/you/AppData/Local/spotui/now.json),
+	// where the Windows spotui.exe now reads it.
+	StatusFile string `toml:"status_file"`
+}
+
+// HooksConfig is [hooks]: shell commands run in the background, with the
+// track in SPOTUI_* variables.
+type HooksConfig struct {
+	// OnTrackChange runs when a new track starts.
+	OnTrackChange string `toml:"on_track_change"`
+}
+
 type UpdateConfig struct {
 	// Check looks for a newer release once a day and says so in the UI.
 	Check bool `toml:"check"`
@@ -247,6 +271,7 @@ func Default() Config {
 		VolumeStep:      5,
 		Notifications:   true,
 		MediaControls:   true,
+		Control:         ControlConfig{Enabled: true},
 	}
 }
 

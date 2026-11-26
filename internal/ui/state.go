@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/Nikkoro/spotui/internal/termimg"
 )
 
 // uiState is what the interface remembers between runs.
@@ -96,6 +98,12 @@ func (m Model) SaveState() error {
 		pg = pageLibrary
 	}
 	levels, viz, dyn, imgMode, imgPx, imgLv := m.levels, m.vizOn, m.dynamicAccent, m.imageMode, m.imgPixels, m.imgLevels
+	imgModeSaved := &imgMode
+	if m.img == nil || m.img.Protocol() == termimg.Blocks {
+		// A terminal without images (tmux, a plain console) made no choice:
+		// keep the one made where images work.
+		imgModeSaved = m.savedImageMode
+	}
 	b, err := json.MarshalIndent(uiState{
 		Page:          int(pg),
 		LibraryTab:    m.lib.tab,
@@ -105,7 +113,7 @@ func (m Model) SaveState() error {
 		VizStyle:      m.vizStyle,
 		SearchHistory: m.searchHistory,
 		Theme:         m.themeName,
-		ImageMode:     &imgMode,
+		ImageMode:     imgModeSaved,
 		ImagePixels:   &imgPx,
 		ImageLevels:   &imgLv,
 		DynamicAccent: &dyn,

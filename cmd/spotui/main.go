@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/config"
 	"github.com/Nikkoro/spotui/internal/engine"
 	"github.com/Nikkoro/spotui/internal/mediakeys"
+	"github.com/Nikkoro/spotui/internal/remote"
 	"github.com/Nikkoro/spotui/internal/termimg"
 	"github.com/Nikkoro/spotui/internal/ui"
 	"github.com/Nikkoro/spotui/internal/update"
@@ -52,7 +54,12 @@ func run() error {
 		fmt.Fprintf(out, "  paths        print where config, cache and logs live\n")
 		fmt.Fprintf(out, "  clear-cache  delete cached covers, lyrics, library and audio\n")
 		fmt.Fprintf(out, "  shader       write the Windows Terminal shader (to a path, or next to config.toml)\n")
-		fmt.Fprintf(out, "  update       install the newest release (--pre: pre-releases too, --check: only look)\n\nflags:\n")
+		fmt.Fprintf(out, "  update       install the newest release (--pre: pre-releases too, --check: only look)\n")
+		fmt.Fprintf(out, "  now          print what the running spotui plays (--format, --json, --json=waybar)\n")
+		fmt.Fprintf(out, "  play [link]  resume, or play a spotify: URI or open.spotify.com link\n")
+		fmt.Fprintf(out, "  pause, toggle, next, prev, like, unlike\n")
+		fmt.Fprintf(out, "               steer the running spotui\n")
+		fmt.Fprintf(out, "  volume N     set the volume to N %%, or change it by +N / -N\n\nflags:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -80,7 +87,13 @@ func run() error {
 		fmt.Println("state: ", filepath.Join(cfg.ConfigDir, "state.json"))
 		fmt.Println("log:   ", filepath.Join(cfg.ConfigDir, "spotui.log"))
 		fmt.Println("cache: ", cfg.CacheDir)
+		fmt.Println("socket:", socketPath(cfg))
+		for _, p := range statePaths(cfg) {
+			fmt.Println("now:   ", p)
+		}
 		return nil
+	case "now":
+		return runNow(cfg, flag.Args()[1:])
 	case "update":
 		return runUpdate(cfg, flag.Args()[1:])
 	case "shader":
@@ -92,6 +105,9 @@ func run() error {
 		fmt.Println("Cleared", cfg.CacheDir)
 		return nil
 	default:
+		if slices.Contains(ui.RemoteCommands, cmd) || cmd == "previous" {
+			return runRemote(cfg, cmd, flag.Args()[1:])
+		}
 		flag.Usage()
 		return fmt.Errorf("unknown command %q", cmd)
 	}
@@ -186,11 +202,31 @@ func run() error {
 		}
 	}
 
+	// Other terminals steer spotui through a socket and read what it plays
+	// from a small file. Both outlive player restarts.
+	var prog atomic.Pointer[tea.Program]
+	var publisher *remote.Publisher
+	if cfg.Control.Enabled {
+		stop, err := remote.Listen(socketPath(cfg), remoteHandler(&prog), logger.Warnf)
+		switch {
+		case err == nil:
+			defer stop()
+			publisher = remote.NewPublisher(statePaths(cfg), logger.Warnf)
+			defer publisher.Close()
+		case errors.Is(err, remote.ErrRunning):
+			// The other one keeps the state file; this one stays out of it.
+			logger.Warn("control socket: another spotui is running and keeps it")
+			warnings = append(warnings, "another spotui is running; `spotui next` and `spotui now` talk to that one")
+		default:
+			logger.WithError(err).Warn("control socket unavailable")
+		}
+	}
+
 	// The player is restarted after it stops (lost session, network gone),
 	// with the interface coming back where it was.
 	for attempt := 0; ; attempt++ {
 		started := time.Now()
-		restart, err := runSession(cfg, logger, tap, &current, attempt, warnings, imgOut, caps)
+		restart, err := runSession(cfg, logger, tap, &current, &prog, publisher, attempt, warnings, imgOut, caps)
 		warnings = nil // shown once
 		if err != nil || !restart {
 			return err
@@ -205,7 +241,7 @@ func run() error {
 // runSession runs one player and interface until the user quits (false) or
 // the interface asks for a restart (true).
 func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current *atomic.Pointer[engine.Engine],
-	attempt int, warnings []string, imgOut *termimg.Writer, caps termimg.Caps) (bool, error) {
+	prog *atomic.Pointer[tea.Program], publisher *remote.Publisher, attempt int, warnings []string, imgOut *termimg.Writer, caps termimg.Caps) (bool, error) {
 	eng, err := engine.New(cfg, engine.NewLogger(logger))
 	if err != nil {
 		return false, err
@@ -228,9 +264,11 @@ func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current
 		// after each frame that needs it.
 		opts = append(opts, tea.WithOutput(imgOut))
 	}
-	model := ui.New(eng, cfg, tap).WithRestartAttempt(attempt).WithWarnings(warnings).WithImages(imgOut, caps)
+	model := ui.New(eng, cfg, tap).WithRestartAttempt(attempt).WithWarnings(warnings).WithImages(imgOut, caps).WithRemote(publisher)
 	p := tea.NewProgram(model, opts...)
+	prog.Store(p)
 	final, uiErr := p.Run()
+	prog.Store(nil)
 	restart := false
 	if fm, ok := final.(ui.Model); ok {
 		if err := fm.SaveState(); err != nil {

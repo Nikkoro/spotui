@@ -251,6 +251,12 @@ func (e *Engine) Play(ctx context.Context, uri string) error {
 	return err
 }
 
+// Resume carries on playing.
+func (e *Engine) Resume(ctx context.Context) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypeResume, nil)
+	return err
+}
+
 // Pause pauses playback.
 func (e *Engine) Pause(ctx context.Context) error {
 	_, err := e.request(ctx, daemon.ApiRequestTypePause, nil)
