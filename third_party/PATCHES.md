@@ -37,6 +37,25 @@ Local changes:
    DJ with 404), and its next page is taken as a fresh set, as Spotify's
    clients and librespot#1797 do. Only `hm://lexicon-session-provider/` urls
    are followed.
+10. Playlist management (`spclient/playlist_edit_spotui.go`,
+   `daemon/playlists_spotui.go` (new), one case in `player.go`): the
+   `playlist_create`, `playlist_edit`, `playlist_delete`, `playlist_move`
+   and `playlist_insert` API requests, on the same playlist service as
+   upstream's add and remove. Create posts a `ListUpdateRequest` to
+   `/playlist/v2/playlist` (answered with `CreateListReply`; the service
+   ignores the request's attributes, so the name and description follow
+   as an `UPDATE_LIST_ATTRIBUTES` change) and adds the new URI to the
+   rootlist; edit is an `UPDATE_LIST_ATTRIBUTES` change;
+   delete removes the entry from the rootlist (unfollow, which is how the
+   apps delete one's own); move is a `MOV` change, whose `to_index` counts
+   before the move (as the Web API's `insert_before`); insert is an `ADD`
+   at an index (undo of a removal). Each reads the revision first and
+   retries once on 409, like upstream's append.
+   An empty context (a new playlist) used to fail resolving with "has no
+   tracks", which left its listing never ready and re-resolved on every
+   poll: `spclient.ErrContextEmpty` now marks it (`context_resolver.go`)
+   and the listing caches it as complete and empty
+   (`daemon/track_meta_cache.go`).
 9. Lyrics from Spotify (`spclient/lyrics.go`, `daemon/lyrics_spotui.go`
    (new), one case in `player.go`): a `lyrics` API request fetches
    `/color-lyrics/v2/track/<id>`, as librespot's `Lyrics::get` (used by

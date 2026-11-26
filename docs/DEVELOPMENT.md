@@ -49,6 +49,15 @@ go run ./cmd/spotui now --json
 watch -n1 go run ./cmd/spotui now --format "'{icon} {title} {bar} {pos}'"
 ```
 
+## Playlist edits
+
+Creating, renaming, deleting and moving go through the embedded player to
+Spotify's playlist service (`third_party/go-librespot`, patch 10 in
+`PATCHES.md`), not the Web API. The UI changes the list at once and sends
+the change in the background; a failure reads the playlist again. To try
+them, make a throwaway playlist with `N` and work on that: `x`/`U`, `J`/`K`,
+`e`, `E`, and `X` at the end. `spotui --debug` logs each request's error.
+
 ## The Windows Terminal shader
 
 `shaders/spotui.hlsl` is compiled by Windows Terminal, not by the build, so

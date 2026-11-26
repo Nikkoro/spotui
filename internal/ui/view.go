@@ -144,6 +144,9 @@ func (m Model) viewHeader(w int) string {
 }
 
 func (m Model) viewFooter(w int) string {
+	if m.asking.active {
+		return m.viewAsk(w)
+	}
 	if m.inputting {
 		return m.theme.dim.Render("Paste a Spotify link or URI · ") +
 			m.theme.key.Render("enter") + m.theme.dim.Render(" play · ") +
@@ -202,6 +205,12 @@ func (m Model) viewFooter(w int) string {
 		}
 		if m.page == pageContext {
 			keys = append(keys, [2]string{"esc", "back"})
+			if cp := m.ctxPage; cp != nil && cp.editable {
+				keys = append(keys, [2]string{"x", "remove"}, [2]string{"J/K", "move"})
+			}
+		}
+		if m.page == pageLibrary && m.lib.tab == libPlaylists {
+			keys = append(keys, [2]string{"N", "new"}, [2]string{"e", "rename"}, [2]string{"X", "delete"})
 		}
 		keys = append(keys, [][2]string{{"space", "play"}, {"ctrl+k", "commands"}, {"?", "help"}, {"q", "quit"}}...)
 	}

@@ -17,6 +17,8 @@ type cachedItem struct {
 	URI      string   `json:"u"`
 	Image    string   `json:"i,omitempty"`
 	Editable bool     `json:"e,omitempty"`
+	Owned    bool     `json:"o,omitempty"`
+	Desc     string   `json:"d,omitempty"`
 }
 
 func (m Model) libCachePath(tab int) string {
@@ -42,7 +44,7 @@ func (m Model) readLibCache(tab int) []listItem {
 	}
 	items := make([]listItem, len(cached))
 	for i, c := range cached {
-		items[i] = listItem{kind: c.Kind, title: c.Title, subtitle: c.Subtitle, right: c.Right, uri: c.URI, imageURL: c.Image, editable: c.Editable}
+		items[i] = listItem{kind: c.Kind, title: c.Title, subtitle: c.Subtitle, right: c.Right, uri: c.URI, imageURL: c.Image, editable: c.Editable, owned: c.Owned, desc: c.Desc}
 	}
 	return items
 }
@@ -54,7 +56,7 @@ func (m Model) writeLibCache(tab int, items []listItem) {
 	}
 	cached := make([]cachedItem, len(items))
 	for i, it := range items {
-		cached[i] = cachedItem{Kind: it.kind, Title: it.title, Subtitle: it.subtitle, Right: it.right, URI: it.uri, Image: it.imageURL, Editable: it.editable}
+		cached[i] = cachedItem{Kind: it.kind, Title: it.title, Subtitle: it.subtitle, Right: it.right, URI: it.uri, Image: it.imageURL, Editable: it.editable, Owned: it.owned, Desc: it.desc}
 	}
 	b, err := json.Marshal(cached)
 	if err != nil {

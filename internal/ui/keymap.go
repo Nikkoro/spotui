@@ -43,6 +43,15 @@ var defaultKeys = map[string]string{
 	"queue":            "4",
 	"lyrics":           "5",
 	"reload":           "R",
+
+	"new_playlist":         "N",
+	"rename_playlist":      "e",
+	"describe_playlist":    "E",
+	"delete_playlist":      "X",
+	"remove_from_playlist": "x",
+	"undo_remove":          "U",
+	"move_up":              "K",
+	"move_down":            "J",
 }
 
 // ActionNames lists the bindable actions, for docs and validation.

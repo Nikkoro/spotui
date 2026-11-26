@@ -92,6 +92,9 @@ type Config struct {
 	// Hooks run commands of your own on player events.
 	Hooks HooksConfig `toml:"hooks"`
 
+	// Playlists controls making and editing playlists.
+	Playlists PlaylistsConfig `toml:"playlists"`
+
 	// Dirs are resolved at load time and never written to the file.
 	ConfigDir string `toml:"-"`
 	CacheDir  string `toml:"-"`
@@ -209,6 +212,15 @@ type ControlConfig struct {
 	StatusFile string `toml:"status_file"`
 }
 
+// PlaylistsConfig is [playlists].
+type PlaylistsConfig struct {
+	// PublicByDefault shows new playlists on your profile.
+	PublicByDefault bool `toml:"public_by_default"`
+	// UndoSeconds is how long U can bring back a track taken out of a
+	// playlist.
+	UndoSeconds int `toml:"undo_seconds"`
+}
+
 // HooksConfig is [hooks]: shell commands run in the background, with the
 // track in SPOTUI_* variables.
 type HooksConfig struct {
@@ -272,6 +284,7 @@ func Default() Config {
 		Notifications:   true,
 		MediaControls:   true,
 		Control:         ControlConfig{Enabled: true},
+		Playlists:       PlaylistsConfig{UndoSeconds: 10},
 	}
 }
 

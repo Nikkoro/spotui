@@ -197,3 +197,50 @@ func (e *Engine) SkipTo(ctx context.Context, uri string) error {
 func (e *Engine) Lyrics(ctx context.Context, uri string) (*spclient.Lyrics, error) {
 	return decode[spclient.Lyrics](e.request(ctx, daemon.ApiRequestTypeLyrics, daemon.ApiLyrics{Uri: uri}))
 }
+
+// CreatePlaylist makes a playlist, puts it at the top of the library and
+// returns its URI. public shows it on the user's profile.
+func (e *Engine) CreatePlaylist(ctx context.Context, name, description string, public bool) (string, error) {
+	res, err := decode[daemon.ApiPlaylistCreated](e.request(ctx, daemon.ApiRequestTypePlaylistCreate,
+		daemon.ApiPlaylistCreate{Name: name, Description: description, Public: public}))
+	if err != nil {
+		return "", err
+	}
+	return res.Uri, nil
+}
+
+// EditPlaylist renames a playlist or changes its description; nil leaves
+// one as it is, an empty description removes it.
+func (e *Engine) EditPlaylist(ctx context.Context, playlistURI string, name, description *string) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypePlaylistEdit,
+		daemon.ApiPlaylistEdit{PlaylistUri: playlistURI, Name: name, Description: description})
+	return err
+}
+
+// DeletePlaylist takes a playlist out of the library: unfollows it, which
+// for the user's own is how the Spotify apps delete it.
+func (e *Engine) DeletePlaylist(ctx context.Context, playlistURI string) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypePlaylistDelete, daemon.ApiPlaylistDelete{PlaylistUri: playlistURI})
+	return err
+}
+
+// RemoveFromPlaylist removes the item at position, which must be uri.
+func (e *Engine) RemoveFromPlaylist(ctx context.Context, playlistURI, uri string, position int) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypePlaylistRemoveTrack,
+		daemon.ApiPlaylistRemoveTrack{PlaylistUri: playlistURI, Uri: uri, Position: &position})
+	return err
+}
+
+// InsertIntoPlaylist puts uris into a playlist at position.
+func (e *Engine) InsertIntoPlaylist(ctx context.Context, playlistURI string, uris []string, position int) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypePlaylistInsert,
+		daemon.ApiPlaylistInsert{PlaylistUri: playlistURI, Uris: uris, Position: position})
+	return err
+}
+
+// MovePlaylistItem moves the item at from, which must be uri, to index to.
+func (e *Engine) MovePlaylistItem(ctx context.Context, playlistURI, uri string, from, to int) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypePlaylistMove,
+		daemon.ApiPlaylistMove{PlaylistUri: playlistURI, Uri: uri, From: from, To: to})
+	return err
+}

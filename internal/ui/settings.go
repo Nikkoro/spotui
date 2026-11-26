@@ -396,6 +396,21 @@ func (m Model) settings() []setting {
 				m.cfg.MediaControls = v == "true"
 				return m.cfg.MediaControls, nil
 			}},
+		{group: "System", label: "New playlists public", kind: setBool, section: "playlists", key: "public_by_default",
+			help:  "Show playlists you make (N) on your profile.",
+			value: func(m Model) string { return boolStr(m.cfg.Playlists.PublicByDefault) },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				m.cfg.Playlists.PublicByDefault = v == "true"
+				return m.cfg.Playlists.PublicByDefault, nil
+			}},
+		{group: "System", label: "Undo time", kind: setInt, section: "playlists", key: "undo_seconds",
+			min: 0, max: 60, step: 5, unit: " s",
+			help:  "How long U can put back a track taken out of a playlist. 0 is off.",
+			value: func(m Model) string { return itoa(m.cfg.Playlists.UndoSeconds) },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				m.cfg.Playlists.UndoSeconds = atoiOr(v, 10)
+				return m.cfg.Playlists.UndoSeconds, nil
+			}},
 		{group: "System", label: "Remote control", kind: setBool, section: "control", key: "enabled", restart: true,
 			help:  "spotui next, spotui play <link>, spotui now for status bars. Needs a new start of spotui.",
 			value: func(m Model) string { return boolStr(m.cfg.Control.Enabled) },

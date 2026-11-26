@@ -47,6 +47,9 @@ func (m Model) playlistTarget() (uri, title string) {
 	return "", ""
 }
 
+// newPlaylistURI marks the picker's "+ New playlist" entry.
+const newPlaylistURI = "spotui:new-playlist"
+
 func (m *Model) openPlaylistPicker() tea.Cmd {
 	uri, title := m.playlistTarget()
 	if uri == "" {
@@ -55,7 +58,7 @@ func (m *Model) openPlaylistPicker() tea.Cmd {
 	}
 	m.picker.trackURI, m.picker.trackTitle = uri, title
 
-	var items []listItem
+	items := []listItem{{kind: kindPlaylist, title: "+ New playlist…", subtitle: "make one and add the track", uri: newPlaylistURI}}
 	for _, it := range m.lib.lists[libPlaylists].items {
 		if it.kind == kindPlaylist && it.editable {
 			items = append(items, it)
@@ -93,6 +96,9 @@ func (m Model) updatePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.overlay = overlayNone
+		if it.uri == newPlaylistURI {
+			return m, m.newPlaylist(m.picker.trackURI, m.picker.trackTitle)
+		}
 		eng, pl, track := m.eng, it.uri, m.picker.trackURI
 		name, title := it.title, m.picker.trackTitle
 		return m, func() tea.Msg {
@@ -120,10 +126,8 @@ func (m Model) viewPlaylistPicker(w, h int) string {
 		"",
 	}
 	switch {
-	case len(m.picker.list.items) == 0 && m.lib.loading[libPlaylists]:
+	case len(m.picker.list.items) <= 1 && m.lib.loading[libPlaylists]:
 		lines = append(lines, m.loadingLine("Loading your playlists…"))
-	case len(m.picker.list.items) == 0:
-		lines = append(lines, m.theme.dim.Render("No playlists you can edit."))
 	default:
 		lines = append(lines, m.picker.list.view(m.theme, cw, clamp(h-14, 3, 15), ""))
 	}

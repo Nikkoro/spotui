@@ -596,6 +596,12 @@ func (p *AppPlayer) scheduleContextEnumerate(contextUri string) {
 		defer p.app.contextLists.endFetch(contextUri)
 
 		resolver, err := p.meta.resolve(ctx, contextUri)
+		if errors.Is(err, spclient.ErrContextEmpty) {
+			// spotui patch: an empty playlist is a complete, empty listing,
+			// not a failure to retry on every poll.
+			p.app.contextLists.put(contextUri, []string{}, gen)
+			return
+		}
 		if err != nil {
 			p.app.log.WithError(err).Warnf("failed resolving context for listing: %s", contextUri)
 			return

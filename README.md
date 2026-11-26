@@ -15,7 +15,8 @@ Runs on Linux, WSL and Windows. Needs Spotify Premium.
 - **Audio visualizer** drawn from the music itself: bars, mirror or wave.
 - **Spotify's DJ**, talking between tracks; ask it for something.
 - **Your library**: playlists, Liked Songs, albums, artists, recently played,
-  top tracks; search; queue; add to playlists.
+  top tracks; search; queue; make, rename and delete playlists, add,
+  remove and reorder their tracks.
 - **Now Playing layouts** for wide screens and small or zoomed-in terminals.
 - **Themes**, a command palette (`ctrl+k`), a settings page (`,`), mouse
   support, media keys, notifications, a sleep timer, self-update.
@@ -114,7 +115,12 @@ The first search opens your browser once to approve it.
 | `f` | like / unlike |
 | `↑` `↓`, `enter` | move in lists, open or play |
 | `/` | filter the list |
-| `a` / `P` | add to queue / to a playlist |
+| `a` / `P` | add to queue / to a playlist (or a new one) |
+| `N` | new playlist (library or a playlist's page) |
+| `e` / `E` | rename your playlist / edit its description |
+| `X` | delete your playlist, or remove someone else's from your library |
+| `x`, `U` | take the selected track out of your playlist, undo |
+| `J` / `K` | move the selected track down / up in your playlist |
 | `A` / `I` | go to the album / artist of what is playing |
 | `D` | DJ: start it; while it plays, ask it for something |
 | `d` | devices: move playback anywhere |
@@ -173,7 +179,8 @@ theme = "spotify"         # spotify | catppuccin | gruvbox | nord | rose-pine | 
 # volume_down shuffle repeat like add_to_queue add_to_playlist go_to_album
 # go_to_artist devices dj sleep_timer visualizer visualizer_style play_link
 # filter help quit now_playing library search queue lyrics reload layout settings
-# copy_link
+# copy_link new_playlist rename_playlist describe_playlist delete_playlist
+# remove_from_playlist undo_remove move_up move_down
 
 [cover]
 enabled = true
@@ -231,6 +238,10 @@ status_file = ""          # one more place for spotui now's file, e.g. from WSL:
 
 [hooks]
 on_track_change = ""      # a shell command run on every new track, see below
+
+[playlists]
+public_by_default = false # show playlists you make (N) on your profile
+undo_seconds = 10         # how long U puts back a track taken out (0: off)
 ```
 
 ## Control from other terminals
@@ -442,6 +453,12 @@ reload it.
 - **`spotui now` prints nothing**: it reads the file in `spotui paths` →
   `now:`; a file older than about 30 s counts as left behind by a spotui
   that is gone.
+- **"not yours to change" on a playlist**: only playlists you own or that
+  are collaborative can have tracks taken out or moved; someone else's can
+  only be removed from your library (`X`).
+- **A move or removal failed with "no longer at that position"**: the
+  playlist changed elsewhere (phone, another app); spotui reads it again,
+  try once more.
 - **No real cover images**: they need Sixel (Windows Terminal 1.22+, foot,
   WezTerm, Konsole, …) or the kitty protocol (kitty, Ghostty, WezTerm).
 - **Start over**: `spotui logout` forgets the login, `spotui clear-cache`

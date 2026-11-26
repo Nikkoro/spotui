@@ -86,6 +86,28 @@ func (m Model) paletteCommands() []paletteCmd {
 		{title: "Quit", group: "app", key: "q"},
 	}
 
+	cmds = append(cmds, paletteCmd{title: "New playlist…", group: "playlists", key: "N", run: func(m Model) (tea.Model, tea.Cmd) {
+		return m, m.newPlaylist("", "")
+	}})
+	if it := m.playlistTargetItem(); it != nil {
+		if it.owned {
+			cmds = append(cmds,
+				paletteCmd{title: "Rename “" + it.title + "”…", group: "playlists", key: "e", run: func(m Model) (tea.Model, tea.Cmd) {
+					return m, m.renamePlaylist()
+				}},
+				paletteCmd{title: "Edit description of “" + it.title + "”…", group: "playlists", key: "E", run: func(m Model) (tea.Model, tea.Cmd) {
+					return m, m.describePlaylist()
+				}})
+		}
+		title := "Delete “" + it.title + "”…"
+		if !it.owned {
+			title = "Remove “" + it.title + "” from your library…"
+		}
+		cmds = append(cmds, paletteCmd{title: title, group: "playlists", key: "X", run: func(m Model) (tea.Model, tea.Cmd) {
+			return m, m.deletePlaylist()
+		}})
+	}
+
 	// Whatever page is open can be played as a whole.
 	if cp := m.ctxPage; m.page == pageContext && cp != nil {
 		uri, title := cp.uri, cp.title
