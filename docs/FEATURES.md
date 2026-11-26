@@ -179,3 +179,20 @@ Shader background in Windows Terminal:
 - [x] For tuning: a `debug` effect, per-second values in the debug log,
       and recordings of a track's levels to replay through the tempo
       tracker
+
+Control from outside (#58, #59):
+
+- [x] `spotui play [link] | pause | toggle | next | prev | like | unlike |
+      volume N|+N|-N` steer the running spotui over a local Unix socket
+      (Windows 10 and later have them too), answered with the player's own
+      result; `[control] enabled`
+- [x] `spotui now` for status bars: `--format` with placeholders, `--json`,
+      `--json=waybar`; it reads a state file the running spotui writes
+      only when something changes (and every 10 s as a heartbeat), never
+      Spotify, and prints nothing when spotui is not running
+- [x] `status_file`: a second state file, so spotui in WSL can be shown by
+      `spotui.exe now` on the Windows side
+- [x] `[hooks] on_track_change`: a shell command per new track with
+      `SPOTUI_*` variables (title, artists, album, URI, link, duration,
+      cover URL and cached file, accent colour), run in the background
+      with a timeout, after the same 1.5 s as the notification

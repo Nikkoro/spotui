@@ -17,10 +17,12 @@ const notifyDelay = 1500 * time.Millisecond
 
 type notifyDueMsg struct{ uri string }
 
-// notifyTrack schedules a notification if t is a new track. It must run
-// before setTrack updates m.track.
+// notifyTrack schedules a notification and the track change hook if t is
+// a new track. It must run before setTrack updates m.track.
 func (m *Model) notifyTrack(t *daemon.ApiTrack) tea.Cmd {
-	if m.notifier == nil || m.notifyOff || t.Uri == "" || (m.track != nil && m.track.Uri == t.Uri) {
+	notifying := m.notifier != nil && !m.notifyOff
+	hook := strings.TrimSpace(m.cfg.Hooks.OnTrackChange) != ""
+	if (!notifying && !hook) || t.Uri == "" || (m.track != nil && m.track.Uri == t.Uri) {
 		return nil
 	}
 	uri := t.Uri
@@ -29,7 +31,7 @@ func (m *Model) notifyTrack(t *daemon.ApiTrack) tea.Cmd {
 
 func (m Model) sendNotification(uri string) tea.Cmd {
 	t := m.track
-	if m.notifier == nil || t == nil || t.Uri != uri {
+	if m.notifier == nil || m.notifyOff || t == nil || t.Uri != uri {
 		return nil
 	}
 

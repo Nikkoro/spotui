@@ -25,7 +25,8 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
 ## Where things are
 
 - `cmd/spotui`: flags, subcommands (`update`, `logout`, `paths`,
-  `clear-cache`, `shader`), session loop that restarts the player.
+  `clear-cache`, `shader`, `now` and the remote commands), session loop
+  that restarts the player.
 - `internal/engine`: wraps go-librespot's daemon in-process; every player
   call is a request on a channel.
 - `internal/ui`: the interface. `model.go` (state, keys, events), `view.go`,
@@ -101,6 +102,13 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   reads put every kick on a read's edge (see `playheadLocked`).
 - `tools/shadertime`: times the WT shader's compile with Windows'
   `d3dcompiler_47.dll` (Windows only; build it with GOOS=windows from WSL).
+- `internal/remote`: control from outside. The control socket
+  (`spotui next`, `play`, `volume`, ...; commands reach the UI as
+  `ui.RemoteMsg`, handled in `internal/ui/remote.go`), the state file
+  `spotui now` reads (written by a `Publisher` after each `Update`, only
+  when the state changed, plus a heartbeat; a file older than 35 s counts
+  as stale) and the `[hooks]` runner. `cmd/spotui/remote.go` holds the
+  subcommands.
 - `internal/termimg`: Sixel/kitty encoding and the writer that places
   images; image cells are skipped with cursor moves so text beside them
   never erases them.

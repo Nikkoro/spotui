@@ -19,6 +19,9 @@ Runs on Linux, WSL and Windows. Needs Spotify Premium.
 - **Now Playing layouts** for wide screens and small or zoomed-in terminals.
 - **Themes**, a command palette (`ctrl+k`), a settings page (`,`), mouse
   support, media keys, notifications, a sleep timer, self-update.
+- **Control from anywhere**: `spotui next`, `spotui play <link>` from other
+  terminals and hotkeys, `spotui now` for status bars (tmux, waybar,
+  Claude Code), and a command of your own on every track change.
 
 ## Install
 
@@ -220,7 +223,98 @@ copy_as = "url"           # what y copies: url (open.spotify.com) | uri
 [update]
 check = true              # look for a new release once a day, shown in the header
 prerelease = false        # include releases marked pre-release on GitHub
+
+[control]
+enabled = true            # spotui next / play / now from other terminals
+status_file = ""          # one more place for spotui now's file, e.g. from WSL:
+                          # "/mnt/c/Users/you/AppData/Local/spotui/now.json"
+
+[hooks]
+on_track_change = ""      # a shell command run on every new track, see below
 ```
+
+## Control from other terminals
+
+While spotui runs, other terminals, hotkeys and scripts can steer it:
+
+```sh
+spotui toggle             # also: play, pause, next, prev
+spotui play https://open.spotify.com/album/…   # or a spotify: URI
+spotui like               # the playing track; unlike takes it out again
+spotui volume 40          # or +5 / -5
+```
+
+They talk to the running spotui over a local socket (`spotui paths` shows
+where) and return at once; with spotui not running they say so and exit 1.
+
+### spotui in your status bar
+
+`spotui now` prints what plays, read from a small file the running spotui
+keeps up to date. It never asks Spotify anything, so a status bar can run
+it every second, and it prints nothing when spotui is not running.
+
+```sh
+spotui now                                    # ▶ Artist – Title  1:02/3:45
+spotui now --format '♪ {artist} – {title} {bar}'
+spotui now --json                             # everything, for scripts
+spotui now --json=waybar                      # text, tooltip, class for waybar
+```
+
+Placeholders: `{title}` `{artist}` (the first) `{artists}` `{album}` `{pos}`
+`{dur}` `{remaining}` `{bar}` `{percent}` `{state}` (playing, paused,
+stopped) `{icon}` (▶ ⏸ ■) `{liked}` (♥ when liked) `{volume}` `{accent}`
+(the cover's colour) `{uri}` `{url}`.
+
+- **Claude Code** (`~/.claude/settings.json`; on Windows
+  `%USERPROFILE%\.claude\settings.json` with `spotui.exe`):
+  ```json
+  "statusLine": { "type": "command", "command": "spotui now --format '♪ {artist} – {title}'", "refreshInterval": 2 }
+  ```
+- **tmux** (`~/.tmux.conf`):
+  ```sh
+  set -g status-right "#(spotui now --format '♪ {artist} – {title}')"
+  set -g status-interval 2
+  ```
+- **waybar**:
+  ```json
+  "custom/spotui": {
+    "exec": "spotui now --json=waybar --format '{icon} {artist} – {title}'",
+    "return-type": "json", "interval": 2,
+    "on-click": "spotui toggle", "on-scroll-up": "spotui next", "on-scroll-down": "spotui prev"
+  }
+  ```
+- **polybar**:
+  ```ini
+  [module/spotui]
+  type = custom/script
+  exec = spotui now --format '{icon} {artist} – {title}'
+  interval = 2
+  click-left = spotui toggle
+  scroll-up = spotui next
+  ```
+
+**spotui in WSL, status bar on Windows**: set `status_file` under
+`[control]` to the Windows spotui's own spot,
+`/mnt/c/Users/<you>/AppData/Local/spotui/now.json` (`spotui.exe paths`
+prints it as `now:`), and `spotui.exe now` on Windows reads it without
+waking WSL. Steering commands (`spotui next`) work on the side spotui runs
+on.
+
+### A command on every track change
+
+```toml
+[hooks]
+on_track_change = 'echo "$SPOTUI_ARTIST - $SPOTUI_TITLE" >> ~/listened.txt'
+```
+
+It runs through the shell (`sh -c`, or `cmd /C` on Windows) in the
+background, about a second and a half after a track starts, so quick skips
+do not fire it. It gets `SPOTUI_TITLE`, `SPOTUI_ARTIST` (all, joined by
+commas), `SPOTUI_ALBUM`, `SPOTUI_URI`, `SPOTUI_URL`, `SPOTUI_DURATION_MS`,
+`SPOTUI_COVER_URL`, `SPOTUI_COVER_PATH` (the cached cover, a JPEG),
+`SPOTUI_ACCENT` (`#rrggbb`, for lights in the cover's colour) and
+`SPOTUI_EVENT=track_change`. It is stopped after 30 s; what it prints and
+any failure go to `spotui.log` with `--debug`.
 
 ## Shader background in Windows Terminal
 
@@ -341,6 +435,13 @@ reload it.
   fewer chains with shorter rays; on a machine with two GPUs also check the
   High performance setting above. `wt_shader_style = "debug"` and
   `grep "shader frames" spotui.log` show whether frames are dropped.
+- **`spotui next` says spotui is not running** although it is: is
+  `[control] enabled` on, and was spotui started after it was turned on?
+  Two spotuis at once: the first one keeps the socket and the state file.
+  With `--config-dir`, give the command the same `--config-dir`.
+- **`spotui now` prints nothing**: it reads the file in `spotui paths` →
+  `now:`; a file older than about 30 s counts as left behind by a spotui
+  that is gone.
 - **No real cover images**: they need Sixel (Windows Terminal 1.22+, foot,
   WezTerm, Konsole, …) or the kitty protocol (kitty, Ghostty, WezTerm).
 - **Start over**: `spotui logout` forgets the login, `spotui clear-cache`

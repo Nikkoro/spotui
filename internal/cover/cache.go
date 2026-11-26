@@ -47,6 +47,19 @@ func (c *Cache) path(url string) string {
 	return filepath.Join(c.dir, hex.EncodeToString(sum[:]))
 }
 
+// File is where the cover for url lies on disk (as fetched, usually
+// JPEG), or "" while it is not there.
+func (c *Cache) File(url string) string {
+	if url == "" {
+		return ""
+	}
+	p := c.path(url)
+	if _, err := os.Stat(p); err != nil {
+		return ""
+	}
+	return p
+}
+
 // Get returns the cover for url from disk, or downloads and stores it.
 // Concurrent requests for the same URL share one download.
 func (c *Cache) Get(ctx context.Context, url string) (image.Image, error) {

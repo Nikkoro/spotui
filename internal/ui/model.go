@@ -19,6 +19,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/notify"
 	"github.com/Nikkoro/spotui/internal/platform"
+	"github.com/Nikkoro/spotui/internal/remote"
 	"github.com/Nikkoro/spotui/internal/termimg"
 	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/internal/webapi"
@@ -159,6 +160,8 @@ type Model struct {
 
 	notifier  notify.Notifier
 	notifyOff bool
+
+	remote *remote.Publisher // the state file of `spotui now`; nil when off
 
 	// lyrics
 	lyr           *lyrics.Client
@@ -401,7 +404,18 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles one message.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	if nm, ok := next.(Model); ok {
+		nm.publishState()
+	}
+	return next, cmd
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case RemoteMsg:
+		return m.handleRemote(msg)
+
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		if m.img != nil {
@@ -491,6 +505,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.prefetchNextCover()
 
 	case notifyDueMsg:
+		if m.track != nil && m.track.Uri == msg.uri {
+			m.runTrackHook()
+		}
 		return m, m.sendNotification(msg.uri)
 
 	case lyricsMsg, lyricsDueMsg:
