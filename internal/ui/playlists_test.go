@@ -150,6 +150,14 @@ func TestContextPollBacksOffWithoutProgress(t *testing.T) {
 	if d := cp.nextPoll(40, 10, true); d != ctxPollFast {
 		t.Fatalf("progress: %v", d)
 	}
+	for i := range ctxStallLimit {
+		if cp.noteProgress(40, 39, true) != (i == ctxStallLimit) {
+			t.Fatalf("stalled after %d", i)
+		}
+	}
+	if !cp.noteProgress(40, 39, true) {
+		t.Fatal("a stuck listing never gave up")
+	}
 }
 
 func TestPlainDescription(t *testing.T) {

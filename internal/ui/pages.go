@@ -38,13 +38,14 @@ const (
 	libPlaylists = iota
 	libAlbums
 	libArtists
+	libPodcasts
 	libRecent
 	libTopTracks
 	libTopArtists
 	libTabCount
 )
 
-var libTabs = []string{"Playlists", "Albums", "Artists", "Recent", "Top tracks", "Top artists"}
+var libTabs = []string{"Playlists", "Albums", "Artists", "Podcasts", "Recent", "Top tracks", "Top artists"}
 
 type libraryPage struct {
 	tab     int
@@ -56,15 +57,17 @@ type libraryPage struct {
 
 func newLibraryPage() libraryPage { return libraryPage{} }
 
-var searchTabs = []string{"Tracks", "Albums", "Artists", "Playlists"}
+var searchTabs = []string{"Tracks", "Albums", "Artists", "Playlists", "Podcasts", "Episodes"}
 
 type searchPage struct {
 	input   textinput.Model
 	query   string
 	tab     int
-	lists   [4]listModel
+	lists   [6]listModel
 	loading bool
 	err     error
+	// episodeURIs are the episodes found, whose progress is asked for.
+	episodeURIs []string
 	// pending is set while waiting for the user to authorize the Web API;
 	// the query runs again once that finishes.
 	pending string
@@ -73,7 +76,7 @@ type searchPage struct {
 func newSearchPage() searchPage {
 	in := textinput.New()
 	in.Prompt = "  "
-	in.Placeholder = "Search songs, albums, artists, playlists…"
+	in.Placeholder = "Search songs, albums, artists, playlists, podcasts…"
 	in.CharLimit = 120
 	return searchPage{input: in}
 }
@@ -121,6 +124,7 @@ type contextPage struct {
 	// grows while nothing changes. seen is what the last answer held.
 	pollEvery time.Duration
 	seen      [3]int
+	stalls    int // answers in a row that brought nothing new
 	openedAt  time.Time
 }
 
@@ -131,17 +135,28 @@ const (
 	ctxPollSlow = 10 * time.Second
 )
 
-func (cp *contextPage) nextPoll(length, cached int, ready bool) time.Duration {
+// ctxStallLimit is how many answers without progress end the wait for
+// tracks the player cannot describe (an episode no longer available).
+const ctxStallLimit = 5
+
+// noteProgress records an answer and reports whether the listing stalled.
+func (cp *contextPage) noteProgress(length, cached int, ready bool) bool {
 	now := [3]int{length, cached, 0}
 	if ready {
 		now[2] = 1
 	}
 	if cp.pollEvery == 0 || now != cp.seen {
-		cp.pollEvery = ctxPollFast
+		cp.pollEvery, cp.stalls = ctxPollFast, 0
 	} else {
 		cp.pollEvery = min(cp.pollEvery*2, ctxPollSlow)
+		cp.stalls++
 	}
 	cp.seen = now
+	return ready && cp.stalls >= ctxStallLimit
+}
+
+func (cp *contextPage) nextPoll(length, cached int, ready bool) time.Duration {
+	cp.noteProgress(length, cached, ready)
 	return cp.pollEvery
 }
 
@@ -251,6 +266,20 @@ func (m Model) loadLibrary(tab int) tea.Cmd {
 					kind: kindAlbum, title: a.Name, subtitle: strings.Join(a.ArtistNames, ", "),
 					right: right, uri: a.Uri, imageURL: deref(a.ImageUrl),
 				})
+			}
+		case libPodcasts:
+			shows, err := api.SavedShows(ctx)
+			if err != nil {
+				return libLoadedMsg{tab: tab, err: err}
+			}
+			if username != "" {
+				items = append(items, listItem{
+					kind: kindPlaylist, title: "♥ Your Episodes", subtitle: "episodes you saved with f",
+					uri: yourEpisodesURI(username),
+				})
+			}
+			for _, s := range shows {
+				items = append(items, showItem(s))
 			}
 		case libRecent:
 			hist, err := api.RecentlyPlayed(ctx)
@@ -385,6 +414,9 @@ func trackItem(t daemon.ApiTrack, contextURI string) listItem {
 }
 
 func (m Model) loadContext(uri string) tea.Cmd {
+	if isShow(uri) {
+		return m.loadShow(uri, 0)
+	}
 	eng := m.eng
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -396,7 +428,7 @@ func (m Model) loadContext(uri string) tea.Cmd {
 
 // openContext pushes a context page (playlist, album, artist).
 func (m *Model) openContext(it listItem) tea.Cmd {
-	kind := map[itemKind]string{kindAlbum: "Album", kindArtist: "Artist", kindPlaylist: "Playlist"}[it.kind]
+	kind := map[itemKind]string{kindAlbum: "Album", kindArtist: "Artist", kindPlaylist: "Playlist", kindShow: "Podcast"}[it.kind]
 	cp := &contextPage{
 		uri:      it.uri,
 		title:    it.title,
@@ -537,6 +569,7 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.search.err = msg.err
 		if msg.err == nil {
 			m.setSearchResults(msg.res)
+			return m, m.fetchEpisodeStates(m.search.episodeURIs)
 		}
 		return m, nil
 
@@ -593,33 +626,66 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		res := msg.res
 		cp.ready, cp.length, cp.cached = res.Ready, res.Length, res.Cached
+		stalled := cp.noteProgress(res.Length, res.Cached, res.Ready)
+		missing := "…"
+		if stalled {
+			missing = "unavailable"
+		}
 		items := make([]listItem, 0, len(res.Tracks))
+		yourEpisodes := cp.uri == yourEpisodesURI(m.username)
 		for _, t := range res.Tracks {
 			if t.Track != nil {
-				items = append(items, trackItem(*t.Track, cp.uri))
-			} else {
-				items = append(items, listItem{kind: kindTrack, title: "…", uri: t.Uri, context: cp.uri})
+				it := trackItem(*t.Track, cp.uri)
+				if isEpisode(it.uri) {
+					it.durMs = int64(t.Track.Duration)
+					if st, ok := m.episodes[it.uri]; ok {
+						it.right = episodeRight(it.durMs, st, true)
+					}
+					if yourEpisodes && t.Track.AlbumUri != "" {
+						it.context = t.Track.AlbumUri // play on in its show
+					}
+				}
+				items = append(items, it)
+			} else if t.Unavailable && yourEpisodes {
+				// Gone from Spotify: the apps leave it out of Your Episodes.
+				continue
+			} else if t.Unavailable {
+				items = append(items, listItem{kind: kindTrack, title: "unavailable", uri: t.Uri, context: cp.uri})
+			} else if !(stalled && yourEpisodes) {
+				// Your Episodes leaves out what is no longer available, as
+				// the Spotify apps do; playlists show it, greyed out there.
+				items = append(items, listItem{kind: kindTrack, title: missing, uri: t.Uri, context: cp.uri})
 			}
 		}
+		if yourEpisodes && res.Ready && (stalled || res.Cached >= res.Length) {
+			cp.length = len(items)
+		}
 		cp.list.setItems(items)
-		done := res.Ready && res.Cached >= res.Length
+		done := res.Ready && (res.Cached >= res.Length || stalled)
 		cp.loading = !done
-		if done && !cp.likedLoaded {
+		// Hearts and episode progress need only the URIs, known as soon as
+		// the listing is ready, not the names, which may still be coming.
+		var extra tea.Cmd
+		if res.Ready && !cp.likedLoaded {
 			cp.likedLoaded = true
 			uris := make([]string, 0, len(items))
+			var episodes []string
 			for _, it := range items {
 				// Only ask about tracks whose heart we do not know yet.
-				if _, known := m.liked[it.uri]; !known && strings.HasPrefix(it.uri, "spotify:track:") {
+				if _, known := m.liked[it.uri]; !known && (strings.HasPrefix(it.uri, "spotify:track:") || isEpisode(it.uri)) {
 					uris = append(uris, it.uri)
 				}
+				if isEpisode(it.uri) {
+					episodes = append(episodes, it.uri)
+				}
 			}
-			return m, m.fetchLikedMany(uris)
+			extra = tea.Batch(m.fetchLikedMany(uris), m.fetchEpisodeStates(episodes))
 		}
 		if !done && time.Since(cp.openedAt) < 3*time.Minute {
 			uri := cp.uri
-			return m, tea.Tick(cp.nextPoll(res.Length, res.Cached, res.Ready), func(time.Time) tea.Msg { return ctxPollMsg{uri: uri} })
+			return m, tea.Batch(extra, tea.Tick(cp.pollEvery, func(time.Time) tea.Msg { return ctxPollMsg{uri: uri} }))
 		}
-		return m, nil
+		return m, extra
 
 	case ctxCoverMsg:
 		if m.ctxPage != nil && m.ctxPage.uri == msg.uri {
@@ -679,6 +745,18 @@ func (m *Model) setSearchResults(res *webapi.SearchResult) {
 	m.search.lists[1].setItems(albums)
 	m.search.lists[2].setItems(artists)
 	m.search.lists[3].setItems(playlists)
+	var shows, episodes []listItem
+	var episodeURIs []string
+	for _, s := range res.Shows {
+		shows = append(shows, showItem(s))
+	}
+	for _, e := range res.Episodes {
+		episodes = append(episodes, episodeItem(e, ""))
+		episodeURIs = append(episodeURIs, e.URI)
+	}
+	m.search.lists[4].setItems(shows)
+	m.search.lists[5].setItems(episodes)
+	m.search.episodeURIs = episodeURIs
 	for i := range m.search.lists {
 		m.search.lists[i].top()
 	}
@@ -788,16 +866,12 @@ func (m Model) handlePageKey(key string) (bool, tea.Model, tea.Cmd) {
 	case "f":
 		// Like the selected track; without one, f acts on the playing track.
 		it := list.selected()
-		if it == nil || it.kind != kindTrack || !strings.HasPrefix(it.uri, "spotify:track:") {
+		if it == nil || it.kind != kindTrack || !(strings.HasPrefix(it.uri, "spotify:track:") || isEpisode(it.uri)) {
 			return false, m, nil
 		}
 		on := !m.liked[it.uri]
 		m.liked[it.uri] = on
-		if on {
-			m.setFlash("Added “"+it.title+"” to Liked Songs", false)
-		} else {
-			m.setFlash("Removed “"+it.title+"” from Liked Songs", false)
-		}
+		m.setFlash(likeFlash(it.title, it.uri, on), false)
 		eng, uri := m.eng, it.uri
 		return true, m, call("Like", func(ctx context.Context) error { return eng.SetLiked(ctx, []string{uri}, on) })
 	case "ctrl+p":
@@ -827,7 +901,7 @@ func (m Model) handlePageKey(key string) (bool, tea.Model, tea.Cmd) {
 	default:
 		return false, m, nil
 	}
-	return true, m, nil
+	return true, m, m.moreEpisodes()
 }
 
 // activate is Enter on a list row.
@@ -854,7 +928,7 @@ func (m *Model) activate(it *listItem) tea.Cmd {
 		}
 		m.setFlash("Playing "+it.title, false)
 		return call("Play", func(ctx context.Context) error { return eng.PlayContext(ctx, ctxURI, trackURI) })
-	case kindAlbum, kindPlaylist, kindArtist:
+	case kindAlbum, kindPlaylist, kindArtist, kindShow:
 		return m.openContext(*it)
 	case kindDj:
 		return m.startDj()

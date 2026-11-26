@@ -163,6 +163,14 @@ func (m Model) settings() []setting {
 				m.cfg.SeekStepSeconds = atoiOr(v, 5)
 				return m.cfg.SeekStepSeconds, nil
 			}},
+		{group: "Playback", label: "Seek step in podcasts", kind: setInt, key: "podcast_seek_step_seconds",
+			min: 5, max: 120, step: 5, unit: " s",
+			help:  "How far ← / → jump in a podcast episode.",
+			value: func(m Model) string { return itoa(m.cfg.PodcastSeekStepSeconds) },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				m.cfg.PodcastSeekStepSeconds = atoiOr(v, 15)
+				return m.cfg.PodcastSeekStepSeconds, nil
+			}},
 		{group: "Playback", label: "Volume step", kind: setInt, key: "volume_step",
 			min: 1, max: 25, step: 1, unit: " %",
 			help:  "How much + and - change the volume.",

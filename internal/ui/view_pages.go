@@ -201,6 +201,20 @@ func (m Model) viewContext(w, h int) string {
 
 	info := ""
 	switch {
+	case cp.length > 0 && isShow(cp.uri):
+		// Episodes come a page at a time, as the cursor gets to the end.
+		info = plural(cp.length, "episode")
+		if n := len(cp.list.items); n < cp.length {
+			info = itoa(n) + " of " + info
+		}
+		if cp.loading {
+			info = m.spinner.View() + " " + info
+		}
+	case cp.length > 0 && cp.uri == yourEpisodesURI(m.username):
+		info = plural(cp.length, "episode")
+		if cp.loading && cp.cached < cp.length {
+			info = m.spinner.View() + " " + itoa(cp.cached) + "/" + info
+		}
 	case cp.length > 0:
 		info = plural(cp.length, "track")
 		if cp.loading && cp.cached < cp.length {

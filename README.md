@@ -14,6 +14,9 @@ Runs on Linux, WSL and Windows. Needs Spotify Premium.
   cover; click a line to jump there.
 - **Audio visualizer** drawn from the music itself: bars, mirror or wave.
 - **Spotify's DJ**, talking between tracks; ask it for something.
+- **Podcasts**: your shows, search, a show's episodes with how much of each
+  is left, the episode's notes and chapters where lyrics would be, mark as played,
+  resume where you left off (on any device).
 - **Your library**: playlists, Liked Songs, albums, artists, recently played,
   top tracks; search; queue; make, rename and delete playlists, add,
   remove and reorder their tracks.
@@ -112,7 +115,8 @@ The first search opens your browser once to approve it.
 | `←` `→` | seek |
 | `+` / `-` | volume |
 | `s` / `r` | shuffle / repeat (off → all → track) |
-| `f` | like / unlike |
+| `f` | like / unlike (an episode: save to Your Episodes) |
+| `m` | mark the episode as played / not played |
 | `↑` `↓`, `enter` | move in lists, open or play |
 | `/` | filter the list |
 | `a` / `P` | add to queue / to a playlist (or a new one) |
@@ -127,7 +131,7 @@ The first search opens your browser once to approve it.
 | `u` | play a Spotify link |
 | `L` | Now Playing layout: auto · split · panels · compact · classic |
 | `tab` | on Now Playing: move to the lyrics or Up next |
-| `<` `>` / `0` | lyrics sync earlier / later / reset |
+| `<` `>` / `0` | lyrics sync earlier / later / reset; in an episode: previous / next chapter |
 | `v` / `V` | visualizer on / off, style |
 | `c`, `[` `]`, `{` `}` | cover: image or blocks, pixels, colours |
 | `z` | sleep timer |
@@ -166,6 +170,7 @@ audio_cache_size_mb = 1024
 notifications = true      # desktop notification on track change
 media_controls = true     # MPRIS (Linux) / global media keys (Windows)
 seek_step_seconds = 5
+podcast_seek_step_seconds = 15  # ← / → in a podcast episode
 volume_step = 5
 theme = "spotify"         # spotify | catppuccin | gruvbox | nord | rose-pine | tokyo-night
 
@@ -180,7 +185,7 @@ theme = "spotify"         # spotify | catppuccin | gruvbox | nord | rose-pine | 
 # go_to_artist devices dj sleep_timer visualizer visualizer_style play_link
 # filter help quit now_playing library search queue lyrics reload layout settings
 # copy_link new_playlist rename_playlist describe_playlist delete_playlist
-# remove_from_playlist undo_remove move_up move_down
+# remove_from_playlist undo_remove move_up move_down mark_played
 
 [cover]
 enabled = true
@@ -459,6 +464,8 @@ reload it.
 - **A move or removal failed with "no longer at that position"**: the
   playlist changed elsewhere (phone, another app); spotui reads it again,
   try once more.
+- **Podcasts tab or a show's page says it needs the Web API**: they are read
+  through it, like search; search once (or open the tab) to connect it.
 - **No real cover images**: they need Sixel (Windows Terminal 1.22+, foot,
   WezTerm, Konsole, …) or the kitty protocol (kitty, Ghostty, WezTerm).
 - **Start over**: `spotui logout` forgets the login, `spotui clear-cache`

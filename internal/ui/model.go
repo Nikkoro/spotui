@@ -154,6 +154,9 @@ type Model struct {
 	input     textinput.Model
 	inputting bool
 
+	episodes     map[string]engine.EpisodeState // how far episodes were listened to
+	episodeNotes map[string]string              // episode descriptions, by URI
+
 	asking askState    // a question in the footer (playlist names, yes / no)
 	undo   *undoRemove // the last track taken out of a playlist
 
@@ -224,6 +227,8 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		volumeMax:     100,
 		stopped:       true,
 		liked:         map[string]bool{},
+		episodes:      map[string]engine.EpisodeState{},
+		episodeNotes:  map[string]string{},
 		input:         in,
 		filterIn:      filter,
 		pixSize:       clamp(cfg.Cover.PixelSize, minPixelSize, maxPixelSize),
@@ -540,6 +545,17 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case playlistChangedMsg:
 		return m, m.handlePlaylistChanged(msg)
 
+	case showPageMsg:
+		return m, m.handleShowPage(msg)
+
+	case episodeStatesMsg:
+		m.applyEpisodeStates(msg.states)
+		return m, nil
+
+	case episodeNotesMsg:
+		m.episodeNotes[msg.uri] = msg.notes
+		return m, nil
+
 	case tea.KeyMsg:
 		switch {
 		case m.asking.active:
@@ -752,7 +768,7 @@ func (m *Model) setTrack(t *daemon.ApiTrack) tea.Cmd {
 
 	var cmds []tea.Cmd
 	if changed {
-		cmds = append(cmds, m.fetchLiked(t.Uri), m.fetchLyrics(t))
+		cmds = append(cmds, m.fetchLiked(t.Uri), m.fetchLyrics(t), m.fetchEpisodeNotes(t.Uri))
 		if m.cfg.Cover.Enabled {
 			cmds = append(cmds, tea.Tick(3*time.Second, func(time.Time) tea.Msg { return prefetchDueMsg{} }))
 		}
@@ -883,6 +899,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.goToArtist()
 	case "z":
 		return m, m.cycleSleep()
+	case "m":
+		if cmd := m.toggleEpisodePlayed(); cmd != nil {
+			return m, cmd
+		}
 	}
 
 	// Page navigation and list keys first; they fall through to the
@@ -936,11 +956,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		on := !m.liked[uri]
 		m.liked[uri] = on
+		m.setFlash(likeFlash("", uri, on), false)
 		if on {
 			m.likedNowURI, m.likedNowAt = uri, time.Now()
-			m.setFlash("Added to Liked Songs", false)
-		} else {
-			m.setFlash("Removed from Liked Songs", false)
 		}
 		return m, call("Like", func(ctx context.Context) error { return e.SetLiked(ctx, []string{uri}, on) })
 	case "v":
@@ -1075,6 +1093,9 @@ func levelsLabel(l int) string {
 }
 
 func (m Model) seekStepMs() int64 {
+	if isEpisode(m.currentURI()) {
+		return int64(clamp(m.cfg.PodcastSeekStepSeconds, 1, 300)) * 1000
+	}
 	return int64(clamp(m.cfg.SeekStepSeconds, 1, 120)) * 1000
 }
 

@@ -16,7 +16,11 @@ func (m *Model) goToAlbum() tea.Cmd {
 	if t == nil || t.AlbumUri == "" {
 		return nil
 	}
-	return m.openContext(listItem{kind: kindAlbum, title: t.AlbumName, uri: t.AlbumUri})
+	kind := kindAlbum
+	if isShow(t.AlbumUri) {
+		kind = kindShow // an episode's show
+	}
+	return m.openContext(listItem{kind: kind, title: t.AlbumName, uri: t.AlbumUri})
 }
 
 func (m *Model) goToArtist() tea.Cmd {

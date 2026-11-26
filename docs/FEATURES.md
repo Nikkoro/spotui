@@ -211,3 +211,29 @@ Playlist management (#60):
       background; a failed change reads the playlist again
 - [x] All through the embedded player and Spotify's playlist service (a
       vendored patch), like adding tracks: no Web API calls, no rate limit
+
+Podcasts (#61):
+
+- [x] What already worked, from go-librespot: playing episodes, resuming
+      where they were left (on any device) and reporting progress back
+- [x] Library → Podcasts: your shows, and Your Episodes (saved with `f`)
+- [x] Search → Podcasts and Episodes
+- [x] A show's page: description, publisher, episodes newest first with
+      their date and "12 min left" / "✓ played", the next 50 loaded as the
+      cursor reaches the end; enter plays the episode in its show
+- [x] The episode's notes on the lyrics page and panel, instead of "no
+      lyrics", with their paragraphs, lists and links (from the HTML
+      description); `A` goes to the episode's show
+- [x] Chapters: the times at the start of lines in the notes ("03:35
+      News"), as the Spotify apps and YouTube read them, listed above the
+      notes with the one playing lit; `<` / `>` jump between them (the Web
+      API has chapters for audiobooks only)
+- [x] `m` marks an episode as played or not (the selected one, or the one
+      playing), as the Spotify apps' "Mark as played"
+- [x] `f` on an episode saves it to Your Episodes instead of Liked Songs
+- [x] `podcast_seek_step_seconds` (15): ← / → jump further in an episode
+- [x] An episode's place is saved every 30 s and when spotui quits, not
+      only on pause, so quitting mid-episode resumes there on the phone
+- [x] Shows and episodes from the Web API (cached: shows 10 min, a show
+      1 h, an episode's notes a day), progress from the player's
+      resumption service in one request per page (no extra Web API scope)

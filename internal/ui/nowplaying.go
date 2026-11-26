@@ -189,6 +189,13 @@ func (m Model) npLyricsPanel(w, h int) string {
 	if m.npFocused(npFocusLyrics) {
 		head = m.theme.accentTxt.Bold(true).Render("▌LYRICS") + m.theme.dim.Render("  < > offset · 0 reset · esc")
 	}
+	if isEpisode(m.currentURI()) {
+		// An episode shows its notes here.
+		head = m.theme.dim.Bold(true).Render("EPISODE NOTES")
+		if m.npFocused(npFocusLyrics) {
+			head = m.theme.accentTxt.Bold(true).Render("▌EPISODE NOTES") + m.theme.dim.Render("  ↑↓ scroll · < > chapters · esc")
+		}
+	}
 	if info := m.lyricsInfo(); info != "" {
 		head += m.theme.dim.Render(" · " + info)
 	}

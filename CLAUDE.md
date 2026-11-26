@@ -39,7 +39,9 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   `fun.go`
   (progress bar styles, splash, heart, copy link), `settings.go` (the `,`
   page; each setting writes its own line of config.toml), `images.go`
-  (Sixel/kitty covers), `palette.go` (ctrl+k), `playlists.go` (create,
+  (Sixel/kitty covers), `palette.go` (ctrl+k), `podcasts.go` (Podcasts tab,
+  a show's page with episode progress, episode notes on the lyrics page,
+  `m` mark played), `playlists.go` (create,
   rename, delete playlists, remove and move tracks with undo; the footer
   question `ask` / `confirm` lives there too).
 - `shaders/spotui.hlsl` with `internal/ui/wtshader.go`: the Windows
@@ -115,7 +117,8 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   images; image cells are skipped with cursor moves so text beside them
   never erases them.
 - `internal/lyrics`: Spotify first, LRCLIB behind it, disk cache.
-- `internal/webapi`: Spotify Web API with PKCE, cache and 429 back-off.
+- `internal/webapi`: Spotify Web API with PKCE, cache and 429 back-off;
+  `podcasts.go` reads saved shows, a show's episodes and an episode.
 - `internal/update`: GitHub releases, self-update.
 - `internal/config`: config.toml, defaults, line-preserving edits.
 - `third_party/go-librespot`, `third_party/pulse`: vendored with patches,

@@ -244,3 +244,26 @@ func (e *Engine) MovePlaylistItem(ctx context.Context, playlistURI, uri string, 
 		daemon.ApiPlaylistMove{PlaylistUri: playlistURI, Uri: uri, From: from, To: to})
 	return err
 }
+
+// EpisodeState is how far an episode was listened to.
+type EpisodeState = spclient.EpisodeState
+
+// EpisodeStates returns the progress of the episodes among uris that were
+// started, by URI.
+func (e *Engine) EpisodeStates(ctx context.Context, uris []string) (map[string]EpisodeState, error) {
+	res, err := decode[daemon.ApiEpisodeStatesReply](e.request(ctx, daemon.ApiRequestTypeEpisodeStates, daemon.ApiEpisodeStates{Uris: uris}))
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]EpisodeState, len(res.Items))
+	for _, s := range res.Items {
+		out[s.Uri] = s
+	}
+	return out, nil
+}
+
+// SetEpisodePlayed marks an episode as played, or takes the mark off.
+func (e *Engine) SetEpisodePlayed(ctx context.Context, uri string, played bool) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypeEpisodePlayed, daemon.ApiEpisodePlayed{Uri: uri, Played: played})
+	return err
+}
