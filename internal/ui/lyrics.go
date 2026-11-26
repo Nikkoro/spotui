@@ -110,6 +110,14 @@ func (m Model) currentLyric() string {
 }
 
 func (m Model) handleLyricsKey(key string) (bool, tea.Model, tea.Cmd) {
+	if isEpisode(m.currentURI()) && (key == "<" || key == ">") {
+		// An episode has no lyrics to shift: < > move between chapters.
+		dir := 1
+		if key == "<" {
+			dir = -1
+		}
+		return true, m, m.jumpChapter(dir)
+	}
 	switch key {
 	case ">":
 		m.lyricsOffset += lyricsOffsetStep
@@ -173,6 +181,8 @@ func (m Model) viewLyrics(w, h int) string {
 // current line as it is sung.
 func (m Model) lyricsBody(w, h int, karaoke bool) string {
 	switch {
+	case isEpisode(m.currentURI()):
+		return m.viewEpisodeNotes(w, h)
 	case m.lyr == nil:
 		return m.centreText(w, h, m.theme.dim.Render("Lyrics are disabled in config.toml."))
 	case m.lyricsLoading:

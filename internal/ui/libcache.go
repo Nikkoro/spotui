@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // The library is cached on disk and shown at once on the next start while a
@@ -26,7 +27,9 @@ func (m Model) libCachePath(tab int) string {
 		return ""
 	}
 	// Per account, so switching accounts never shows someone else's library.
-	return filepath.Join(m.cfg.CacheDir, "library", m.username+"-"+itoa(tab)+".json")
+	// By the tab's name, so adding a tab never shows another tab's list.
+	name := strings.ReplaceAll(strings.ToLower(libTabs[tab]), " ", "-")
+	return filepath.Join(m.cfg.CacheDir, "library", m.username+"-"+name+".json")
 }
 
 func (m Model) readLibCache(tab int) []listItem {

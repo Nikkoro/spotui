@@ -17,6 +17,7 @@ const (
 	kindPlaylist
 	kindDj
 	kindHeader // non-selectable section label
+	kindShow   // a podcast
 )
 
 // listItem is one row of a list.
@@ -32,7 +33,8 @@ type listItem struct {
 	imageURL string
 	editable bool   // a playlist the user can change the tracks of
 	owned    bool   // a playlist the user owns: rename, describe, delete
-	desc     string // a playlist's description
+	desc     string // a playlist's, show's or episode's description
+	durMs    int64  // an episode's length, for how much is left
 }
 
 // listModel is a scrollable, filterable list with a cursor.

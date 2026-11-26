@@ -62,6 +62,8 @@ type Config struct {
 
 	// SeekStepSeconds is how far ← / → seek.
 	SeekStepSeconds int `toml:"seek_step_seconds"`
+	// PodcastSeekStepSeconds is how far ← / → seek in a podcast episode.
+	PodcastSeekStepSeconds int `toml:"podcast_seek_step_seconds"`
 	// VolumeStep is how much + / - change the volume, in percent.
 	VolumeStep int `toml:"volume_step"`
 
@@ -276,15 +278,16 @@ func Default() Config {
 			WTShaderMotion:  true,
 			WTShaderQuality: "medium",
 		},
-		NowPlaying:      NowPlayingConfig{Layout: "auto"},
-		Update:          UpdateConfig{Check: true},
-		UI:              UIConfig{ProgressStyle: "shimmer", Splash: true, LikeAnimation: true, CopyAs: "url", EasterEggs: true},
-		SeekStepSeconds: 5,
-		VolumeStep:      5,
-		Notifications:   true,
-		MediaControls:   true,
-		Control:         ControlConfig{Enabled: true},
-		Playlists:       PlaylistsConfig{UndoSeconds: 10},
+		NowPlaying:             NowPlayingConfig{Layout: "auto"},
+		Update:                 UpdateConfig{Check: true},
+		UI:                     UIConfig{ProgressStyle: "shimmer", Splash: true, LikeAnimation: true, CopyAs: "url", EasterEggs: true},
+		SeekStepSeconds:        5,
+		PodcastSeekStepSeconds: 15,
+		VolumeStep:             5,
+		Notifications:          true,
+		MediaControls:          true,
+		Control:                ControlConfig{Enabled: true},
+		Playlists:              PlaylistsConfig{UndoSeconds: 10},
 	}
 }
 

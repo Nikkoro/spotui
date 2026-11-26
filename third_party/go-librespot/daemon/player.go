@@ -24,7 +24,6 @@ import (
 	"github.com/devgianlu/go-librespot/player"
 	connectpb "github.com/devgianlu/go-librespot/proto/spotify/connectstate"
 	"github.com/devgianlu/go-librespot/session"
-	"github.com/devgianlu/go-librespot/spclient"
 	"github.com/devgianlu/go-librespot/tracks"
 )
 
@@ -964,12 +963,13 @@ func (p *AppPlayer) handleApiRequest(req ApiRequest) (any, error) {
 		reply := apiReply(req)
 		spc, username := p.sess.Spclient(), p.sess.Username()
 		p.goDetached(libraryRequestTimeout, func(ctx context.Context) {
-			if err := spc.CollectionWrite(ctx, username, spclient.CollectionSetLikedSongs, data.Uris, !data.Liked); err != nil {
+			// spotui patch: episodes go to Your Episodes.
+			if err := collectionWriteBySet(ctx, spc, username, data.Uris, !data.Liked); err != nil {
 				reply.done(nil, libraryError("failed writing liked songs", err))
 				return
 			}
 
-			for _, uri := range likedSongsContextUris(username) {
+			for _, uri := range append(likedSongsContextUris(username), yourEpisodesContextUri(username)) { // spotui patch
 				p.app.contextLists.invalidate(uri)
 			}
 			reply.done(nil, nil)
@@ -982,7 +982,7 @@ func (p *AppPlayer) handleApiRequest(req ApiRequest) (any, error) {
 		spc, username := p.sess.Spclient(), p.sess.Username()
 		p.goDetached(libraryRequestTimeout, func(ctx context.Context) {
 			contains := func(ctx context.Context, uris []string) ([]bool, error) {
-				return spc.CollectionContains(ctx, username, spclient.CollectionSetLikedSongs, uris)
+				return collectionContainsBySet(ctx, spc, username, uris) // spotui patch
 			}
 			states, err := likedStates(ctx, contains, uris)
 			if err != nil {
@@ -1057,6 +1057,9 @@ func (p *AppPlayer) handleApiRequest(req ApiRequest) (any, error) {
 		ApiRequestTypePlaylistMove, ApiRequestTypePlaylistInsert:
 		// spotui patch, see third_party/PATCHES.md
 		return p.handlePlaylistRequest(req)
+	case ApiRequestTypeEpisodeStates, ApiRequestTypeEpisodePlayed:
+		// spotui patch, see third_party/PATCHES.md
+		return p.handlePodcastRequest(req)
 	default:
 		return nil, fmt.Errorf("unknown request type: %s", req.Type)
 	}
@@ -1216,10 +1219,17 @@ func (p *AppPlayer) serve(
 		}
 	}
 
+	// spotui patch: an episode's place is saved now and then, and on exit.
+	resumeTick := time.NewTicker(resumeReportEvery)
+	defer resumeTick.Stop()
+
 	for {
 		select {
 		case <-p.stop:
+			p.reportResumeOnExit()
 			return
+		case <-resumeTick.C:
+			p.reportResumeWhilePlaying()
 		case pkt, ok := <-apRecv:
 			if !ok {
 				apRecv = nil

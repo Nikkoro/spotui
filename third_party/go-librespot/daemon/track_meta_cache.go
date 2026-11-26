@@ -276,6 +276,10 @@ type metaFetcher struct {
 	inFlight atomic.Bool
 
 	sweeps metaSweepQueue
+
+	// unavailable remembers the uris Spotify had no metadata for (spotui
+	// patch), so a listing reports them at once instead of waiting.
+	unavailable unavailableSet
 }
 
 func newMetaFetcher(log librespot.Logger, cache *trackMetaCache, sp *spclient.Spclient) *metaFetcher {
@@ -321,8 +325,12 @@ func (f *metaFetcher) fetchBatch(ctx context.Context, uris []string) (int, error
 	}
 
 	var cached int
+	status := map[string]int32{} // spotui patch: each entry's answer
 	for _, item := range resp.ExtendedMetadata {
 		for _, extData := range item.ExtensionData {
+			if extData.Header != nil {
+				status[extData.EntityUri] = extData.Header.StatusCode
+			}
 			if extData.Header == nil || extData.Header.StatusCode != 200 || extData.ExtensionData == nil {
 				continue
 			}
@@ -347,6 +355,19 @@ func (f *metaFetcher) fetchBatch(ctx context.Context, uris []string) (int, error
 
 			f.cache.put(extData.EntityUri, media)
 			cached++
+		}
+	}
+	// spotui patch: an entry answered without metadata (not found, gone,
+	// an empty answer, or left out) is not there; rate limits and server
+	// errors may pass and are asked again.
+	for _, uri := range uris {
+		if _, ok := metaExtensionKind(uri); !ok || f.cache.get(uri) != nil {
+			continue
+		}
+		code := status[uri]
+		f.log.Debugf("no metadata for %s (status %d)", uri, code)
+		if code != 429 && code < 500 {
+			f.unavailable.add(uri)
 		}
 	}
 
@@ -595,6 +616,19 @@ func (p *AppPlayer) scheduleContextEnumerate(contextUri string) {
 	p.goDetached(metaSweepTimeout, func(ctx context.Context) {
 		defer p.app.contextLists.endFetch(contextUri)
 
+		// spotui patch: Your Episodes does not resolve as a context; it is
+		// read from its collection set.
+		if contextUri == yourEpisodesContextUri(p.sess.Username()) {
+			uris, err := fetchCollectionUris(ctx, p.sess.Spclient(), p.sess.Username(), collectionSetYourEpisodes, "spotify:episode:")
+			if err != nil {
+				p.app.log.WithError(err).Warnf("failed listing Your Episodes")
+				return
+			}
+			p.app.contextLists.put(contextUri, uris, gen)
+			p.scheduleMetaSweep(uris, contextUri)
+			return
+		}
+
 		resolver, err := p.meta.resolve(ctx, contextUri)
 		if errors.Is(err, spclient.ErrContextEmpty) {
 			// spotui patch: an empty playlist is a complete, empty listing,
@@ -708,6 +742,10 @@ func (p *AppPlayer) contextTracksResponse(contextUri string, uris []string, read
 		entry := ApiContextTrackItem{Uri: uri}
 		if media := p.meta.cache.get(uri); media != nil && p.prodInfo != nil {
 			entry.Track = p.newApiResponseStatusMediaAs(uri, media, 0)
+			resp.Cached++
+		} else if p.meta.unavailable.has(uri) {
+			// spotui patch: counted as known, so clients stop waiting.
+			entry.Unavailable = true
 			resp.Cached++
 		}
 		resp.Tracks = append(resp.Tracks, entry)

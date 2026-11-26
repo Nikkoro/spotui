@@ -222,9 +222,11 @@ type SearchResult struct {
 	Albums    []Album
 	Artists   []Artist
 	Playlists []Playlist
+	Shows     []Show
+	Episodes  []Episode
 }
 
-// Search queries tracks, albums, artists and playlists. Development mode apps
+// Search queries tracks, albums, artists, playlists, shows and episodes. Development mode apps
 // get at most 10 results per type.
 func (c *Client) Search(ctx context.Context, query string) (*SearchResult, error) {
 	var raw struct {
@@ -232,10 +234,12 @@ func (c *Client) Search(ctx context.Context, query string) (*SearchResult, error
 		Albums    page[Album]    `json:"albums"`
 		Artists   page[Artist]   `json:"artists"`
 		Playlists page[Playlist] `json:"playlists"`
+		Shows     page[Show]     `json:"shows"`
+		Episodes  page[Episode]  `json:"episodes"`
 	}
 	q := url.Values{
 		"q":     {query},
-		"type":  {"track,album,artist,playlist"},
+		"type":  {"track,album,artist,playlist,show,episode"},
 		"limit": {"10"},
 	}
 	if err := c.get(ctx, "/search", q, ttlSearch, &raw); err != nil {
@@ -247,6 +251,8 @@ func (c *Client) Search(ctx context.Context, query string) (*SearchResult, error
 		Albums:    compact(raw.Albums.Items),
 		Artists:   compact(raw.Artists.Items),
 		Playlists: compact(raw.Playlists.Items),
+		Shows:     compact(raw.Shows.Items),
+		Episodes:  compact(raw.Episodes.Items),
 	}, nil
 }
 

@@ -56,6 +56,24 @@ Local changes:
    poll: `spclient.ErrContextEmpty` now marks it (`context_resolver.go`)
    and the listing caches it as complete and empty
    (`daemon/track_meta_cache.go`).
+11. Podcasts (`spclient/resumption_spotui.go`, `daemon/podcasts_spotui.go`
+   (new), one case and two calls in `player.go`): `episode_states` asks
+   the resumption service for many episodes at once (a CEL filter
+   `cs.uri in [...]`, as upstream's single lookup does with `==`) and
+   reads each one's latest resume point (position, finished);
+   `episode_played` writes `marked_as_finished` / `unmarked_as_finished`.
+   `set_liked` / `get_liked` send episodes to the `listenlater` collection
+   set (Your Episodes) instead of Liked Songs. Your Episodes'
+   context (`spotify:user:<name>:collection:your-episodes`) does not
+   resolve, so its listing is read from that set, newest first
+   (`daemon/track_meta_cache.go`), and is dropped when `f` changes it.
+   Upstream saves an episode's place on pause and on the next track only,
+   so quitting mid-episode lost it: the player loop now saves it every
+   30 s while an episode plays and once more as it stops (`player.go`).
+   A listing entry Spotify answers without metadata (any status but 429
+   and 5xx, an empty answer, or left out) is remembered for 30 min and reported with
+   `unavailable: true`, counted as cached, so clients stop waiting for it
+   (`track_meta_cache.go`, one field in `api_gen.go`).
 9. Lyrics from Spotify (`spclient/lyrics.go`, `daemon/lyrics_spotui.go`
    (new), one case in `player.go`): a `lyrics` API request fetches
    `/color-lyrics/v2/track/<id>`, as librespot's `Lyrics::get` (used by

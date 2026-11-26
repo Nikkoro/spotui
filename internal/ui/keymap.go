@@ -52,6 +52,7 @@ var defaultKeys = map[string]string{
 	"undo_remove":          "U",
 	"move_up":              "K",
 	"move_down":            "J",
+	"mark_played":          "m",
 }
 
 // ActionNames lists the bindable actions, for docs and validation.

@@ -173,6 +173,13 @@ var helpSections = []struct {
 		{"x", "take the selected track out (U undo)"},
 		{"J K", "move the selected track down / up"},
 	}},
+	{"Podcasts", [][2]string{
+		{"2 → Podcasts", "your shows; 3 → Podcasts / Episodes to find more"},
+		{"m", "mark the episode as played / not played"},
+		{"< >", "previous / next chapter (from the episode's notes)"},
+		{"f", "save the episode to Your Episodes"},
+		{"A", "go to the show of the playing episode"},
+	}},
 	{"Look", [][2]string{
 		{"[ ]", "cover pixel size"},
 		{"c", "cover: real image / pixel blocks"},

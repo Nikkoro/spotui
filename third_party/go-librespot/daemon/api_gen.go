@@ -127,6 +127,9 @@ type ApiContextTrackItem struct {
 	// Track Full track metadata, or null while the background sweep has not resolved this entry yet
 	Track *ApiTrack `json:"track"`
 
+	// Unavailable Spotify has no metadata for this entry (spotui patch)
+	Unavailable bool `json:"unavailable,omitempty"`
+
 	// Uri The track URI
 	Uri string `json:"uri"`
 }

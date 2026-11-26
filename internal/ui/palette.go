@@ -86,6 +86,9 @@ func (m Model) paletteCommands() []paletteCmd {
 		{title: "Quit", group: "app", key: "q"},
 	}
 
+	if isEpisode(m.currentURI()) {
+		cmds = append(cmds, paletteCmd{title: "Mark this episode as played / not played", group: "podcasts", key: "m"})
+	}
 	cmds = append(cmds, paletteCmd{title: "New playlist…", group: "playlists", key: "N", run: func(m Model) (tea.Model, tea.Cmd) {
 		return m, m.newPlaylist("", "")
 	}})
