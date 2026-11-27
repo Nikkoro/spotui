@@ -1,0 +1,29 @@
+{
+    "version": "@VERSION@",
+    "description": "A Spotify client for the terminal that plays the music itself, with synced lyrics, a visualizer and Windows Terminal shader effects.",
+    "homepage": "https://github.com/Nikkoro/spotui",
+    "license": "GPL-3.0-only",
+    "notes": "spotui needs Spotify Premium. Run 'spotui' and sign in with the code it shows; 'spotui shader' sets up the Windows Terminal effects.",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/Nikkoro/spotui/releases/download/v@VERSION@/spotui-windows-amd64.zip",
+            "hash": "@SHA_WINDOWS@"
+        }
+    },
+    "bin": "spotui.exe",
+    "checkver": {
+        "url": "https://api.github.com/repos/Nikkoro/spotui/releases",
+        "jsonpath": "$[0].tag_name",
+        "regex": "v([\\d.]+)"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/Nikkoro/spotui/releases/download/v$version/spotui-windows-amd64.zip"
+            }
+        },
+        "hash": {
+            "url": "https://github.com/Nikkoro/spotui/releases/download/v$version/SHA256SUMS"
+        }
+    }
+}

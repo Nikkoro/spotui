@@ -122,7 +122,11 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
 - `internal/lyrics`: Spotify first, LRCLIB behind it, disk cache.
 - `internal/webapi`: Spotify Web API with PKCE, cache and 429 back-off;
   `podcasts.go` reads saved shows, a show's episodes and an episode.
-- `internal/update`: GitHub releases, self-update.
+- `internal/update`: GitHub releases, self-update (`Packaged`: an install
+  by Scoop, winget, Homebrew or the AUR updates there instead).
+- `packaging/` (templates, `render.sh`) and `bucket/` (the Scoop
+  manifest): filled and published by the `packages` job of the release
+  workflow; Homebrew and the AUR need secrets (docs/DEVELOPMENT.md).
 - `internal/config`: config.toml, defaults, line-preserving edits.
 - `third_party/go-librespot`, `third_party/pulse`: vendored with patches,
   each listed in `third_party/PATCHES.md`; add an entry for any new one.
