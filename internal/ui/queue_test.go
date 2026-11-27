@@ -97,3 +97,15 @@ func TestClearQueueAsksFirst(t *testing.T) {
 		t.Fatalf("after clearing: %q", got)
 	}
 }
+
+// Now Playing's Up next lists your queue first, then the context's tracks.
+func TestUpNextIncludesYourQueue(t *testing.T) {
+	m := queueModel(t)
+	var titles []string
+	for _, it := range m.upNext() {
+		titles = append(titles, it.title)
+	}
+	if got := strings.Join(titles, " "); got != "Q1 Q2 N1" {
+		t.Fatalf("up next: %q", got)
+	}
+}

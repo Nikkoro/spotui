@@ -316,7 +316,8 @@ func (m Model) upNext() []listItem {
 	for _, it := range m.queue.list.items {
 		if it.kind == kindHeader {
 			if it.title != "" {
-				in = it.title == "Next up"
+				// Your queue plays first, then the context's next tracks.
+				in = it.title == "In your queue" || it.title == "Next up"
 			}
 			continue
 		}
