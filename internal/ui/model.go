@@ -156,6 +156,7 @@ type Model struct {
 
 	episodes     map[string]engine.EpisodeState // how far episodes were listened to
 	episodeNotes map[string]string              // episode descriptions, by URI
+	radios       map[string]radioEntry          // stations found, by seed
 
 	asking askState    // a question in the footer (playlist names, yes / no)
 	undo   *undoRemove // the last track taken out of a playlist
@@ -229,6 +230,7 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 		liked:         map[string]bool{},
 		episodes:      map[string]engine.EpisodeState{},
 		episodeNotes:  map[string]string{},
+		radios:        map[string]radioEntry{},
 		input:         in,
 		filterIn:      filter,
 		pixSize:       clamp(cfg.Cover.PixelSize, minPixelSize, maxPixelSize),
@@ -551,6 +553,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case episodeStatesMsg:
 		m.applyEpisodeStates(msg.states)
 		return m, nil
+
+	case radioMsg:
+		return m, m.handleRadio(msg)
 
 	case episodeNotesMsg:
 		m.episodeNotes[msg.uri] = msg.notes
@@ -899,6 +904,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.goToArtist()
 	case "z":
 		return m, m.cycleSleep()
+	case "S":
+		seed, title := m.radioSeed()
+		if seed == "" {
+			m.setFlash("Select a song, artist, album or playlist for its radio", true)
+			return m, nil
+		}
+		return m, m.startRadio(seed, title)
 	case "m":
 		if cmd := m.toggleEpisodePlayed(); cmd != nil {
 			return m, cmd

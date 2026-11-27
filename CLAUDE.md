@@ -41,7 +41,8 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   page; each setting writes its own line of config.toml), `images.go`
   (Sixel/kitty covers), `palette.go` (ctrl+k), `podcasts.go` (Podcasts tab,
   a show's page with episode progress, episode notes on the lyrics page,
-  `m` mark played), `playlists.go` (create,
+  `m` mark played), `radio.go` (S: a seed's
+  radio playlist or station, cached an hour, played as a context), `playlists.go` (create,
   rename, delete playlists, remove and move tracks with undo; the footer
   question `ask` / `confirm` lives there too).
 - `shaders/spotui.hlsl` with `internal/ui/wtshader.go`: the Windows

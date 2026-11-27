@@ -28,7 +28,7 @@ type RemoteReply struct {
 }
 
 // RemoteCommands are the commands the socket takes, for usage texts.
-var RemoteCommands = []string{"play", "pause", "toggle", "next", "prev", "like", "unlike", "volume"}
+var RemoteCommands = []string{"play", "pause", "toggle", "next", "prev", "like", "unlike", "volume", "radio"}
 
 // WithRemote keeps the state file of `spotui now` through p.
 func (m Model) WithRemote(p *remote.Publisher) Model {
@@ -98,6 +98,36 @@ func (m Model) handleRemote(msg RemoteMsg) (tea.Model, tea.Cmd) {
 			m.setFlash("Removed from Liked Songs", false)
 		}
 		return m, run("Like", func(ctx context.Context) error { return e.SetLiked(ctx, []string{uri}, on) })
+	case "radio":
+		seed, title := m.currentURI(), ""
+		if m.track != nil {
+			title = m.track.Name
+		}
+		if arg != "" {
+			uri, err := parseSpotifyURI(arg)
+			if err != nil {
+				reply("", err)
+				return m, nil
+			}
+			seed, title = uri, uri
+		}
+		if !radioable(seed) {
+			reply("", errors.New("radio needs a song, artist, album or playlist"))
+			return m, nil
+		}
+		eng := m.eng
+		var recent []string
+		return m, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			station, err := eng.Radio(ctx, seed, recent)
+			if err != nil {
+				reply("", err)
+			} else {
+				reply("", nil)
+			}
+			return radioMsg{seed: seed, title: title, station: station, err: err}
+		}
 	case "volume":
 		vol, relative, err := parseVolume(arg)
 		if err != nil {

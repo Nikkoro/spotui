@@ -152,6 +152,7 @@ var helpSections = []struct {
 		{"s  r", "shuffle · repeat (off → all → track)"},
 		{"f", "like / unlike"},
 		{"P", "add to playlist (selected or playing)"},
+		{"S", "radio of the selected song / artist / album / playlist, or the playing song"},
 		{"A  I", "go to album · artist of the playing track"},
 		{"z", "sleep timer: 15…90 min, end of track, off"},
 		{"u", "play a Spotify link"},

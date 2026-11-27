@@ -14,6 +14,8 @@ Runs on Linux, WSL and Windows. Needs Spotify Premium.
   cover; click a line to jump there.
 - **Audio visualizer** drawn from the music itself: bars, mirror or wave.
 - **Spotify's DJ**, talking between tracks; ask it for something.
+- **Radio** of any song, artist, album or playlist (`S`): the same radio
+  the Spotify apps play, carried on by autoplay.
 - **Podcasts**: your shows, search, a show's episodes with how much of each
   is left, the episode's notes and chapters where lyrics would be, mark as played,
   resume where you left off (on any device).
@@ -120,6 +122,7 @@ The first search opens your browser once to approve it.
 | `↑` `↓`, `enter` | move in lists, open or play |
 | `/` | filter the list |
 | `a` / `P` | add to queue / to a playlist (or a new one) |
+| `S` | radio of the selected song, artist, album or playlist, or of the playing song |
 | `N` | new playlist (library or a playlist's page) |
 | `e` / `E` | rename your playlist / edit its description |
 | `X` | delete your playlist, or remove someone else's from your library |
@@ -185,7 +188,7 @@ theme = "spotify"         # spotify | catppuccin | gruvbox | nord | rose-pine | 
 # go_to_artist devices dj sleep_timer visualizer visualizer_style play_link
 # filter help quit now_playing library search queue lyrics reload layout settings
 # copy_link new_playlist rename_playlist describe_playlist delete_playlist
-# remove_from_playlist undo_remove move_up move_down mark_played
+# remove_from_playlist undo_remove move_up move_down mark_played radio
 
 [cover]
 enabled = true
@@ -257,6 +260,7 @@ While spotui runs, other terminals, hotkeys and scripts can steer it:
 spotui toggle             # also: play, pause, next, prev
 spotui play https://open.spotify.com/album/…   # or a spotify: URI
 spotui like               # the playing track; unlike takes it out again
+spotui radio              # radio of the playing song; or: spotui radio <link>
 spotui volume 40          # or +5 / -5
 ```
 

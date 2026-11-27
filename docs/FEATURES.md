@@ -237,3 +237,16 @@ Podcasts (#61):
 - [x] Shows and episodes from the Web API (cached: shows 10 min, a show
       1 h, an episode's notes a day), progress from the player's
       resumption service in one request per page (no extra Web API scope)
+
+Radio (#57):
+
+- [x] `S` starts the radio of the selected song, artist, album or
+      playlist (on Now Playing: the playing song); the palette has Song
+      radio, Artist radio and the radio of the open page; `spotui radio
+      [link]` from other terminals
+- [x] The radio is the same "… Radio" playlist the Spotify apps play
+      (inspiredby-mix), with autoplay carrying on after it; seeds without
+      one get a station (their own, autoplay's, or one of their songs');
+      a song's radio starts with the song
+- [x] A seed's station is remembered for an hour, so starting it again
+      asks Spotify nothing

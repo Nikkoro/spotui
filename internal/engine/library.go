@@ -267,3 +267,20 @@ func (e *Engine) SetEpisodePlayed(ctx context.Context, uri string, played bool) 
 	_, err := e.request(ctx, daemon.ApiRequestTypeEpisodePlayed, daemon.ApiEpisodePlayed{Uri: uri, Played: played})
 	return err
 }
+
+// Radio returns the station of a track, artist, album or playlist; recent
+// are a few of its tracks, for seeds without a station of their own.
+func (e *Engine) Radio(ctx context.Context, seed string, recent []string) (string, error) {
+	res, err := decode[daemon.ApiRadioStation](e.request(ctx, daemon.ApiRequestTypeRadio, daemon.ApiRadio{Seed: seed, RecentTracks: recent}))
+	if err != nil {
+		return "", err
+	}
+	return res.Uri, nil
+}
+
+// PlayRadio plays a station, starting with first (a song's radio starts
+// with the song, put in front when the station does not hold it).
+func (e *Engine) PlayRadio(ctx context.Context, station, first string) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypePlay, daemon.ApiPlay{Uri: station, FirstUri: first})
+	return err
+}

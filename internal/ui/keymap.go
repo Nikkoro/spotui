@@ -53,6 +53,7 @@ var defaultKeys = map[string]string{
 	"move_up":              "K",
 	"move_down":            "J",
 	"mark_played":          "m",
+	"radio":                "S",
 }
 
 // ActionNames lists the bindable actions, for docs and validation.
