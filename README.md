@@ -149,6 +149,20 @@ The mouse works too: click to select, double-click to play, click the
 progress bar or a lyric line to seek, click an Up next track to play it,
 scroll lists and lyrics.
 
+## Listening stats
+
+Library → Stats (`2`, then `→` to the last tab) shows what you listened to:
+time and plays today, over 7 and 30 days and in all, your streak of days
+in a row, the hour you listen most, your top artists and the tracks you
+played most in the last 30 days (enter plays one). A track counts once it
+played 30 s, or half of it if it is shorter, as Spotify counts a stream;
+pauses don't count.
+
+It comes from a record spotui keeps on this computer only:
+`history-<account>.jsonl` next to `config.toml` (`spotui paths`), one line
+per play. Turn it off with `history = false` under `[stats]` (Settings →
+Listening history); delete the file to start over.
+
 ## Settings
 
 Press `,` for the settings page: playback, look, visualizer, lyrics, updates
@@ -253,6 +267,10 @@ on_track_change = ""      # a shell command run on every new track, see below
 [playlists]
 public_by_default = false # show playlists you make (N) on your profile
 undo_seconds = 10         # how long U puts back a track taken out (0: off)
+
+[stats]
+history = true            # keep a local record of what you play, for Library → Stats
+                          # (history-<account>.jsonl next to config.toml; never sent anywhere)
 ```
 
 ## Control from other terminals

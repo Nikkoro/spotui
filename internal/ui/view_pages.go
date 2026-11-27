@@ -37,7 +37,12 @@ func (m Model) tabBar(names []string, active int, counts []int) string {
 			parts[i] = m.theme.dim.Render(label)
 		}
 	}
-	return strings.Join(parts, "    ")
+	// Closer together when they would not fit the window.
+	gap := "    "
+	if w := lipgloss.Width(strings.Join(parts, gap)); m.width > 0 && w > m.width-4 {
+		gap = "  "
+	}
+	return strings.Join(parts, gap)
 }
 
 // listBlock renders an optional filter line plus the list itself. above is
@@ -91,6 +96,8 @@ func (m Model) viewLibrary(w, h int) string {
 
 	var body string
 	switch {
+	case m.lib.tab == libStats:
+		body = m.viewStats(l, w, h-4)
 	case m.webAuthURL != "" && m.pendingLibTab == m.lib.tab:
 		body = m.webAuthCard(w)
 	case m.lib.err[m.lib.tab] != nil && len(l.items) > 0:

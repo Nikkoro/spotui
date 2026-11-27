@@ -411,6 +411,13 @@ func (m Model) settings() []setting {
 				m.cfg.Playlists.PublicByDefault = v == "true"
 				return m.cfg.Playlists.PublicByDefault, nil
 			}},
+		{group: "System", label: "Listening history", kind: setBool, section: "stats", key: "history",
+			help:  "Keep a record of what you play, for Library → Stats. It stays on this computer (history-<account>.jsonl next to config.toml); turning it off keeps what was recorded.",
+			value: func(m Model) string { return boolStr(m.cfg.Stats.History) },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				m.cfg.Stats.History = v == "true"
+				return m.cfg.Stats.History, nil
+			}},
 		{group: "System", label: "Undo time", kind: setInt, section: "playlists", key: "undo_seconds",
 			min: 0, max: 60, step: 5, unit: " s",
 			help:  "How long U can put back a track taken out of a playlist. 0 is off.",
