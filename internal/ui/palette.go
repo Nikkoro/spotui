@@ -86,6 +86,24 @@ func (m Model) paletteCommands() []paletteCmd {
 		{title: "Quit", group: "app", key: "q"},
 	}
 
+	if t := m.track; t != nil && strings.HasPrefix(t.Uri, "spotify:track:") {
+		seed, title := t.Uri, t.Name
+		cmds = append(cmds, paletteCmd{title: "Song radio: " + title, group: "radio", key: "S", run: func(m Model) (tea.Model, tea.Cmd) {
+			return m, m.startRadio(seed, title)
+		}})
+		if len(t.ArtistUris) > 0 && len(t.ArtistNames) > 0 {
+			seed, title := t.ArtistUris[0], t.ArtistNames[0]
+			cmds = append(cmds, paletteCmd{title: "Artist radio: " + title, group: "radio", run: func(m Model) (tea.Model, tea.Cmd) {
+				return m, m.startRadio(seed, title)
+			}})
+		}
+	}
+	if cp := m.ctxPage; m.page == pageContext && cp != nil && radioable(cp.uri) {
+		seed, title := cp.uri, cp.title
+		cmds = append(cmds, paletteCmd{title: "Radio of " + title, group: "radio", run: func(m Model) (tea.Model, tea.Cmd) {
+			return m, m.startRadio(seed, title)
+		}})
+	}
 	if isEpisode(m.currentURI()) {
 		cmds = append(cmds, paletteCmd{title: "Mark this episode as played / not played", group: "podcasts", key: "m"})
 	}

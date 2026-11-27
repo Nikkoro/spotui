@@ -293,6 +293,10 @@ type ApiOutput struct {
 
 // ApiPlay An initiate playback payload
 type ApiPlay struct {
+	// FirstUri A track to play first, put at the front of the context when
+	// it is not in it: a song's radio starts with the song (spotui patch)
+	FirstUri string `json:"first_uri,omitempty"`
+
 	// Paused Start playback as paused
 	Paused bool `json:"paused,omitempty"`
 

@@ -841,6 +841,13 @@ func (p *AppPlayer) handleApiRequest(req ApiRequest) (any, error) {
 				if err != nil {
 					return loaderResult{err: fmt.Errorf("failed resolving context: %w", err)}
 				}
+				skip := skipTo
+				if data.FirstUri != "" {
+					// spotui patch, see third_party/PATCHES.md
+					prependContextTrack(spotCtx, data.FirstUri)
+					first := data.FirstUri
+					skip = func(track *connectpb.ContextTrack) bool { return track.Uri == first }
+				}
 
 				return loaderResult{commit: func(p *AppPlayer, err error) {
 					if err != nil {
@@ -855,7 +862,7 @@ func (p *AppPlayer) handleApiRequest(req ApiRequest) (any, error) {
 						FeatureVersion:    librespot.VersionNumberString(),
 					}
 
-					p.loadContext(spotCtx, skipTo, loadPaused, true, func(err error) {
+					p.loadContext(spotCtx, skip, loadPaused, true, func(err error) {
 						if err != nil {
 							p.app.log.WithError(err).Warn("failed loading context")
 							return
@@ -1057,6 +1064,9 @@ func (p *AppPlayer) handleApiRequest(req ApiRequest) (any, error) {
 		ApiRequestTypePlaylistMove, ApiRequestTypePlaylistInsert:
 		// spotui patch, see third_party/PATCHES.md
 		return p.handlePlaylistRequest(req)
+	case ApiRequestTypeRadio:
+		// spotui patch, see third_party/PATCHES.md
+		return p.handleRadioRequest(req)
 	case ApiRequestTypeEpisodeStates, ApiRequestTypeEpisodePlayed:
 		// spotui patch, see third_party/PATCHES.md
 		return p.handlePodcastRequest(req)

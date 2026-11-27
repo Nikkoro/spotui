@@ -74,6 +74,22 @@ Local changes:
    and 5xx, an empty answer, or left out) is remembered for 30 min and reported with
    `unavailable: true`, counted as cached, so clients stop waiting for it
    (`track_meta_cache.go`, one field in `api_gen.go`).
+12. Radio (`daemon/radio_spotui.go`, `spclient/radio_spotui.go` (new), one
+   case in `player.go`): a `radio` API request finds the radio of a track,
+   artist, album or playlist. First the radio playlist the Spotify apps
+   play, from `/inspiredby-mix/v2/seed_to_playlist/<uri>` (as librespot's
+   `get_radio_for_track`); without one, its own
+   `spotify:station:<type>:<id>` when context resolve gives it tracks,
+   otherwise the station `/context-resolve/v1/autoplay`
+   makes of the seed and a few of its tracks (what autoplay uses at the
+   end of a playlist; read from the seed when the client sends none),
+   and last the station of one of those songs (some albums have neither).
+   A seed with no radio is logged. The client plays the station as a context, so it
+   goes on without end. spotify_player asks `hm://autoplay-enabled` and
+   `radio-apollo` for a fixed list of tracks instead. A play request's
+   `first_uri` puts a song at the front of the context when it is not in
+   it (`daemon/api_gen.go`, a few lines in `player.go`), so a song's radio
+   starts with the song, as in the Spotify apps.
 9. Lyrics from Spotify (`spclient/lyrics.go`, `daemon/lyrics_spotui.go`
    (new), one case in `player.go`): a `lyrics` API request fetches
    `/color-lyrics/v2/track/<id>`, as librespot's `Lyrics::get` (used by

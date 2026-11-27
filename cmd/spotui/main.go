@@ -57,6 +57,7 @@ func run() error {
 		fmt.Fprintf(out, "  update       install the newest release (--pre: pre-releases too, --check: only look)\n")
 		fmt.Fprintf(out, "  now          print what the running spotui plays (--format, --json, --json=waybar)\n")
 		fmt.Fprintf(out, "  play [link]  resume, or play a spotify: URI or open.spotify.com link\n")
+		fmt.Fprintf(out, "  radio [link] radio of the playing song, or of a song, artist, album or playlist\n")
 		fmt.Fprintf(out, "  pause, toggle, next, prev, like, unlike\n")
 		fmt.Fprintf(out, "               steer the running spotui\n")
 		fmt.Fprintf(out, "  volume N     set the volume to N %%, or change it by +N / -N\n\nflags:\n")
