@@ -250,3 +250,15 @@ Radio (#57):
       a song's radio starts with the song
 - [x] A seed's station is remembered for an hour, so starting it again
       asks Spotify nothing
+
+Queue editing (#62):
+
+- [x] The queue page shows your queue ("In your queue") apart from what
+      the album or playlist plays next ("Next up"), as the Spotify apps do
+- [x] `x` takes an entry out of your queue, `U` puts it back where it was;
+      `J` / `K` move it; `X` clears your queue (asks first)
+- [x] `Q` on any track puts it at the front of the queue (`a` adds it at
+      the end); on the queue page it moves a queued entry to the front
+- [x] The player edits its own queue, as a set_queue from the Spotify app
+      does, so phones and other devices show the change at once; the Web
+      API can only append, so other clients cannot do this

@@ -284,3 +284,10 @@ func (e *Engine) PlayRadio(ctx context.Context, station, first string) error {
 	_, err := e.request(ctx, daemon.ApiRequestTypePlay, daemon.ApiPlay{Uri: station, FirstUri: first})
 	return err
 }
+
+// EditQueue changes the user's queue; see daemon.ApiQueueEdit for the
+// edits.
+func (e *Engine) EditQueue(ctx context.Context, edit daemon.ApiQueueEdit) error {
+	_, err := e.request(ctx, daemon.ApiRequestTypeQueueEdit, edit)
+	return err
+}

@@ -74,6 +74,13 @@ Local changes:
    and 5xx, an empty answer, or left out) is remembered for 30 min and reported with
    `unavailable: true`, counted as cached, so clients stop waiting for it
    (`track_meta_cache.go`, one field in `api_gen.go`).
+13. Queue editing (`daemon/queue_spotui.go` (new), one case in
+   `player.go`): a `queue_edit` API request takes an entry out of the
+   user's queue (by uid, or uri), moves it, puts a track in at an index
+   (0: it plays next) or clears the queue. It rebuilds the queue and hands
+   it to the track list's `SetQueue`, the path a `set_queue` from the
+   Spotify app takes, so Connect shows the change on every device. The
+   context's own next tracks are not the queue's and are left alone.
 12. Radio (`daemon/radio_spotui.go`, `spclient/radio_spotui.go` (new), one
    case in `player.go`): a `radio` API request finds the radio of a track,
    artist, album or playlist. First the radio playlist the Spotify apps

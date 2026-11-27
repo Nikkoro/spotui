@@ -20,7 +20,8 @@ Runs on Linux, WSL and Windows. Needs Spotify Premium.
   is left, the episode's notes and chapters where lyrics would be, mark as played,
   resume where you left off (on any device).
 - **Your library**: playlists, Liked Songs, albums, artists, recently played,
-  top tracks; search; queue; make, rename and delete playlists, add,
+  top tracks; search; a queue you can edit (take out, reorder, play next,
+  clear: other clients cannot); make, rename and delete playlists, add,
   remove and reorder their tracks.
 - **Now Playing layouts** for wide screens and small or zoomed-in terminals.
 - **Themes**, a command palette (`ctrl+k`), a settings page (`,`), mouse
@@ -121,7 +122,8 @@ The first search opens your browser once to approve it.
 | `m` | mark the episode as played / not played |
 | `↑` `↓`, `enter` | move in lists, open or play |
 | `/` | filter the list |
-| `a` / `P` | add to queue / to a playlist (or a new one) |
+| `a` / `Q` / `P` | add to the queue / to play next / to a playlist (or a new one) |
+| `x`, `U`, `J` / `K`, `X` | on Queue: take out of your queue, undo, move, clear it |
 | `S` | radio of the selected song, artist, album or playlist, or of the playing song |
 | `N` | new playlist (library or a playlist's page) |
 | `e` / `E` | rename your playlist / edit its description |
@@ -189,6 +191,7 @@ theme = "spotify"         # spotify | catppuccin | gruvbox | nord | rose-pine | 
 # filter help quit now_playing library search queue lyrics reload layout settings
 # copy_link new_playlist rename_playlist describe_playlist delete_playlist
 # remove_from_playlist undo_remove move_up move_down mark_played radio
+# play_next clear_queue
 
 [cover]
 enabled = true

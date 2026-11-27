@@ -212,6 +212,9 @@ func (m Model) viewFooter(w int) string {
 				keys = append(keys, [2]string{"m", "played"}, [2]string{"f", "save"})
 			}
 		}
+		if m.page == pageQueue {
+			keys = append(keys, [2]string{"x", "remove"}, [2]string{"J/K", "move"}, [2]string{"X", "clear"})
+		}
 		if m.page == pageLibrary && m.lib.tab == libPlaylists {
 			keys = append(keys, [2]string{"N", "new"}, [2]string{"e", "rename"}, [2]string{"X", "delete"})
 		}
