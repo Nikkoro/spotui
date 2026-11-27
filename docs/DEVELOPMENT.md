@@ -92,6 +92,10 @@ Tune against real tracks, from numbers rather than by eye:
   playback position: energy, bass, the tempo and how sure of it the tracker
   is, the three MilkDrop-style bands) and a "shader frames" line every 5 s
   on how evenly frames go out; `grep` them in `spotui.log`.
+- auto logs each change with its reason and the mood (`grep "shader auto"
+  spotui.log`); how each effect fits calm and intense music is in
+  `autoStyles` (`internal/ui/shaderauto.go`), and `wt_shader_auto` narrows
+  it to a few effects while you tune them.
 - `wt_shader_style = "debug"` draws bars timed by the shader and by spotui
   side by side, with the spectrum and the beat values under them.
 - chains (style 5) is the one heavy effect: each pixel marches only

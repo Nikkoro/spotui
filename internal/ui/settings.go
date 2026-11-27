@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -112,7 +113,7 @@ func (m Model) settings() []setting {
 	for i, p := range imagePixelPresets {
 		pixLabels[i] = itoa(p)
 	}
-	s := []setting{
+	s := slices.Concat([]setting{
 		// --- playback
 		{group: "Playback", label: "Device name", kind: setText, key: "device_name", restart: true,
 			help:  "How this terminal shows up in Spotify Connect.",
@@ -346,7 +347,7 @@ func (m Model) settings() []setting {
 			}},
 		{group: "Lyrics", label: "Shader effect", kind: setChoice, section: "lyrics", key: "wt_shader_style",
 			options: shaderChoices,
-			help:    "What the Windows Terminal shader draws behind the lyrics. auto moves between the effects with the music. Switches at once, no reload.",
+			help:    "What the Windows Terminal shader draws behind the lyrics. auto moves between the effects with the music; with auto chosen, the switches below pick which effects it uses. Switches at once, no reload.",
 			value: func(m Model) string {
 				if m.shaderIsAuto() {
 					return shaderAuto
@@ -354,6 +355,7 @@ func (m Model) settings() []setting {
 				return shaderStyles[m.shaderSetStyle()]
 			},
 			set: func(m *Model, v string) (any, tea.Cmd) { m.cfg.Lyrics.WTShaderStyle = v; return v, nil }},
+	}, autoSwitches(), []setting{
 		{group: "Lyrics", label: "Shader motion", kind: setBool, section: "lyrics", key: "wt_shader_motion",
 			help:  "The shader's view moves with the music, the way MilkDrop does: it zooms in with the bass, turns with the treble and ripples with the vocals and melody, each effect as suits it (the tunnel turns without zooming, the aurora only ripples).",
 			value: func(m Model) string { return boolStr(m.cfg.Lyrics.WTShaderMotion) },
@@ -482,7 +484,7 @@ func (m Model) settings() []setting {
 		{group: "Account", label: "Restart player", kind: setAction,
 			help: "Start the player again to apply the changes marked ↻.",
 			run:  func(m *Model) tea.Cmd { m.restart = true; return tea.Quit }},
-	}
+	})
 	out := s[:0]
 	for _, x := range s {
 		if x.hide == nil || !x.hide(m) {
@@ -798,6 +800,45 @@ func (m *Model) handleUpdateResult(msg tea.Msg) {
 		m.updateTag = ""
 		m.setFlash("Installed spotui "+msg.tag+" · quit and start spotui again to use it", false)
 	}
+}
+
+// autoSwitches are one switch per effect auto may use, shown while the
+// shader effect is auto. All on is written as an empty list, which means
+// all, so effects added later join in by themselves; the last one on
+// can't be turned off.
+func autoSwitches() []setting {
+	var out []setting
+	for _, name := range autoNames {
+		style := slices.Index(shaderStyles, name)
+		out = append(out, setting{group: "Lyrics", label: "  in auto: " + name, kind: setBool,
+			section: "lyrics", key: "wt_shader_auto",
+			help:  "Whether auto moves to " + name + ". Turn off the ones you don't like, or the heavy ones (chains) on a laptop. With one left, auto just shows it.",
+			hide:  func(m Model) bool { return !m.shaderIsAuto() },
+			value: func(m Model) string { return boolStr(autoAllows(autoChoice(m.cfg.Lyrics.WTShaderAuto), style)) },
+			set: func(m *Model, v string) (any, tea.Cmd) {
+				chosen := autoChoice(m.cfg.Lyrics.WTShaderAuto)
+				var names []string
+				for _, n := range autoNames {
+					on := autoAllows(chosen, slices.Index(shaderStyles, n))
+					if n == name {
+						on = v == "true"
+					}
+					if on {
+						names = append(names, n)
+					}
+				}
+				if len(names) == 0 {
+					m.setFlash("auto needs at least one effect", true)
+					return nil, nil
+				}
+				if len(names) == len(autoNames) {
+					names = []string{}
+				}
+				m.cfg.Lyrics.WTShaderAuto = names
+				return names, nil
+			}})
+	}
+	return out
 }
 
 // fxSwitch is one lyric effect's switch. Turning one while a preset is in

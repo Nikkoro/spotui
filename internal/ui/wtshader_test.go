@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/Nikkoro/spotui/internal/config"
 	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/shaders"
@@ -287,7 +288,7 @@ func TestShaderAutoPicksForTheMood(t *testing.T) {
 		got := map[int]int{}
 		for i := 0; i < 4000; i++ {
 			a.started, a.cur = true, 0 // the plasma showing
-			got[a.pick(mood)]++
+			got[a.pick(mood, nil)]++
 		}
 		return got
 	}
@@ -312,7 +313,7 @@ func TestShaderAutoChangesWithTheMusic(t *testing.T) {
 	dt := 1.0 / 30
 	run := func(seconds float64, drop bool, track string) {
 		for i := 0; i < int(seconds*30); i++ {
-			s.stepAuto(dt, false, drop && i == 0, track, nil)
+			s.stepAuto(dt, false, drop && i == 0, track, nil, nil)
 		}
 	}
 	run(1, false, "a")
@@ -349,9 +350,9 @@ func TestShaderAutoDropsGoWild(t *testing.T) {
 	for i := 0; i < 400; i++ {
 		var s shaderFx // a quiet build-up: no energy, no bass, no tempo
 		s.auto.rng = rand.New(rand.NewPCG(uint64(i), 9))
-		s.stepAuto(1.0/30, false, false, "a", nil)
-		s.stepAuto(10, false, false, "a", nil)
-		s.stepAuto(1.0/30, false, true, "a", nil)
+		s.stepAuto(1.0/30, false, false, "a", nil, nil)
+		s.stepAuto(10, false, false, "a", nil, nil)
+		s.stepAuto(1.0/30, false, true, "a", nil, nil)
 		if s.auto.cur == 3 {
 			calm++
 		}
@@ -442,5 +443,92 @@ func TestEasterEggColour(t *testing.T) {
 		if e.style != "" && !slices.Contains(shaderStyles, e.style) {
 			t.Fatalf("easter egg %q names no style: %q", e.title, e.style)
 		}
+	}
+}
+
+func TestShaderAutoOnlyTheChosen(t *testing.T) {
+	chosen := autoChoice([]string{"aurora", "rain", "nope"})
+	aurora, rain := slices.Index(shaderStyles, "aurora"), slices.Index(shaderStyles, "rain")
+	if !slices.Equal(chosen, []int{aurora, rain}) {
+		t.Fatalf("autoChoice = %v", chosen)
+	}
+	if bad := unknownAutoNames([]string{"aurora", "nope", "debug"}); !slices.Equal(bad, []string{"nope", "debug"}) {
+		t.Fatalf("unknown names = %v", bad)
+	}
+
+	var s shaderFx
+	s.auto.rng = rand.New(rand.NewPCG(5, 6))
+	seen := map[int]bool{}
+	for i := 0; i < 40; i++ {
+		s.stepAuto(1.0/30, false, false, string(rune('a'+i)), chosen, nil) // a new track every frame
+		seen[s.auto.cur] = true
+	}
+	if len(seen) != 2 || !seen[aurora] || !seen[rain] {
+		t.Fatalf("moved outside the chosen effects: %v", seen)
+	}
+
+	// The one showing taken out: auto moves away at once, with a fade.
+	s.stepAuto(1.0/30, false, false, "z", []int{rain}, nil)
+	if s.auto.cur != rain || s.auto.blend != 1 {
+		t.Fatalf("a single chosen effect should just show: cur %d blend %.2f", s.auto.cur, s.auto.blend)
+	}
+	s.stepAuto(1.0/30, false, false, "y", []int{aurora, slices.Index(shaderStyles, "plasma")}, nil)
+	if s.auto.cur == rain || s.auto.prev != rain || s.auto.blend >= 1 {
+		t.Fatalf("taken out of auto but still showing: cur %d prev %d", s.auto.cur, s.auto.prev)
+	}
+}
+
+func TestAutoSwitchesInSettings(t *testing.T) {
+	cfg, err := config.Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(nil, cfg, viz.NewTap())
+	find := func(name string) (setting, bool) {
+		for _, s := range m.settings() {
+			if strings.TrimSpace(s.label) == "in auto: "+name {
+				return s, true
+			}
+		}
+		return setting{}, false
+	}
+	if _, ok := find("rain"); ok {
+		t.Fatal("auto's switches show while the effect isn't auto")
+	}
+	m.cfg.Lyrics.WTShaderStyle = shaderAuto
+	flip := func(name, v string) {
+		s, ok := find(name)
+		if !ok {
+			t.Fatalf("no switch for %s", name)
+		}
+		_ = m.changeSetting(s, v)
+	}
+	reload := func() []string {
+		r, err := config.Load(cfg.ConfigDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r.Lyrics.WTShaderAuto
+	}
+
+	flip("chains", "false")
+	want := slices.DeleteFunc(slices.Clone(autoNames), func(n string) bool { return n == "chains" })
+	if got := reload(); !slices.Equal(got, want) {
+		t.Fatalf("saved %v, want %v", got, want)
+	}
+	for _, n := range autoNames {
+		if n != "rain" {
+			flip(n, "false")
+		}
+	}
+	flip("rain", "false") // the last one: refused
+	if got := reload(); !slices.Equal(got, []string{"rain"}) {
+		t.Fatalf("saved %v, want only rain", got)
+	}
+	for _, n := range autoNames {
+		flip(n, "true")
+	}
+	if got := reload(); len(got) != 0 {
+		t.Fatalf("all on should save an empty list (all), got %v", got)
 	}
 }

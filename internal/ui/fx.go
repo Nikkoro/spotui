@@ -210,7 +210,7 @@ func (m *Model) stepFx(samples []float32, dt float64) {
 	if shader {
 		f.shader.feed(samples, samples[len(samples)-n:], raw, b, t, f.beats.onGrid, dt)
 		if m.shaderIsAuto() && m.track != nil {
-			f.shader.stepAuto(dt, b.Hit, raw.Drop, m.track.Uri, m.eng)
+			f.shader.stepAuto(dt, b.Hit, raw.Drop, m.track.Uri, autoChoice(m.cfg.Lyrics.WTShaderAuto), m.eng)
 		}
 	}
 	if f.beats.onGrid {

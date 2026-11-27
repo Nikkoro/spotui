@@ -61,7 +61,13 @@ func setInText(text, section, key, val string) string {
 		}
 		if k, rest, ok := splitKey(t); ok && k == key {
 			indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
-			lines[i] = indent + key + " = " + val + trailingComment(rest)
+			comment := trailingComment(rest)
+			// An array written over several lines goes as a whole.
+			if end := arrayEnd(lines, i, rest); end > i {
+				lines = append(lines[:i+1], lines[end+1:]...)
+				comment = ""
+			}
+			lines[i] = indent + key + " = " + val + comment
 			return strings.Join(lines, "\n")
 		}
 		lastInSection = i
@@ -119,6 +125,45 @@ func splitKey(t string) (string, string, bool) {
 	return k, t[eq+1:], true
 }
 
+// arrayEnd is the line where an array value that starts on line i (rest
+// is what follows its =) is closed, or i if it closes there or is no array.
+func arrayEnd(lines []string, i int, rest string) int {
+	if !strings.HasPrefix(strings.TrimSpace(rest), "[") {
+		return i
+	}
+	depth := 0
+	inStr := false
+	var quote byte
+	for j := i; j < len(lines); j++ {
+		text := rest
+		if j > i {
+			text = lines[j]
+		}
+		for k := 0; k < len(text); k++ {
+			c := text[k]
+			switch {
+			case inStr && c == '\\' && quote == '"':
+				k++
+			case inStr && c == quote:
+				inStr = false
+			case inStr:
+			case c == '"' || c == '\'':
+				inStr, quote = true, c
+			case c == '#':
+				k = len(text) // a comment to the end of the line
+			case c == '[':
+				depth++
+			case c == ']':
+				depth--
+				if depth == 0 {
+					return j
+				}
+			}
+		}
+	}
+	return i // never closed: leave the rest alone
+}
+
 // trailingComment keeps a comment after the old value, if there was one.
 func trailingComment(rest string) string {
 	inStr := false
@@ -152,6 +197,12 @@ func tomlValue(v any) (string, error) {
 		return strconv.FormatInt(x, 10), nil
 	case uint32:
 		return strconv.FormatUint(uint64(x), 10), nil
+	case []string:
+		q := make([]string, len(x))
+		for i, e := range x {
+			q[i] = tomlString(e)
+		}
+		return "[" + strings.Join(q, ", ") + "]", nil
 	}
 	return "", fmt.Errorf("cannot write %T to config.toml", v)
 }
