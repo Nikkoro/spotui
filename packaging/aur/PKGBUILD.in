@@ -1,0 +1,21 @@
+# Maintainer: Nikodem Domaracki <nikodemdomaracki at gmail dot com>
+# Generated from packaging/aur/PKGBUILD.in by the release workflow.
+pkgname=spotui-bin
+pkgver=@PKGVER@
+pkgrel=1
+_tag=v@VERSION@
+pkgdesc="A Spotify client for the terminal that plays the music itself, with synced lyrics, a visualizer and Windows Terminal shader effects (needs Spotify Premium)"
+arch=('x86_64')
+url="https://github.com/Nikkoro/spotui"
+license=('GPL-3.0-only')
+depends=('alsa-lib' 'glibc')
+provides=('spotui')
+conflicts=('spotui')
+source_x86_64=("spotui-${_tag}-linux-amd64.tar.gz::https://github.com/Nikkoro/spotui/releases/download/${_tag}/spotui-linux-amd64.tar.gz")
+sha256sums_x86_64=('@SHA_LINUX@')
+
+package() {
+	install -Dm755 spotui "$pkgdir/usr/bin/spotui"
+	install -Dm644 README.md "$pkgdir/usr/share/doc/spotui/README.md"
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

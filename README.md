@@ -39,7 +39,19 @@ for Linux and WSL, `spotui-windows-amd64.zip` for Windows.
 goes through WSLg's audio bridge, which makes it quieter and late, and the
 shader runs less smoothly.
 
-**Windows** (PowerShell):
+**Windows with [Scoop](https://scoop.sh)** (updates with `scoop update spotui`):
+
+```powershell
+scoop bucket add spotui https://github.com/Nikkoro/spotui
+scoop install spotui
+spotui shader   # optional: the shader background, prints its path
+```
+
+In the Windows Terminal profile below, the command line is then
+`C:\\Users\\you\\scoop\\shims\\spotui.exe`. Installed this way, `spotui update`
+leaves updates to Scoop and says so.
+
+**Windows by hand** (PowerShell):
 
 ```powershell
 $version = "v0.2.0"   # the newest one on the releases page

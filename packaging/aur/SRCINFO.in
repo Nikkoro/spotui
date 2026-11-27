@@ -1,0 +1,15 @@
+pkgbase = spotui-bin
+	pkgdesc = A Spotify client for the terminal that plays the music itself, with synced lyrics, a visualizer and Windows Terminal shader effects (needs Spotify Premium)
+	pkgver = @PKGVER@
+	pkgrel = 1
+	url = https://github.com/Nikkoro/spotui
+	arch = x86_64
+	license = GPL-3.0-only
+	depends = alsa-lib
+	depends = glibc
+	provides = spotui
+	conflicts = spotui
+	source_x86_64 = spotui-v@VERSION@-linux-amd64.tar.gz::https://github.com/Nikkoro/spotui/releases/download/v@VERSION@/spotui-linux-amd64.tar.gz
+	sha256sums_x86_64 = @SHA_LINUX@
+
+pkgname = spotui-bin

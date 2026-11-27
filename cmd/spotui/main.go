@@ -335,6 +335,10 @@ func runUpdate(cfg *config.Config, args []string) error {
 	if err != nil {
 		return err
 	}
+	if manager, how, ok := update.Packaged(exe); ok {
+		fmt.Printf("spotui %s%s is out. This spotui was installed with %s, so update it there: %s\n", r.Tag, kind, manager, how)
+		return nil
+	}
 	fmt.Printf("Installing spotui %s%s over %s (%s)…\n", r.Tag, kind, version, exe)
 	if err := update.Install(ctx, nil, r, exe, version); err != nil {
 		if errors.Is(err, os.ErrPermission) {

@@ -41,5 +41,10 @@ func (m *Model) handleUpdateMsg(msg updateMsg) {
 	if msg.pre && !m.cfg.Update.Prerelease {
 		how += " --pre"
 	}
+	if exe, err := update.Executable(); err == nil {
+		if _, cmd, ok := update.Packaged(exe); ok {
+			how = cmd
+		}
+	}
 	m.setFlash("spotui "+msg.tag+" is out · run `"+how+"` to install it", false)
 }

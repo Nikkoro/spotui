@@ -114,6 +114,9 @@ Later:
 
 - [x] Now Playing sections: `tab` moves to the lyrics and to Up next
 - [x] Self-update: `spotui update`, with a pre-release channel
+- [x] Packages: a Scoop bucket in the repo, an AUR PKGBUILD and a Homebrew
+      formula, all filled in by the release workflow; a package-managed
+      install leaves updates to its package manager
 - [x] Settings page (`,`) that writes `config.toml` line by line
 - [x] Lyrics from Spotify first, LRCLIB behind it; click a lyric line to
       jump there, click Up next to play; the visualizer's delay matches

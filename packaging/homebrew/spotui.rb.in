@@ -1,0 +1,28 @@
+# Generated from packaging/homebrew/spotui.rb.in by the release workflow.
+class Spotui < Formula
+  desc "Spotify client for the terminal that plays the music itself"
+  homepage "https://github.com/Nikkoro/spotui"
+  version "@VERSION@"
+  license "GPL-3.0-only"
+
+  # Release binaries exist for Linux (x86_64) only so far.
+  on_linux do
+    on_intel do
+      url "https://github.com/Nikkoro/spotui/releases/download/v@VERSION@/spotui-linux-amd64.tar.gz"
+      sha256 "@SHA_LINUX@"
+    end
+    depends_on "alsa-lib"
+  end
+
+  def install
+    bin.install "spotui"
+  end
+
+  def caveats
+    "spotui needs Spotify Premium. Run `spotui` and sign in with the code it shows."
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/spotui --version")
+  end
+end

@@ -138,6 +138,34 @@ Publishing a release on GitHub (which creates its `v*` tag), or pushing a
 Windows binaries, attaches them with a `SHA256SUMS` file, and `spotui update`
 picks them up.
 
+## Packages
+
+After each release the `packages` job of `.github/workflows/release.yml`
+fills the templates in `packaging/` with the version and the hashes from
+`SHA256SUMS` (`packaging/render.sh <version> SHA256SUMS <out>`) and
+publishes them:
+
+- **Scoop**: `bucket/spotui.json` in this repo (`scoop bucket add spotui
+  https://github.com/Nikkoro/spotui`), committed to main by the job. Its
+  `checkver` reads the newest release, pre-releases included.
+- **Homebrew** (Linux only until there's a macOS build): the formula goes
+  to `Nikkoro/homebrew-spotui` (`Formula/spotui.rb`) when the secret
+  `HOMEBREW_TAP_TOKEN` is set: a fine-grained token with Contents
+  read/write on that repo. Users: `brew install Nikkoro/spotui/spotui`.
+- **AUR** (`spotui-bin`): pushed when the secret `AUR_SSH_KEY` holds the
+  private half of an SSH key added to an AUR account that owns the package.
+  The first upload is by hand: `git clone
+  ssh://aur@aur.archlinux.org/spotui-bin.git`, render the files, add
+  `PKGBUILD` and `.SRCINFO`, push.
+- **winget**: not automated yet; the first submission goes through
+  `wingetcreate new` with the release's zip (a portable `spotui.exe`
+  inside).
+
+Without a secret its step says "skipped" and the release still succeeds.
+`spotui update` notices a package-managed install (`update.Packaged`, by
+the binary's path) and points to the package manager instead of
+replacing the binary.
+
 ## Being polite to APIs
 
 Every outside API spotui talks to is rate limited on its side, so each
