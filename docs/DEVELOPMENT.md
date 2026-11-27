@@ -123,6 +123,25 @@ Tune against real tracks, from numbers rather than by eye:
   `SPOTUI_TEMPO_RECORDING=track.csv SPOTUI_TEMPO_EXPECT=148 go test -run OnRecording -v ./internal/viz`
   replays them through the tempo tracker as often as needed.
 
+## Looking into Spotify's lyrics responses
+
+Spotify's apps offer translations of the lyrics per track; spotui reads
+only the lines so far. To see what a `color-lyrics` response holds:
+
+```sh
+SPOTUI_LYRICS_DUMP=/tmp/lyrics SPOTUI_LYRICS_LANG=pl spotui --debug
+grep "color-lyrics" spotui.log
+```
+
+- With `--debug`, every response Spotify sends gets a log line on its
+  shape: the keys, the language, and each of `alternatives` with its
+  language and number of lines (never the text).
+- `SPOTUI_LYRICS_DUMP` writes each response whole to `<folder>/<track id>.json`.
+- `SPOTUI_LYRICS_LANG` sends `Accept-Language`; `SPOTUI_LYRICS_QUERY`
+  adds query parameters (`a=1&b=2`) to try what the apps might send.
+- Lyrics are cached on disk, so Spotify is only asked for tracks not seen
+  before: play a new track, or `spotui clear-cache` first.
+
 ## Vendored dependencies
 
 `third_party/go-librespot` (the embedded Spotify Connect player) and

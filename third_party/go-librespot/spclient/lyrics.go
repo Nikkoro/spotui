@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -38,6 +39,15 @@ type Lyrics struct {
 	Lines    []LyricsLine
 	Provider string // e.g. "Musixmatch"
 	Language string
+	// Raw is the response as it came, for finding out what else it holds
+	// (translations); not kept anywhere.
+	Raw []byte `json:"-"`
+}
+
+// LyricsOptions tune the request; the zero value asks as before.
+type LyricsOptions struct {
+	Language string     // sent as Accept-Language, when set
+	Query    url.Values // extra query parameters, for trying things out
 }
 
 type lyricsJSON struct {
@@ -53,12 +63,15 @@ type lyricsJSON struct {
 }
 
 // Lyrics fetches the lyrics of a track.
-func (c *Spclient) Lyrics(ctx context.Context, id librespot.SpotifyId) (*Lyrics, error) {
+func (c *Spclient) Lyrics(ctx context.Context, id librespot.SpotifyId, opt LyricsOptions) (*Lyrics, error) {
 	if id.Type() != librespot.SpotifyIdTypeTrack {
 		return nil, ErrNoLyrics
 	}
 	header := http.Header{"Accept": []string{"application/json"}}
-	resp, err := c.Request(ctx, "GET", "/color-lyrics/v2/track/"+id.Base62(), nil, header, nil)
+	if opt.Language != "" {
+		header.Set("Accept-Language", opt.Language)
+	}
+	resp, err := c.Request(ctx, "GET", "/color-lyrics/v2/track/"+id.Base62(), opt.Query, header, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +95,11 @@ func (c *Spclient) Lyrics(ctx context.Context, id librespot.SpotifyId) (*Lyrics,
 	if err != nil {
 		return nil, err
 	}
-	return parseLyrics(body)
+	l, err := parseLyrics(body)
+	if l != nil {
+		l.Raw = body
+	}
+	return l, err
 }
 
 func parseLyrics(body []byte) (*Lyrics, error) {

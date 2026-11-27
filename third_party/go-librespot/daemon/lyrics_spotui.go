@@ -8,13 +8,15 @@ import (
 	"time"
 
 	librespot "github.com/devgianlu/go-librespot"
+	"github.com/devgianlu/go-librespot/spclient"
 )
 
 const ApiRequestTypeLyrics ApiRequestType = "lyrics"
 
 // ApiLyrics asks for the lyrics of the track Uri.
 type ApiLyrics struct {
-	Uri string
+	Uri     string
+	Options spclient.LyricsOptions
 }
 
 const lyricsTimeout = 20 * time.Second
@@ -28,7 +30,7 @@ func (p *AppPlayer) handleLyricsRequest(req ApiRequest) (any, error) {
 	spc := p.sess.Spclient()
 	reply := apiReply(req)
 	p.goDetached(lyricsTimeout, func(ctx context.Context) {
-		l, err := spc.Lyrics(ctx, *id)
+		l, err := spc.Lyrics(ctx, *id, data.Options)
 		reply.done(l, err)
 	})
 	return nil, errReplyDeferred
