@@ -169,6 +169,9 @@ type LyricsConfig struct {
 	// WTShaderQuality is how much the heavy effects (chains) draw:
 	// "low", "medium" or "high". Low for a laptop without a dedicated GPU.
 	WTShaderQuality string `toml:"wt_shader_quality"`
+	// WTShaderAuto are the effects "auto" moves between, e.g.
+	// ["plasma", "aurora", "rain"]. Empty means all of them.
+	WTShaderAuto []string `toml:"wt_shader_auto"`
 }
 
 type NowPlayingConfig struct {

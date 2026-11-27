@@ -3,6 +3,7 @@ package ui
 import (
 	"math"
 	"math/rand/v2"
+	"slices"
 
 	"github.com/Nikkoro/spotui/internal/engine"
 )
@@ -65,15 +66,61 @@ func (s *shaderFx) mood() float64 {
 	return math.Max(0, math.Min(1, 0.55*s.energy+0.25*tempo+0.2*s.bass))
 }
 
-// pick chooses the next effect for the mood, never the one showing.
-func (a *shaderAutoState) pick(mood float64) int {
+// autoNames are the effects auto can use, by name, in autoStyles' order.
+var autoNames = func() []string {
+	n := make([]string, len(autoStyles))
+	for i, c := range autoStyles {
+		n[i] = shaderStyles[c.style]
+	}
+	return n
+}()
+
+// autoChoice are the effects auto moves between (wt_shader_auto), as
+// styles; nil means all of them. Names it doesn't know are left out (the
+// config warns about them at start).
+func autoChoice(names []string) []int {
+	var out []int
+	for _, c := range autoStyles {
+		if slices.Contains(names, shaderStyles[c.style]) {
+			out = append(out, c.style)
+		}
+	}
+	return out
+}
+
+// unknownAutoNames are the names in wt_shader_auto that are no effect
+// auto can use.
+func unknownAutoNames(names []string) []string {
+	var bad []string
+	for _, n := range names {
+		if !slices.Contains(autoNames, n) {
+			bad = append(bad, n)
+		}
+	}
+	return bad
+}
+
+// autoAllows reports whether style is among the chosen (nil: all).
+func autoAllows(chosen []int, style int) bool {
+	return len(chosen) == 0 || slices.Contains(chosen, style)
+}
+
+// pick chooses the next effect for the mood among the chosen ones (nil:
+// all), never the one showing while there is another.
+func (a *shaderAutoState) pick(mood float64, chosen []int) int {
 	if a.rng == nil {
 		a.rng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+	}
+	others := 0
+	for _, c := range autoStyles {
+		if autoAllows(chosen, c.style) && !(a.started && c.style == a.cur) {
+			others++
+		}
 	}
 	weights := make([]float64, len(autoStyles))
 	var total float64
 	for i, c := range autoStyles {
-		if a.started && c.style == a.cur {
+		if !autoAllows(chosen, c.style) || (others > 0 && a.started && c.style == a.cur) {
 			continue
 		}
 		weights[i] = autoChance + c.calm*(1-mood) + c.wild*mood
@@ -86,13 +133,18 @@ func (a *shaderAutoState) pick(mood float64) int {
 		}
 		r -= w
 	}
-	return autoStyles[len(autoStyles)-1].style
+	for i := len(autoStyles) - 1; i >= 0; i-- { // rounding: the last one that counts
+		if weights[i] > 0 {
+			return autoStyles[i].style
+		}
+	}
+	return autoStyles[0].style
 }
 
 // stepAuto moves auto on by dt seconds and changes the effect when the
 // music asks for it. beat and drop are this frame's; track is the one
-// playing.
-func (s *shaderFx) stepAuto(dt float64, beat, drop bool, track string, eng *engine.Engine) {
+// playing; chosen are the effects it may use (nil: all).
+func (s *shaderFx) stepAuto(dt float64, beat, drop bool, track string, chosen []int, eng *engine.Engine) {
 	a := &s.auto
 	a.since += dt
 	if a.fade > 0 {
@@ -108,10 +160,21 @@ func (s *shaderFx) stepAuto(dt float64, beat, drop bool, track string, eng *engi
 		a.lowEnergy += (s.energy - a.lowEnergy) * math.Min(1, dt/4)
 	}
 
+	// A single effect chosen: it just shows, no fades, no moving on.
+	if len(chosen) == 1 {
+		if !a.started || a.cur != chosen[0] || a.blend < 1 {
+			a.cur, a.prev, a.blend, a.fade = chosen[0], chosen[0], 1, 0
+		}
+		a.since, a.beats, a.track, a.started = 0, 0, track, true
+		return
+	}
+
 	why := ""
 	switch {
 	case !a.started:
 		why = "start"
+	case !autoAllows(chosen, a.cur):
+		why = "taken out of auto"
 	case track != a.track:
 		why = "new track"
 	case drop && a.since > autoDropGap:
@@ -132,7 +195,7 @@ func (s *shaderFx) stepAuto(dt float64, beat, drop bool, track string, eng *engi
 		// are the quiet build-up; the drop itself is anything but calm.
 		mood = math.Max(mood, autoDropMood)
 	}
-	next := a.pick(mood)
+	next := a.pick(mood, chosen)
 	from := "start"
 	if a.started {
 		from = shaderStyles[a.cur]

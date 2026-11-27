@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"slices"
 	"strings"
 	"time"
 
@@ -268,6 +269,10 @@ func New(eng *engine.Engine, cfg *config.Config, tap *viz.Tap) Model {
 	if !validShaderStyle(cfg.Lyrics.WTShaderStyle) {
 		m.warnings = append(m.warnings, "lyrics.wt_shader_style \""+cfg.Lyrics.WTShaderStyle+"\" is not one of "+strings.Join(shaderStyles, ", "))
 		cfg.Lyrics.WTShaderStyle = shaderStyles[0]
+	}
+	if bad := unknownAutoNames(cfg.Lyrics.WTShaderAuto); len(bad) > 0 {
+		m.warnings = append(m.warnings, "lyrics.wt_shader_auto: "+strings.Join(bad, ", ")+" not among "+strings.Join(autoNames, ", "))
+		cfg.Lyrics.WTShaderAuto = slices.DeleteFunc(slices.Clone(cfg.Lyrics.WTShaderAuto), func(n string) bool { return slices.Contains(bad, n) })
 	}
 	if !validShaderQuality(cfg.Lyrics.WTShaderQuality) {
 		m.warnings = append(m.warnings, "lyrics.wt_shader_quality \""+cfg.Lyrics.WTShaderQuality+"\" is not one of "+strings.Join(shaderQualities, ", "))

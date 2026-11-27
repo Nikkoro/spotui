@@ -93,7 +93,10 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   any faster cut-off turns into a dark rim on bright effects. Signature, cell and band counts and style numbers must match
   in both files (a test checks). A new effect: a function in the HLSL, a
   branch in `main`, a name in `shaderStyles`, the style list in the HLSL
-  header.
+  header, and a line in `autoStyles` (`shaderauto.go`: how well it fits
+  calm and intense music) so auto uses it; `wt_shader_auto` (a switch per
+  effect in Settings) lets people leave effects out of auto, and an empty
+  list means all, so a new effect joins in by itself.
 - `internal/viz`: audio tap, FFT analyzer, renderers, `beat.go` (beat and
   drop detection: a bass threshold, which misses kicks under a steady bass
   line), `tempo.go` (tempo tracking: onset envelope, autocorrelation, a

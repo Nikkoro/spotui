@@ -64,3 +64,27 @@ func TestDefaultsTurnOnChecksAndTouches(t *testing.T) {
 		t.Fatalf("defaults missing: %+v %+v", d.Update, d.UI)
 	}
 }
+
+func TestArraysOfStrings(t *testing.T) {
+	v, err := tomlValue([]string{"plasma", "rain"})
+	if err != nil || v != `["plasma", "rain"]` {
+		t.Fatalf("tomlValue = %q, %v", v, err)
+	}
+	if v, _ := tomlValue([]string{}); v != "[]" {
+		t.Fatalf("empty = %q", v)
+	}
+
+	// An array written over several lines is replaced as a whole, and the
+	// keys after it stay.
+	in := "[lyrics]\nwt_shader_auto = [\n  \"plasma\", # calm\n  \"tunnel\",\n]\nwt_shader = true\n"
+	got := setInText(in, "lyrics", "wt_shader_auto", `["rain"]`)
+	want := "[lyrics]\nwt_shader_auto = [\"rain\"]\nwt_shader = true\n"
+	if got != want {
+		t.Fatalf("multi-line array:\n%s\nwant\n%s", got, want)
+	}
+	// One line, with its comment kept.
+	in = "[lyrics]\nwt_shader_auto = [\"plasma\"] # mine\n"
+	if got := setInText(in, "lyrics", "wt_shader_auto", "[]"); got != "[lyrics]\nwt_shader_auto = []  # mine\n" {
+		t.Fatalf("one line: %q", got)
+	}
+}

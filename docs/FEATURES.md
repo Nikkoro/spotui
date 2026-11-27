@@ -163,6 +163,8 @@ Shader background in Windows Terminal:
       is left to find)
 - [x] Auto fades between effects as a dissolve, so each effect is compiled
       once: a tab with the shader opens in about a second
+- [x] Choose which effects auto moves between: a switch per effect in
+      Settings, or `wt_shader_auto`; with one left, auto just shows it
 - [x] `wt_shader_quality` (low, medium, high): how many chains and how far
       their rays march, so chains runs on a laptop without a GPU card
 - [x] auto: moves between them like MilkDrop presets in Winamp, at a drop,

@@ -219,6 +219,7 @@ wt_shader = false         # feed the beat to the Windows Terminal shader (spotui
 wt_shader_style = "plasma" # its effect: plasma | tunnel | warp | aurora | synthwave | chains | rain | auto
 wt_shader_motion = true   # its view zooms, turns and ripples with the music (MilkDrop-style)
 wt_shader_quality = "medium" # low | medium | high: how much chains draws (low for a laptop without a GPU card)
+wt_shader_auto = []       # the effects auto moves between, e.g. ["plasma", "aurora", "rain"]; empty = all
 
 [lyrics.fx]               # (an example) each effect on its own, used with effects = "custom";
 flash = true              # turning one in Settings switches to custom for you
@@ -383,7 +384,10 @@ several effects, switched in Settings (`,` → Shader effect) with no reload:
   Winamp, fading from one to the next at a drop, when a louder part comes
   in, on a new track or every 32 bars; calm parts lean to the aurora and
   the rain, loud
-  and fast ones to the tunnel, the warp, the synthwave and the chains
+  and fast ones to the tunnel, the warp, the synthwave and the chains.
+  Pick which effects it uses in Settings (with auto chosen, a switch per
+  effect appears under it) or with `wt_shader_auto`; with one left, auto
+  just shows it
 
 A few tracks bring a surprise of their own, whatever the effect; turn it
 off with `easter_eggs = false` under `[ui]` (Settings → Easter eggs).
@@ -456,7 +460,8 @@ reload it.
   the shader on every pixel, and chains is raymarched 3D. Set
   `wt_shader_quality = "low"` (Settings → Shader quality), which draws
   fewer chains with shorter rays; on a machine with two GPUs also check the
-  High performance setting above. `wt_shader_style = "debug"` and
+  High performance setting above. Under auto you can also leave chains
+  out (Settings → in auto: chains). `wt_shader_style = "debug"` and
   `grep "shader frames" spotui.log` show whether frames are dropped.
 - **`spotui next` says spotui is not running** although it is: is
   `[control] enabled` on, and was spotui started after it was turned on?
