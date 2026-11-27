@@ -186,6 +186,9 @@ var helpSections = []struct {
 		{"f", "save the episode to Your Episodes"},
 		{"A", "go to the show of the playing episode"},
 	}},
+	{"Stats", [][2]string{
+		{"2 → Stats", "what you listened to: totals, streak, top tracks and artists"},
+	}},
 	{"Look", [][2]string{
 		{"[ ]", "cover pixel size"},
 		{"c", "cover: real image / pixel blocks"},

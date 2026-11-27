@@ -23,6 +23,7 @@ import (
 
 	"github.com/Nikkoro/spotui/internal/config"
 	"github.com/Nikkoro/spotui/internal/engine"
+	"github.com/Nikkoro/spotui/internal/history"
 	"github.com/Nikkoro/spotui/internal/mediakeys"
 	"github.com/Nikkoro/spotui/internal/remote"
 	"github.com/Nikkoro/spotui/internal/termimg"
@@ -207,6 +208,10 @@ func run() error {
 	// from a small file. Both outlive player restarts.
 	var prog atomic.Pointer[tea.Program]
 	var publisher *remote.Publisher
+	// What plays is recorded for Library → Stats (when [stats] history is
+	// on); the track playing at quit is written on the way out.
+	recorder := history.NewRecorder(cfg.ConfigDir, func(err error) { logger.Warnf("history: %v", err) })
+	defer func() { recorder.Close(time.Now()) }()
 	if cfg.Control.Enabled {
 		stop, err := remote.Listen(socketPath(cfg), remoteHandler(&prog), logger.Warnf)
 		switch {
@@ -217,6 +222,7 @@ func run() error {
 		case errors.Is(err, remote.ErrRunning):
 			// The other one keeps the state file; this one stays out of it.
 			logger.Warn("control socket: another spotui is running and keeps it")
+			recorder = nil // that one records the plays; two would count them twice
 			warnings = append(warnings, "another spotui is running; `spotui next` and `spotui now` talk to that one")
 		default:
 			logger.WithError(err).Warn("control socket unavailable")
@@ -227,7 +233,7 @@ func run() error {
 	// with the interface coming back where it was.
 	for attempt := 0; ; attempt++ {
 		started := time.Now()
-		restart, err := runSession(cfg, logger, tap, &current, &prog, publisher, attempt, warnings, imgOut, caps)
+		restart, err := runSession(cfg, logger, tap, &current, &prog, publisher, recorder, attempt, warnings, imgOut, caps)
 		warnings = nil // shown once
 		if err != nil || !restart {
 			return err
@@ -242,7 +248,7 @@ func run() error {
 // runSession runs one player and interface until the user quits (false) or
 // the interface asks for a restart (true).
 func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current *atomic.Pointer[engine.Engine],
-	prog *atomic.Pointer[tea.Program], publisher *remote.Publisher, attempt int, warnings []string, imgOut *termimg.Writer, caps termimg.Caps) (bool, error) {
+	prog *atomic.Pointer[tea.Program], publisher *remote.Publisher, recorder *history.Recorder, attempt int, warnings []string, imgOut *termimg.Writer, caps termimg.Caps) (bool, error) {
 	eng, err := engine.New(cfg, engine.NewLogger(logger))
 	if err != nil {
 		return false, err
@@ -265,7 +271,7 @@ func runSession(cfg *config.Config, logger *logrus.Logger, tap *viz.Tap, current
 		// after each frame that needs it.
 		opts = append(opts, tea.WithOutput(imgOut))
 	}
-	model := ui.New(eng, cfg, tap).WithRestartAttempt(attempt).WithWarnings(warnings).WithImages(imgOut, caps).WithRemote(publisher)
+	model := ui.New(eng, cfg, tap).WithRestartAttempt(attempt).WithWarnings(warnings).WithImages(imgOut, caps).WithRemote(publisher).WithHistory(recorder)
 	p := tea.NewProgram(model, opts...)
 	prog.Store(p)
 	final, uiErr := p.Run()

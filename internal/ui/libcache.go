@@ -23,8 +23,8 @@ type cachedItem struct {
 }
 
 func (m Model) libCachePath(tab int) string {
-	if m.cfg == nil || m.cfg.CacheDir == "" || m.username == "" {
-		return ""
+	if m.cfg == nil || m.cfg.CacheDir == "" || m.username == "" || tab == libStats {
+		return "" // Stats are read from the local history, never cached
 	}
 	// Per account, so switching accounts never shows someone else's library.
 	// By the tab's name, so adding a tab never shows another tab's list.

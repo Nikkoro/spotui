@@ -23,6 +23,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/config"
 	"github.com/Nikkoro/spotui/internal/cover"
 	"github.com/Nikkoro/spotui/internal/engine"
+	"github.com/Nikkoro/spotui/internal/history"
 	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/viz"
 	"github.com/Nikkoro/spotui/internal/webapi"
@@ -118,6 +119,23 @@ func TestPreview(t *testing.T) {
 	m.lib.loaded[0] = true
 	m.lib.lists[0].move(2)
 	write(t, "2-library", m)
+
+	st := history.Stats{
+		Today: history.Totals{Ms: 47 * 60_000, Plays: 14, Tracks: 12}, Week: history.Totals{Ms: 9*3600_000 + 12*60_000, Plays: 151, Tracks: 88},
+		Month: history.Totals{Ms: 31*3600_000 + 40*60_000, Plays: 512, Tracks: 240}, All: history.Totals{Ms: 64 * 3600_000, Plays: 1033, Tracks: 402},
+		Streak: 12, PeakHour: 22,
+		TopArtists: []history.Count{{Title: "The Invented", Ms: 4 * 3600_000}, {Title: "Neon Harbour", Ms: 3 * 3600_000}, {Title: "Paper Kites Club", Ms: 2 * 3600_000}},
+	}
+	m.lib.stats = &st
+	var top []listItem
+	for i, n := range []string{"Paper Lanterns", "Neon Hum", "Quiet Street", "Glass Rain", "Night Shift"} {
+		top = append(top, listItem{kind: kindTrack, title: n, subtitle: "The Invented · Night Shift", right: itoa(24-3*i) + "× · " + itoa(80-9*i) + "m", uri: "spotify:track:s" + itoa(i)})
+	}
+	m.lib.lists[libStats].setItems(top)
+	m.lib.loaded[libStats] = true
+	m.lib.tab = libStats
+	write(t, "2b-stats", m)
+	m.lib.tab = 0
 
 	m.page = pageContext
 	cp := &contextPage{uri: "spotify:album:x", title: "Hurry Up, We're Dreaming", kind: "Album", length: 22, cached: 22, ready: true}

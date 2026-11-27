@@ -14,6 +14,7 @@ import (
 
 	"github.com/Nikkoro/spotui/internal/cover"
 	"github.com/Nikkoro/spotui/internal/engine"
+	"github.com/Nikkoro/spotui/internal/history"
 	"github.com/Nikkoro/spotui/internal/platform"
 	"github.com/Nikkoro/spotui/internal/webapi"
 )
@@ -42,10 +43,11 @@ const (
 	libRecent
 	libTopTracks
 	libTopArtists
+	libStats
 	libTabCount
 )
 
-var libTabs = []string{"Playlists", "Albums", "Artists", "Podcasts", "Recent", "Top tracks", "Top artists"}
+var libTabs = []string{"Playlists", "Albums", "Artists", "Podcasts", "Recent", "Top tracks", "Top artists", "Stats"}
 
 type libraryPage struct {
 	tab     int
@@ -53,6 +55,8 @@ type libraryPage struct {
 	loaded  [libTabCount]bool
 	loading [libTabCount]bool
 	err     [libTabCount]error
+	// stats is the Stats tab's summary, read from the local history.
+	stats *history.Stats
 }
 
 func newLibraryPage() libraryPage { return libraryPage{} }
@@ -183,6 +187,7 @@ type libLoadedMsg struct {
 	tab   int
 	items []listItem
 	err   error
+	stats *history.Stats // the Stats tab's
 }
 
 type searchMsg struct {
@@ -216,6 +221,9 @@ type webAuthDoneMsg struct{ err error }
 
 func (m Model) loadLibrary(tab int) tea.Cmd {
 	eng, username, api := m.eng, m.username, m.api
+	if tab == libStats {
+		return m.loadStats()
+	}
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
@@ -521,6 +529,9 @@ func (m *Model) switchPage(p page) tea.Cmd {
 
 func (m *Model) ensureLibrary() tea.Cmd {
 	t := m.lib.tab
+	if t == libStats && !m.lib.loading[t] {
+		m.lib.loaded[t] = false // read afresh on every visit: it grows as you listen
+	}
 	if m.lib.loaded[t] || m.lib.loading[t] {
 		return nil
 	}
@@ -555,6 +566,9 @@ func (m Model) updatePages(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.lib.err[msg.tab] = webErr(msg.err)
+		if msg.tab == libStats && msg.err == nil {
+			m.lib.stats = msg.stats
+		}
 		if msg.err == nil {
 			m.lib.loaded[msg.tab] = true
 			m.lib.lists[msg.tab].setItems(msg.items)

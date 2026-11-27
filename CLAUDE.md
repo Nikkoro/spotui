@@ -43,6 +43,8 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   a show's page with episode progress, episode notes on the lyrics page,
   `m` mark played), `queue.go` (x/U/J/K/X on
   the queue page, Q play next; the player edits its own queue),
+  `stats.go` (Library → Stats, read from `internal/history`; the
+  recorder is fed in `Update` next to `publishState`),
   `radio.go` (S: a seed's
   radio playlist or station, cached an hour, played as a context), `playlists.go` (create,
   rename, delete playlists, remove and move tracks with undo; the footer
@@ -116,6 +118,9 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
   when the state changed, plus a heartbeat; a file older than 35 s counts
   as stale) and the `[hooks]` runner. `cmd/spotui/remote.go` holds the
   subcommands.
+- `internal/history`: the local listening history (a JSONL file per
+  account next to config.toml) and its summary for the Stats tab; tests
+  use invented titles.
 - `internal/termimg`: Sixel/kitty encoding and the writer that places
   images; image cells are skipped with cursor moves so text beside them
   never erases them.

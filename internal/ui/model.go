@@ -16,6 +16,7 @@ import (
 	"github.com/Nikkoro/spotui/internal/config"
 	"github.com/Nikkoro/spotui/internal/cover"
 	"github.com/Nikkoro/spotui/internal/engine"
+	"github.com/Nikkoro/spotui/internal/history"
 	"github.com/Nikkoro/spotui/internal/lyrics"
 	"github.com/Nikkoro/spotui/internal/notify"
 	"github.com/Nikkoro/spotui/internal/platform"
@@ -170,6 +171,8 @@ type Model struct {
 	notifyOff bool
 
 	remote *remote.Publisher // the state file of `spotui now`; nil when off
+	// history records plays for Library → Stats; nil: none.
+	history *history.Recorder
 
 	// lyrics
 	lyr           *lyrics.Client
@@ -418,6 +421,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if nm, ok := next.(Model); ok {
 		nm.publishState()
+		nm.recordHistory()
 	}
 	return next, cmd
 }

@@ -96,6 +96,8 @@ type Config struct {
 
 	// Playlists controls making and editing playlists.
 	Playlists PlaylistsConfig `toml:"playlists"`
+	// Stats controls the local listening history behind the Stats tab.
+	Stats StatsConfig `toml:"stats"`
 
 	// Dirs are resolved at load time and never written to the file.
 	ConfigDir string `toml:"-"`
@@ -215,6 +217,13 @@ type ControlConfig struct {
 }
 
 // PlaylistsConfig is [playlists].
+// StatsConfig controls the listening history.
+type StatsConfig struct {
+	// History keeps a record of what you play (in a file next to
+	// config.toml, never sent anywhere) for Library → Stats.
+	History bool `toml:"history"`
+}
+
 type PlaylistsConfig struct {
 	// PublicByDefault shows new playlists on your profile.
 	PublicByDefault bool `toml:"public_by_default"`
@@ -288,6 +297,7 @@ func Default() Config {
 		MediaControls:          true,
 		Control:                ControlConfig{Enabled: true},
 		Playlists:              PlaylistsConfig{UndoSeconds: 10},
+		Stats:                  StatsConfig{History: true},
 	}
 }
 

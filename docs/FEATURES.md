@@ -263,3 +263,16 @@ Queue editing (#62):
 - [x] The player edits its own queue, as a set_queue from the Spotify app
       does, so phones and other devices show the change at once; the Web
       API can only append, so other clients cannot do this
+
+Listening stats (#73):
+
+- [x] A local history of what plays (`internal/history`): one JSON line per
+      play in `history-<account>.jsonl` next to config.toml; a play counts
+      after 30 s (half of a shorter track), pauses left out; fed after every
+      update from the same state `spotui now` reads; one spotui records
+      (a second one, which doesn't own the control socket, doesn't)
+- [x] Library → Stats: today, 7 days, 30 days and all time (time listened,
+      plays, tracks), streak, the busiest hour, top artists, the most played
+      tracks of 30 days (playable)
+- [x] `[stats] history` (Settings → Listening history) turns recording off
+- [x] Library tabs sit closer together when they would not fit the window

@@ -28,6 +28,14 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
 python3 scripts/ans2png.py /tmp/frames/1-now-playing.ans /tmp/np.png 120 36
 ```
 
+## Listening history
+
+`internal/history` records a play when the track changes (or at quit) if
+it played long enough; the file is plain JSONL, so a few hand-written lines
+in `history-<account>.jsonl` (fields `at`, `ms`, `uri`, `title`,
+`artists`, `album`, `dur`) are enough to try the Stats tab. The preview
+renders it as `2b-stats`.
+
 ## Remote control and `spotui now`
 
 `internal/remote` holds the three pieces; `cmd/spotui/remote.go` wires
