@@ -119,7 +119,10 @@ PREVIEW_DIR=/tmp/frames go test -tags preview -run Preview ./internal/ui
 - `internal/termimg`: Sixel/kitty encoding and the writer that places
   images; image cells are skipped with cursor moves so text beside them
   never erases them.
-- `internal/lyrics`: Spotify first, LRCLIB behind it, disk cache.
+- `internal/lyrics`: Spotify first, LRCLIB behind it, disk cache. The
+  Spotify side is wired in `internal/ui/lyrics_source.go`, with a probe
+  (`SPOTUI_LYRICS_*`, see docs/DEVELOPMENT.md) for the shape of
+  `color-lyrics` responses, translations included.
 - `internal/webapi`: Spotify Web API with PKCE, cache and 429 back-off;
   `podcasts.go` reads saved shows, a show's episodes and an episode.
 - `internal/update`: GitHub releases, self-update.

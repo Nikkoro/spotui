@@ -194,8 +194,8 @@ func (e *Engine) SkipTo(ctx context.Context, uri string) error {
 }
 
 // Lyrics returns a track's lyrics from Spotify.
-func (e *Engine) Lyrics(ctx context.Context, uri string) (*spclient.Lyrics, error) {
-	return decode[spclient.Lyrics](e.request(ctx, daemon.ApiRequestTypeLyrics, daemon.ApiLyrics{Uri: uri}))
+func (e *Engine) Lyrics(ctx context.Context, uri string, opt spclient.LyricsOptions) (*spclient.Lyrics, error) {
+	return decode[spclient.Lyrics](e.request(ctx, daemon.ApiRequestTypeLyrics, daemon.ApiLyrics{Uri: uri, Options: opt}))
 }
 
 // CreatePlaylist makes a playlist, puts it at the top of the library and

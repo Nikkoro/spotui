@@ -101,7 +101,10 @@ Local changes:
    (new), one case in `player.go`): a `lyrics` API request fetches
    `/color-lyrics/v2/track/<id>`, as librespot's `Lyrics::get` (used by
    spotify_player and cloofy), off the player loop. 404 means none; 429 is
-   reported with its Retry-After and not retried.
+   reported with its Retry-After and not retried. `LyricsOptions` can add
+   an Accept-Language header and query parameters, and the raw response
+   comes back in `Lyrics.Raw` (not serialised), for finding out how
+   translations arrive (issue #63).
 8. Release dates (`daemon/api_server.go`): `releaseDate` returned the
    protobuf's text form (`year:2011 month:10 day:18`) instead of
    `2011-10-18`, so "year" showed after every album name.
