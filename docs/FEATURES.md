@@ -253,8 +253,9 @@ Radio (#57):
 
 Queue editing (#62):
 
-- [x] The queue page shows your queue ("In your queue") apart from what
-      the album or playlist plays next ("Next up"), as the Spotify apps do
+- [x] The queue page and Now Playing's Up next show your queue ("In your
+      queue") apart from what the album or playlist plays next ("Next
+      up"), as the Spotify apps do
 - [x] `x` takes an entry out of your queue, `U` puts it back where it was;
       `J` / `K` move it; `X` clears your queue (asks first)
 - [x] `Q` on any track puts it at the front of the queue (`a` adds it at

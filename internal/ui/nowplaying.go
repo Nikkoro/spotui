@@ -261,32 +261,45 @@ func (m Model) npSidePanel(w, h int) string {
 	title := func(s string) string { return m.theme.dim.Bold(true).Render(s) }
 	var lines []string
 	focused := m.npFocused(npFocusNext)
-	if focused {
-		lines = append(lines, m.theme.accentTxt.Bold(true).Render("▌UP NEXT")+m.theme.dim.Render("  enter play · esc"), "")
-	} else {
-		lines = append(lines, title("UP NEXT"), "")
-	}
 	next := m.upNext()
+	// Your queue plays first and gets its own heading, as on the queue page.
+	queued := 0
+	for queued < len(next) && next[queued].queued {
+		queued++
+	}
 	room := max((h-9)/2, 1)
+	if queued > 0 && queued < len(next) {
+		room = max(room-1, 1) // the second heading
+	}
+	start := 0
+	if focused {
+		start = clamp(m.npNextCursor-room+1, 0, max(len(next)-room, 0))
+	}
+	head := "UP NEXT"
+	if start < queued {
+		head = "IN YOUR QUEUE"
+	}
+	if focused {
+		lines = append(lines, m.theme.accentTxt.Bold(true).Render("▌"+head)+m.theme.dim.Render("  enter play · esc"), "")
+	} else {
+		lines = append(lines, title(head), "")
+	}
 	switch {
 	case len(next) == 0 && m.queue.loading:
 		lines = append(lines, m.theme.dim.Render("…"))
 	case len(next) == 0:
 		lines = append(lines, m.theme.dim.Render("Nothing queued"))
 	}
-	start := 0
-	if focused {
-		start = clamp(m.npNextCursor-room+1, 0, max(len(next)-room, 0))
-	}
-	if m.hits != nil {
-		m.hits.nextTop, m.hits.nextFirst = m.hits.bodyTop+2, start
-		m.hits.nextCount = max(min(room, len(next)-start), 0)
-	}
+	var rows []int // the entry each row shows, for clicks
 	for i := start; i < len(next); i++ {
 		it := next[i]
 		if i-start >= room {
 			lines = append(lines, m.theme.dim.Render(itoa(len(next)-i)+" more · 4 queue"))
 			break
+		}
+		if i == queued && i > start {
+			lines = append(lines, "", title("UP NEXT"))
+			rows = append(rows, -1, -1)
 		}
 		name := m.theme.text.Render(it.title)
 		if focused && i == m.npNextCursor {
@@ -295,6 +308,10 @@ func (m Model) npSidePanel(w, h int) string {
 		lines = append(lines,
 			ansi.Truncate(name, w, "…"),
 			ansi.Truncate(m.theme.dim.Render(it.subtitle), w, "…"))
+		rows = append(rows, i, i)
+	}
+	if m.hits != nil {
+		m.hits.nextTop, m.hits.nextRows = m.hits.bodyTop+2, rows
 	}
 
 	lines = append(lines, "", title("DEVICE"),

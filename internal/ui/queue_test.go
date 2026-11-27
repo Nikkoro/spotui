@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 func queueModel(t *testing.T) Model {
@@ -107,5 +109,24 @@ func TestUpNextIncludesYourQueue(t *testing.T) {
 	}
 	if got := strings.Join(titles, " "); got != "Q1 Q2 N1" {
 		t.Fatalf("up next: %q", got)
+	}
+}
+
+func TestUpNextPanelHeadings(t *testing.T) {
+	m := queueModel(t)
+	out := ansi.Strip(m.npSidePanel(40, 30))
+	iq, un := strings.Index(out, "IN YOUR QUEUE"), strings.Index(out, "UP NEXT")
+	if iq < 0 || un < iq || un > strings.Index(out, "N1") || un < strings.Index(out, "Q2") {
+		t.Fatalf("headings out of place:\n%s", out)
+	}
+	want := []int{0, 0, 1, 1, -1, -1, 2, 2}
+	if got := m.hits.nextRows; len(got) != len(want) {
+		t.Fatalf("click rows %v, want %v", got, want)
+	} else {
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("click rows %v, want %v", got, want)
+			}
+		}
 	}
 }
