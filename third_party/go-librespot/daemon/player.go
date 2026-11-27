@@ -1064,6 +1064,9 @@ func (p *AppPlayer) handleApiRequest(req ApiRequest) (any, error) {
 		ApiRequestTypePlaylistMove, ApiRequestTypePlaylistInsert:
 		// spotui patch, see third_party/PATCHES.md
 		return p.handlePlaylistRequest(req)
+	case ApiRequestTypeQueueEdit:
+		// spotui patch, see third_party/PATCHES.md
+		return p.handleQueueEdit(req)
 	case ApiRequestTypeRadio:
 		// spotui patch, see third_party/PATCHES.md
 		return p.handleRadioRequest(req)

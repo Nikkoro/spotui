@@ -161,11 +161,16 @@ var helpSections = []struct {
 		{"↑ ↓  j k", "move · g G top/bottom · ctrl+u/d page"},
 		{"enter", "open / play"},
 		{"ctrl+p", "play the whole playlist / album"},
-		{"a", "add track to queue"},
+		{"a  Q", "add track to the queue · to play next"},
 		{"/", "filter (search: edit query)"},
 		{"tab", "next section"},
 		{"esc", "back / clear filter"},
 		{"R", "reload"},
+	}},
+	{"Queue", [][2]string{
+		{"x  U", "take the entry out of your queue · bring it back"},
+		{"J K", "move it down / up in your queue"},
+		{"X", "clear your queue"},
 	}},
 	{"Playlists", [][2]string{
 		{"N", "new playlist (library or a playlist)"},

@@ -35,6 +35,8 @@ type listItem struct {
 	owned    bool   // a playlist the user owns: rename, describe, delete
 	desc     string // a playlist's, show's or episode's description
 	durMs    int64  // an episode's length, for how much is left
+	uid      string // a queue entry's uid, which tells two copies apart
+	queued   bool   // in the user's queue (not the context's next tracks)
 }
 
 // listModel is a scrollable, filterable list with a cursor.

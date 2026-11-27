@@ -32,8 +32,10 @@ type hitMap struct {
 	lyrTop, lyrX0, lyrX1 int
 	lyrIdx               []int
 
-	// Up next on Now Playing: two rows per entry from nextTop.
-	nextTop, nextX0, nextX1, nextFirst, nextCount int
+	// Up next on Now Playing: from nextTop, the entry each row shows (-1
+	// for a heading).
+	nextTop, nextX0, nextX1 int
+	nextRows                []int
 }
 
 const doubleClick = 400 * time.Millisecond
@@ -171,10 +173,10 @@ func (m *Model) clickLyricsOrNext(x, y int) (tea.Cmd, bool) {
 		eng := m.eng
 		return call("Seek", func(ctx context.Context) error { return eng.Seek(ctx, pos, false) }), true
 	}
-	if r := y - h.nextTop; h.nextCount > 0 && r >= 0 && r < 2*h.nextCount && x >= h.nextX0 && x < h.nextX1 {
+	if r := y - h.nextTop; r >= 0 && r < len(h.nextRows) && x >= h.nextX0 && x < h.nextX1 {
 		next := m.upNext()
-		i := h.nextFirst + r/2
-		if i >= len(next) {
+		i := h.nextRows[r]
+		if i < 0 || i >= len(next) {
 			return nil, false
 		}
 		it := next[i]

@@ -158,8 +158,9 @@ type Model struct {
 	episodeNotes map[string]string              // episode descriptions, by URI
 	radios       map[string]radioEntry          // stations found, by seed
 
-	asking askState    // a question in the footer (playlist names, yes / no)
-	undo   *undoRemove // the last track taken out of a playlist
+	asking    askState    // a question in the footer (playlist names, yes / no)
+	undo      *undoRemove // the last track taken out of a playlist
+	queueUndo *queueUndo  // the last entry taken out of the queue
 
 	// Web API authorization in progress, and the library tab waiting for it
 	webAuthURL    string

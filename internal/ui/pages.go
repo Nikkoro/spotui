@@ -369,14 +369,28 @@ func (m Model) loadQueue() tea.Cmd {
 			items = append(items, listItem{kind: kindHeader, title: "Now playing"})
 			items = append(items, queueItem(*q.Track))
 		}
-		if len(q.NextTracks) > 0 {
+		// The user's queue first, then what the context plays next, as the
+		// Spotify apps show them.
+		var queued, next []listItem
+		for _, e := range q.NextTracks {
+			if it := queueItem(e); it.queued {
+				queued = append(queued, it)
+			} else {
+				next = append(next, it)
+			}
+		}
+		for _, sec := range []struct {
+			title string
+			items []listItem
+		}{{"In your queue", queued}, {"Next up", next}} {
+			if len(sec.items) == 0 {
+				continue
+			}
 			if len(items) > 0 {
 				items = append(items, listItem{kind: kindHeader})
 			}
-			items = append(items, listItem{kind: kindHeader, title: "Next up"})
-			for _, e := range q.NextTracks {
-				items = append(items, queueItem(e))
-			}
+			items = append(items, listItem{kind: kindHeader, title: sec.title})
+			items = append(items, sec.items...)
 		}
 		if len(q.PrevTracks) > 0 {
 			if len(items) > 0 {
@@ -396,8 +410,9 @@ func queueItem(e daemon.ApiQueueEntry) listItem {
 	if e.Track != nil {
 		it = trackItem(*e.Track, "")
 	}
-	if e.Provider == "queue" {
-		it.right = "queued  " + it.right
+	it.queued = e.Provider == "queue"
+	if e.Uid != nil {
+		it.uid = *e.Uid
 	}
 	return it
 }
@@ -801,6 +816,9 @@ func (m Model) handlePageKey(key string) (bool, tea.Model, tea.Cmd) {
 	if handled, next, cmd := m.handlePlaylistKey(key); handled {
 		return true, next, cmd
 	}
+	if handled, next, cmd := m.handleQueueKey(key); handled {
+		return true, next, cmd
+	}
 
 	if m.webAuthURL != "" && key == "o" {
 		_ = platform.OpenURL(m.webAuthURL)
@@ -880,6 +898,8 @@ func (m Model) handlePageKey(key string) (bool, tea.Model, tea.Cmd) {
 			return true, m, m.playWhole(cp.uri, cp.title, false)
 		}
 		return false, m, nil
+	case "Q":
+		return true, m, m.playNext()
 	case "a":
 		it := list.selected()
 		if it == nil || it.kind != kindTrack {
